@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="log_level">
+        <item>Detalhado</item><item>Depuração</item><item>Informações</item><item>Avisos</item><item>Erros</item><item>Desativado</item>
+    </string-array>
+    <string-array name="layout_type">
+        <item>Lista</item><item>Grade</item><item>Grade compacta</item>
+    </string-array>
+    <string-array name="app_theme">
+        <item>Claro</item><item>Escuro</item><item>Seguir o sistema</item>
+    </string-array>
+    <string-array name="system_region">
+        <item>Automática</item><item>Japão</item><item>Américas</item><item>Europa</item>
+        <item>Austrália / Nova Zelândia</item><item>Hong Kong / Taiwan / Coreia do Sul</item><item>China</item>
+    </string-array>
+    <string-array name="aspect_ratios">
+        <item>16:9 (Switch, recomendado)</item>
+        <item>21:9 (mods ultrawide)</item>
+        <item>Proporção do aparelho (esticar para preencher)</item>
+    </string-array>
+    <string-array name="orientation_entries">
+        <item>Automática</item><item>Paisagem</item><item>Paisagem invertida</item>
+    </string-array>
+    <string-array name="synolsis_gpu_preset_entries">
+        <item>Conservador (6 GB de RAM)</item><item>Equilibrado</item>
+        <item>Experimental (maior consumo)</item><item>Hack de FPS (Adreno/Turnip; experimental)</item>
+    </string-array>
+    <string-array name="synolsis_readback_mode_entries">
+        <item>Preciso (compatibilidade)</item><item>Equilibrado (leitura rápida)</item>
+        <item>Rápido experimental (leitura e gravação)</item>
+    </string-array>
+    <string-array name="synolsis_frame_skip_entries">
+        <item>Desligado (recomendado)</item><item>Pular 1 de 2 quadros</item><item>Pular 2 de 3 quadros</item>
+    </string-array>
+    <string-array name="synolsis_present_mode_entries">
+        <item>Automático (padrão do Strato)</item><item>FIFO (VSync)</item>
+        <item>Mailbox (baixa latência)</item><item>Immediate (sem VSync; experimental)</item>
+    </string-array>
+    <string-array name="synolsis_shader_threads_entries">
+        <item>Automático (Strato)</item><item>1 thread (compatibilidade)</item>
+        <item>2 threads (baixo consumo)</item><item>4 threads (experimental)</item>
+    </string-array>
+    <string-array name="synolsis_palette_entries">
+        <item>Clássico (sistema)</item><item>Azul da meia-noite</item>
+        <item>Roxo neon</item><item>Verde esmeralda</item>
+        <item>Vermelho AMOLED</item><item>Âmbar solar</item>
+    </string-array>
+</resources>
