@@ -2,6 +2,7 @@
 // Copyright © 2020 Skyline Team and Contributors (https://github.com/skyline-emu/)
 
 #include <lz4.h>
+#include <zstd.h>
 #include <nce.h>
 #include <kernel/types/KProcess.h>
 #include <boost/regex/v5/regex.hpp>
@@ -15,14 +16,22 @@ namespace skyline::loader {
             throw exception("Invalid NSO magic! 0x{0:X}", magic);
     }
 
-    std::vector<u8> NsoLoader::GetSegment(const std::shared_ptr<vfs::Backing> &backing, const NsoSegmentHeader &segment, u32 compressedSize) {
+    std::vector<u8> NsoLoader::GetSegment(const std::shared_ptr<vfs::Backing> &backing, const NsoSegmentHeader &segment, u32 compressedSize, bool useZbic) {
         std::vector<u8> outputBuffer(segment.decompressedSize);
 
         if (compressedSize) {
             std::vector<u8> compressedBuffer(compressedSize);
             backing->Read(compressedBuffer, segment.fileOffset);
 
-            LZ4_decompress_safe(reinterpret_cast<char *>(compressedBuffer.data()), reinterpret_cast<char *>(outputBuffer.data()), static_cast<int>(compressedSize), static_cast<int>(segment.decompressedSize));
+            if (useZbic) {
+      const size_t decoded{ZSTD_decompress(outputBuffer.data(), outputBuffer.size(), compressedBuffer.data(), compressedBuffer.size())};
+      if (ZSTD_isError(decoded) || decoded != outputBuffer.size())
+          throw exception("ZBIC NSO decompression failed (expected {} bytes)", outputBuffer.size());
+  } else {
+      const int decoded{LZ4_decompress_safe(reinterpret_cast<char *>(compressedBuffer.data()), reinterpret_cast<char *>(outputBuffer.data()), static_cast<int>(compressedSize), static_cast<int>(segment.decompressedSize))};
+      if (decoded < 0 || static_cast<size_t>(decoded) != outputBuffer.size())
+          throw exception("LZ4 NSO decompression failed (expected {} bytes)", outputBuffer.size());
+  }
         } else {
             backing->Read(outputBuffer, segment.fileOffset);
         }
@@ -36,17 +45,19 @@ namespace skyline::loader {
         if (header.magic != util::MakeMagic<u32>("NSO0"))
             throw exception("Invalid NSO magic! 0x{0:X}", header.magic);
 
+        // NSO flag bit 7 enables ZBIC compression on HOS 22+.
+        const bool useZbic{(header.flags.raw & (1U << 7)) != 0};
         Executable executable{};
 
-        executable.text.contents = GetSegment(backing, header.text, header.flags.textCompressed ? header.textCompressedSize : 0);
+        executable.text.contents = GetSegment(backing, header.text, header.flags.textCompressed ? header.textCompressedSize : 0, useZbic);
         executable.text.contents.resize(util::AlignUp(executable.text.contents.size(), constant::PageSize));
         executable.text.offset = header.text.memoryOffset;
 
-        executable.ro.contents = GetSegment(backing, header.ro, header.flags.roCompressed ? header.roCompressedSize : 0);
+        executable.ro.contents = GetSegment(backing, header.ro, header.flags.roCompressed ? header.roCompressedSize : 0, useZbic);
         executable.ro.contents.resize(util::AlignUp(executable.ro.contents.size(), constant::PageSize));
         executable.ro.offset = header.ro.memoryOffset;
 
-        executable.data.contents = GetSegment(backing, header.data, header.flags.dataCompressed ? header.dataCompressedSize : 0);
+        executable.data.contents = GetSegment(backing, header.data, header.flags.dataCompressed ? header.dataCompressedSize : 0, useZbic);
         executable.data.offset = header.data.memoryOffset;
 
         // Data and BSS are aligned together
@@ -76,7 +87,7 @@ namespace skyline::loader {
 
         std::string contentsRaw(contents.begin(), contents.end());
         std::string modulePath;
-        if (memcmp(&contents[0], "\x00\x00\x00\x00", 4) == 0) {
+        if (contents.size() >= 8 && memcmp(contents.data(), "\x00\x00\x00\x00", 4) == 0) {
             i32 length;
             std::memcpy(&length, &contents[4], sizeof(i32));
 
