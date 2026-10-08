@@ -7,7 +7,7 @@
 
 ## Synolsis Emu (new experimental app branding)
 
-Source branch: **[feature/synolsis-themes-cache](../../tree/feature/synolsis-themes-cache)** — Android name/header and icon updated to **Synolsis Emu** (application ID unchanged to preserve installed-app compatibility), five additional Material 3 themes (Midnight, Purple, Emerald, AMOLED Red, Amber), and actual Strato Vulkan/pipeline cache fixes:
+Source branch: **[feature/synolsis-themes-cache](../../tree/feature/synolsis-themes-cache)** — Android name/header and icon updated to **Synolsis Emu** (application ID unchanged; Android upgrades still require the **same APK signing certificate** — back up saves before installing a CI debug APK), five additional Material 3 themes (Midnight, Purple, Emerald, AMOLED Red, Amber), and actual Strato Vulkan/pipeline cache fixes:
 
 - Merge `.staging` pipeline cache data only once, refuse truncated headers.
 - Separate pipelines for Turnip/custom and stock Adreno driver selection.
