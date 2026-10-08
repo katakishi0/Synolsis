@@ -69,27 +69,63 @@ internal fun PreferenceFragmentCompat.wireSynolsisGpuProfiles(settings : Emulati
  * This is not a floating-point shader accuracy selector or a CPU accuracy hack.
  */
 internal fun PreferenceFragmentCompat.wireSynolsisReadbackPrecision(settings : EmulationSettings) {
-    findPreference<ListPreference>("synolsis_readback_precision")
-        ?.setOnPreferenceChangeListener { _, value ->
-            when (value as? String) {
-                "accurate" -> {
-                    settings.enableFastGpuReadbackHack = false
-                    settings.enableFastReadbackWrites = false
-                }
-                "balanced" -> {
-                    settings.enableFastGpuReadbackHack = true
-                    settings.enableFastReadbackWrites = false
-                }
-                "experimental" -> {
-                    settings.enableFastGpuReadbackHack = true
-                    settings.enableFastReadbackWrites = true
-                }
-                else -> return@setOnPreferenceChangeListener false
+    val selector = findPreference<ListPreference>("synolsis_readback_precision") ?: return
+    val fast = findPreference<TwoStatePreference>("enable_fast_gpu_readback_hack")
+    val writes = findPreference<TwoStatePreference>("enable_fast_readback_writes")
+
+    // AndroidX ListPreference does not automatically know when users adjust
+    // the underlying switches individually. Keep this displayed mode in sync
+    // with the *actual native flags*, not just the last chosen profile label.
+    fun currentMode(readback : Boolean, fastWrites : Boolean) = when {
+        !readback -> "accurate"
+        fastWrites -> "experimental"
+        else -> "balanced"
+    }
+
+    // Disable the dependent unsafe flag if the user turns off its prerequisite.
+    // Relying on XML dependency only greys out the switch but leaves its
+    // persisted value true, causing surprises on the next launch.
+    if (!settings.enableFastGpuReadbackHack && settings.enableFastReadbackWrites) {
+        settings.enableFastReadbackWrites = false
+        writes?.isChecked = false
+    }
+
+    val actualMode = currentMode(settings.enableFastGpuReadbackHack, settings.enableFastReadbackWrites)
+    if (selector.value != actualMode)
+        selector.value = actualMode
+
+    selector.setOnPreferenceChangeListener { _, value ->
+        when (value as? String) {
+            "accurate" -> {
+                settings.enableFastGpuReadbackHack = false
+                settings.enableFastReadbackWrites = false
             }
-            findPreference<TwoStatePreference>("enable_fast_gpu_readback_hack")?.isChecked =
-                settings.enableFastGpuReadbackHack
-            findPreference<TwoStatePreference>("enable_fast_readback_writes")?.isChecked =
-                settings.enableFastReadbackWrites
-            true
+            "balanced" -> {
+                settings.enableFastGpuReadbackHack = true
+                settings.enableFastReadbackWrites = false
+            }
+            "experimental" -> {
+                settings.enableFastGpuReadbackHack = true
+                settings.enableFastReadbackWrites = true
+            }
+            else -> return@setOnPreferenceChangeListener false
         }
+        fast?.isChecked = settings.enableFastGpuReadbackHack
+        writes?.isChecked = settings.enableFastReadbackWrites
+        true
+    }
+
+    fast?.setOnPreferenceChangeListener { _, value ->
+        val enabled = value == true
+        if (!enabled) {
+            settings.enableFastReadbackWrites = false
+            writes?.isChecked = false
+        }
+        selector.value = currentMode(enabled, enabled && settings.enableFastReadbackWrites)
+        true
+    }
+    writes?.setOnPreferenceChangeListener { _, value ->
+        selector.value = currentMode(settings.enableFastGpuReadbackHack, value == true)
+        true
+    }
 }
