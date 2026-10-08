@@ -4,11 +4,13 @@
         <item>Conservador (6 GB de RAM)</item>
         <item>Equilibrado</item>
         <item>Experimental (maior consumo)</item>
+        <item>FPS Hack (Adreno/Turnip; experimental)</item>
     </string-array>
     <string-array name="synolsis_gpu_preset_values">
         <item>conservative</item>
         <item>balanced</item>
         <item>experimental</item>
+        <item>fps_hack</item>
     </string-array>
     <string-array name="synolsis_readback_mode_entries">
         <item>Preciso (compatibilidade)</item>
