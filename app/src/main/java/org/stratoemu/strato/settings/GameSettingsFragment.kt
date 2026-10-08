@@ -5,6 +5,7 @@
 
 package org.stratoemu.strato.settings
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
@@ -39,6 +40,14 @@ class GameSettingsFragment : PreferenceFragmentCompat() {
         preferenceManager.sharedPreferencesName = EmulationSettings.prefNameForTitle(item.titleId ?: item.key())
         addPreferencesFromResource(R.xml.custom_game_preferences)
         addPreferencesFromResource(R.xml.emulation_preferences)
+
+        findPreference<Preference>("open_experimental_settings")?.setOnPreferenceClickListener {
+            startActivity(Intent(requireContext(), SettingsActivity::class.java).apply {
+                putExtras(requireActivity().intent)
+                putExtra(SettingsActivity.EXTRA_EXPERIMENTAL_SETTINGS, true)
+            })
+            true
+        }
 
         // Toggle emulation settings enabled state based on use_custom_settings state
         listOf<Preference?>(
