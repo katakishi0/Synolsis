@@ -28,4 +28,6 @@
     <string name="synolsis_hub_data_desc">Pastas, saves e gerenciador de dados do emulador</string>
     <string name="synolsis_hub_about">Sobre e licenças</string>
     <string name="synolsis_hub_about_desc">Versão, créditos originais e licenças das bibliotecas</string>
+    <string name="synolsis_frametime_overlay">Mostrar frametime detalhado</string>
+    <string name="synolsis_frametime_overlay_desc">Mostra tempo médio por quadro e variação em ms, usando estatísticas reais do núcleo. Útil para testar Turnip e travamentos.</string>
 </resources>
