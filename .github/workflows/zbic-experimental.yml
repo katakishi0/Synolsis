@@ -1,0 +1,114 @@
+name: Experiment ZBIC decoder for HOS 22/23
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/zbic-experimental.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  decoder:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: strato-full-core
+          fetch-depth: 1
+          submodules: false
+          persist-credentials: true
+      - name: Vendor pinned ZBIC Zstd source (GPLv3 nxdumptool/dual-licensed zstd)
+        run: |
+          set -euo pipefail
+          git clone --quiet --depth 1 --branch rewrite https://github.com/DarkMatterCore/nxdumptool.git "$RUNNER_TEMP/nxdt"
+          test "$(git -C "$RUNNER_TEMP/nxdt" rev-parse HEAD)" = "ade1a481121498ec649fbc832afe733050790acd"
+          mkdir -p app/libraries/zbic
+          cp "$RUNNER_TEMP/nxdt/source/core/zstd.inc" app/libraries/zbic/zstd.c
+          cp "$RUNNER_TEMP/nxdt/include/core/zstd.h" app/libraries/zbic/zstd.h
+          cp "$RUNNER_TEMP/nxdt/include/core/zstd_errors.h" app/libraries/zbic/zstd_errors.h
+          cp "$RUNNER_TEMP/nxdt/LICENSE.md" app/libraries/zbic/LICENSE-NXDT-GPLv3.txt
+          cat > app/libraries/zbic/PROVENANCE.txt <<'EOF'
+          Source: DarkMatterCore/nxdumptool @ ade1a481121498ec649fbc832afe733050790acd.
+          Zstd amalgamation based on Meta Zstandard 1.5.7 with BIC-format changes.
+          File headers offer BSD or GPLv2; nxdumptool integration is GPLv3-or-later.
+          Original notices and project licenses must be retained and reviewed.
+          No console files or decryption keys.
+          EOF
+      - name: Integrate ZBIC segments into Strato loader
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          def replace(p, old, new):
+              path = Path(p)
+              src = path.read_text()
+              if src.count(old) != 1:
+                  raise RuntimeError(f"expected one match in {p}: {old[:90]!r}")
+              path.write_text(src.replace(old, new))
+          cm='app/CMakeLists.txt'
+          replace(cm, '# LZ4\n',
+              '# ZBIC decoder - independent nxdumptool/Meta Zstandard variant\n'
+              'add_library(zbic STATIC libraries/zbic/zstd.c)\n'
+              'target_include_directories(zbic PUBLIC libraries/zbic)\n'
+              'target_compile_definitions(zbic PRIVATE ZSTD_ZBIC_SUPPORT=1)\n'
+              'target_compile_options(zbic PRIVATE -Wno-everything)\n\n# LZ4\n')
+          replace(cm, 'target_link_libraries(skyline PRIVATE shader_recompiler audio_core)',
+                  'target_link_libraries(skyline PRIVATE shader_recompiler audio_core zbic)\n'
+                  'target_include_directories(skyline PRIVATE libraries/zbic)')
+          replace('app/src/main/cpp/skyline/loader/nso.h',
+                  'u32 compressedSize);', 'u32 compressedSize, bool useZbic);')
+          p='app/src/main/cpp/skyline/loader/nso.cpp'
+          replace(p, '#include <lz4.h>\n', '#include <lz4.h>\n#include <zstd.h>\n')
+          replace(p, 'const NsoSegmentHeader &segment, u32 compressedSize) {',
+                     'const NsoSegmentHeader &segment, u32 compressedSize, bool useZbic) {')
+          replace(p,
+              '            LZ4_decompress_safe(reinterpret_cast<char *>(compressedBuffer.data()), reinterpret_cast<char *>(outputBuffer.data()), static_cast<int>(compressedSize), static_cast<int>(segment.decompressedSize));',
+              '''            if (useZbic) {
+                const size_t decoded{ZSTD_decompress(outputBuffer.data(), outputBuffer.size(), compressedBuffer.data(), compressedBuffer.size())};
+                if (ZSTD_isError(decoded) || decoded != outputBuffer.size())
+                    throw exception("ZBIC NSO decompression failed (expected {} bytes)", outputBuffer.size());
+            } else {
+                const int decoded{LZ4_decompress_safe(reinterpret_cast<char *>(compressedBuffer.data()), reinterpret_cast<char *>(outputBuffer.data()), static_cast<int>(compressedSize), static_cast<int>(segment.decompressedSize))};
+                if (decoded < 0 || static_cast<size_t>(decoded) != outputBuffer.size())
+                    throw exception("LZ4 NSO decompression failed (expected {} bytes)", outputBuffer.size());
+            }''')
+          replace(p, '        Executable executable{};',
+             '        // NSO flag bit 7 enables ZBIC compression on HOS 22+.\n'
+             '        const bool useZbic{(header.flags.raw & (1U << 7)) != 0};\n'
+             '        Executable executable{};')
+          for sec in ('text', 'ro', 'data'):
+              old=f'GetSegment(backing, header.{sec}, header.flags.{sec}Compressed ? header.{sec}CompressedSize : 0)'
+              replace(p,old,old[:-1]+', useZbic)')
+          replace(p, 'if (memcmp(&contents[0], "\\x00\\x00\\x00\\x00", 4) == 0) {',
+                     'if (contents.size() >= 8 && memcmp(contents.data(), "\\x00\\x00\\x00\\x00", 4) == 0) {')
+          print('ZBIC decoder staged (not yet compiled or device-tested)')
+          PY
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Android native build
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y ninja-build ccache
+          SDKMGR="$(command -v sdkmanager || true)"
+          if [ -z "$SDKMGR" ]; then SDKMGR="$(find "$ANDROID_HOME/cmdline-tools" -type f -path '*/bin/sdkmanager' | sort -V | tail -1)"; fi
+          test -n "$SDKMGR"
+          "$SDKMGR" --install "platforms;android-34" "build-tools;34.0.0" "ndk;26.1.10909125" "cmake;3.22.1"
+          chmod +x gradlew
+          ./gradlew :app:assembleDevDebug --no-daemon --stacktrace --build-cache
+      - name: Publish verified source branch
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git switch -c strato-fw23-zbic
+          git add app/libraries/zbic app/CMakeLists.txt app/src/main/cpp/skyline/loader/nso.cpp app/src/main/cpp/skyline/loader/nso.h
+          git commit -m 'feat: add independent ZBIC NSO decoder candidate to Skyline/Strato'
+          git push origin HEAD:refs/heads/strato-fw23-zbic
+      - uses: actions/upload-artifact@v4
+        with:
+          name: skyline-strato-fw23-zbic-experimental
+          path: app/build/outputs/apk/dev/debug/*.apk
+          if-no-files-found: error
+          retention-days: 7
