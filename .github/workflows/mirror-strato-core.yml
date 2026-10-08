@@ -41,9 +41,26 @@ jobs:
           git remote add strato https://github.com/strato-emu/strato.git
           git fetch strato master --no-tags
           git switch --detach FETCH_HEAD
-          git switch -c strato-full-core
           echo "Pinned upstream reference:"
           git log -1 --oneline
+          UPSTREAM_SHA="$(git rev-parse HEAD)"
+          # Use a self-contained root snapshot: the GitHub App cannot create
+          # upstream .github/workflows files, which are not emulator source.
+          git checkout --orphan strato-full-core
+          git rm -r -f --cached -- .github/workflows
+          rm -rf .github/workflows
+          cat > UPSTREAM_PROVENANCE.md <<EOF
+          # Strato source provenance
+          Original project: https://github.com/strato-emu/strato
+          Original commit: $UPSTREAM_SHA
+          Snapshot date: 2026-10-08
+          This branch contains a source snapshot, not a Git history mirror.
+          The upstream GitHub Actions workflows were omitted due to publishing permissions.
+          Original upstream and bundled third-party licenses are retained.
+          EOF
+          git add -A
+          git commit -m "Import complete Strato emulator source snapshot into local branch"
+          git status --porcelain
 
       - name: Create independent core branch before vendoring
         run: |
