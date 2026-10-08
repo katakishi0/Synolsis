@@ -73,6 +73,7 @@ namespace skyline {
         Setting<bool> disableFrameThrottling; //!< Allow the guest to submit frames without any blocking calls
         Setting<u32> presentationFrameSkip; //!< Number of host-present frames to skip between displayed frames (0-2)
         Setting<u32> vulkanPresentMode; //!< 0 auto, 1 FIFO, 2 MAILBOX, 3 IMMEDIATE; fallback to FIFO
+        Setting<u32> shaderCompileThreads; //!< Vulkan pipeline compilation workers, 0=auto, max=4
         Setting<bool> disableShaderCache;  //!< Prevents cached shaders from being loaded and disables caching of new shaders
 
         // GPU
