@@ -21,5 +21,10 @@
             android:summary="@string/copy_global_settings_desc"
             app:key="copy_global_settings"
             app:title="@string/copy_global_settings" />
+        <!-- Keep per-game driver override here, not in global advanced UI. -->
+        <org.stratoemu.strato.preference.GpuDriverPreference
+            android:dependency="use_custom_settings"
+            app:key="gpu_driver"
+            app:title="@string/gpu_driver_config" />
     </PreferenceCategory>
 </androidx.preference.PreferenceScreen>
