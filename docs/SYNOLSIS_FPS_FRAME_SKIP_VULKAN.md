@@ -26,6 +26,13 @@ Source branch: `feature/synolsis-frame-skip-fps-profiles`. Tested target: POCO X
 - This modifies existing, *native-backed* Strato settings. Switching back to other profiles restores both readback shortcuts to off.
 - The UI keeps the readback switches and precision selection synchronized. It does **not** make the hardware run at higher clocks or fake frames, and may be slower in some games.
 
+## Other native hot-path optimizations
+
+- `PresentationEngine::PresentFrame` now tracks the most recently applied Android buffer transformation and suppresses repeated `NATIVE_WINDOW_SET_BUFFERS_TRANSFORM` calls if it did not change. The first frame of every new Surface still applies its transform, preventing rotation/surface reattachment regressions.
+- `PipelineCacheManager::Run` flushes the staging-cache header when the shader-write queue goes idle or after at most **16** queued bundles. This replaces per-shader header seeks/writes during a burst of shader compilation. At most 15 trailing unindexed shader bundles may be lost if the Android process is force-killed during a burst; cached shaders already committed remain reusable. This is a deliberate disk-I/O versus crash-recovery tradeoff.
+- Existing transaction-safe staging append, corrupted-count guard and driver-aware cache identities from the previous build are preserved.
+- All these changes reduce overhead in host I/O/presentation but cannot promise larger game simulation FPS on GPU-limited titles.
+
 ## Regression/validation
 
 CI validates Java/Kotlin -> native settings field wiring, preference integer types and values, source-backed Vulkan mode and frame skip callbacks, and builds an optimized ARM64 APK. On-device QA still required:
