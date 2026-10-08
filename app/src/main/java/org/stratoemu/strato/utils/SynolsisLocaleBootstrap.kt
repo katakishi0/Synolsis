@@ -9,6 +9,7 @@ import android.app.LocaleManager
 import android.os.Build
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
+import java.io.File
 
 /**
  * Fresh installs start in English regardless of device language.
@@ -22,6 +23,15 @@ internal object SynolsisLocaleBootstrap {
     private const val KEY_INITIALIZED = "initial_default_language_applied"
 
     fun initialize(application: Application) {
+        // On Android 12 and earlier, AppCompat may restore saved locales
+        // only after an activity attaches. Detect an existing installation
+        // before creating the bootstrap preferences so old choices are not
+        // overwritten by an early empty getApplicationLocales() result.
+        val preferenceDirectory = File(application.applicationInfo.dataDir, "shared_prefs")
+        val existingInstall = preferenceDirectory.listFiles()?.any {
+            it.isFile && it.name.endsWith(".xml") && it.name != "$PREFS.xml"
+        } == true
+
         val preferences = application.getSharedPreferences(PREFS, Application.MODE_PRIVATE)
         if (preferences.getBoolean(KEY_INITIALIZED, false)) return
 
@@ -31,7 +41,8 @@ internal object SynolsisLocaleBootstrap {
         } else {
             null
         }
-        if (appCompatSelection.isEmpty && (systemSelection == null || systemSelection.isEmpty)) {
+        if (!existingInstall && appCompatSelection.isEmpty &&
+            (systemSelection == null || systemSelection.isEmpty)) {
             AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags("en"))
         }
 
