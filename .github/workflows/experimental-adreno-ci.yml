@@ -94,7 +94,7 @@ jobs:
         with:
           cache-read-only: false
 
-      - name: Install required Android SDK/NDK components
+      - name: Install Android SDK/NDK with retry on broken download
         shell: bash
         run: |
           set -euo pipefail
@@ -103,18 +103,51 @@ jobs:
             sudo apt-get install -y -qq ccache ninja-build
           fi
           mkdir -p "$CCACHE_DIR"
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          test -n "$SDK_ROOT"
           SDKMGR="$(command -v sdkmanager || true)"
           if [ -z "$SDKMGR" ]; then
-            SDKMGR="$(find "$ANDROID_HOME/cmdline-tools" -type f -path '*/bin/sdkmanager' | sort -V | tail -1)"
+            SDKMGR="$(find "$SDK_ROOT/cmdline-tools" -type f -path '*/bin/sdkmanager' | sort -V | tail -1)"
           fi
-          packages=()
-          test -d "$ANDROID_HOME/platforms/android-34" || packages+=("platforms;android-34")
-          test -d "$ANDROID_HOME/build-tools/34.0.0" || packages+=("build-tools;34.0.0")
-          test -d "$ANDROID_HOME/ndk/26.1.10909125" || packages+=("ndk;26.1.10909125")
-          test -d "$ANDROID_HOME/cmake/3.22.1" || packages+=("cmake;3.22.1")
-          if (("${#packages[@]}" > 0)); then
-            "$SDKMGR" --install "${packages[@]}"
-          fi
+          test -n "$SDKMGR"
+
+          install_checked() {
+            local spec="$1"
+            local directory="$2"
+            local marker="$3"
+            if [ -f "$directory/$marker" ]; then
+              echo "Already installed: $spec"
+              return 0
+            fi
+            for attempt in 1 2 3 4; do
+              echo "::group::Installing $spec (attempt $attempt/4)"
+              # SDK archives can occasionally arrive truncated or as an
+              # invalid ZIP from the mirror. Never treat a partial NDK as valid.
+              if "$SDKMGR" --install "$spec" && [ -f "$directory/$marker" ]; then
+                echo "::endgroup::"
+                return 0
+              fi
+              echo "::warning::$spec download or validation failed (attempt $attempt)"
+              echo "::endgroup::"
+              if [ "$attempt" -eq 4 ]; then
+                echo "::error::Failed to install $spec after four attempts"
+                return 1
+              fi
+              rm -rf -- "$HOME/.android/cache"
+              # A failed NDK extract can leave an invalid directory in place.
+              # The directory is under the runner's ephemeral SDK installation.
+              if [ ! -f "$directory/$marker" ] && [ -d "$directory" ]; then
+                rm -rf -- "$directory"
+              fi
+              sleep $((attempt * 8))
+            done
+          }
+
+          install_checked "platforms;android-34" "$SDK_ROOT/platforms/android-34" "android.jar"
+          install_checked "build-tools;34.0.0" "$SDK_ROOT/build-tools/34.0.0" "aapt2"
+          install_checked "ndk;26.1.10909125" "$SDK_ROOT/ndk/26.1.10909125" "source.properties"
+          install_checked "cmake;3.22.1" "$SDK_ROOT/cmake/3.22.1" "bin/cmake"
+          echo "Android SDK/NDK validated after installation"
 
       - name: Restore compiler cache
         uses: actions/cache@v4
