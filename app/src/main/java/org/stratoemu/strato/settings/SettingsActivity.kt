@@ -132,6 +132,19 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
         }
     }
 
+    /** Don't reveal unrelated settings categories after a search query clears. */
+    private fun isCategoryAllowed(preference: Preference) : Boolean {
+        return when (intent.getStringExtra("synolsis_settings_section")) {
+            "appearance" -> preference.key == "category_appearance"
+            "content" -> preference.key == "category_content"
+            "advanced" -> preference.key in setOf(
+                "category_system", "category_presentation", "category_audio",
+                "category_gpu", "category_experimental", "category_debug"
+            )
+            else -> true
+        }
+    }
+
     override fun onCreateOptionsMenu(menu : Menu?) : Boolean {
         menuInflater.inflate(R.menu.settings_menu, menu)
         val menuItem = menu!!.findItem(R.id.app_bar_search)
@@ -155,7 +168,7 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
                 val queries = newText.split(",")
                 if (newText.isNotEmpty()) {
                     preferenceFragment.preferenceScreen.forEach { preferenceCategory ->
-                        if (hiddenCategoriesFromSearch.contains(preferenceCategory.key)) {
+                        if (hiddenCategoriesFromSearch.contains(preferenceCategory.key) || !isCategoryAllowed(preferenceCategory)) {
                             preferenceCategory.isVisible = false
                             return@forEach
                         }
@@ -172,9 +185,10 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
                     }
                 } else { // If user input is empty, show all preferences
                     preferenceFragment.preferenceScreen.forEach { preferenceCategory ->
-                        preferenceCategory.isVisible = true
+                        val allowed = isCategoryAllowed(preferenceCategory)
+                        preferenceCategory.isVisible = allowed
                         (preferenceCategory as PreferenceCategory).forEach { preference ->
-                            preference.isVisible = true
+                            preference.isVisible = allowed
                         }
                     }
                 }
