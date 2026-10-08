@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include "settings.h"
 #include "jvm.h"
 
