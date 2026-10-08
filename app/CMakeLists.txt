@@ -28,6 +28,12 @@ add_subdirectory("libraries/fmt")
 add_subdirectory("libraries/tzcode")
 target_compile_options(tzcode PRIVATE -Wno-everything)
 
+# ZBIC decoder - independent nxdumptool/Meta Zstandard variant
+add_library(zbic STATIC libraries/zbic/zstd.c)
+target_include_directories(zbic PUBLIC libraries/zbic)
+target_compile_definitions(zbic PRIVATE ZSTD_ZBIC_SUPPORT=1)
+target_compile_options(zbic PRIVATE -Wno-everything)
+
 # LZ4
 set(LZ4_BUILD_CLI OFF CACHE BOOL "Build LZ4 CLI" FORCE)
 set(LZ4_BUILD_LEGACY_LZ4C OFF CACHE BOOL "Build lz4c progam with legacy argument support" FORCE)
@@ -397,5 +403,6 @@ target_include_directories(skyline PRIVATE ${source_DIR}/skyline)
 # target_precompile_headers(skyline PRIVATE ${source_DIR}/skyline/common.h) # PCH will currently break Intellisense
 target_compile_options(skyline PRIVATE -Wall -Wno-unknown-attributes -Wno-c++20-extensions -Wno-c++17-extensions -Wno-c99-designator -Wno-reorder -Wno-missing-braces -Wno-unused-variable -Wno-unused-private-field -Wno-dangling-else -Wconversion -fsigned-bitfields)
 
-target_link_libraries(skyline PRIVATE shader_recompiler audio_core)
+target_link_libraries(skyline PRIVATE shader_recompiler audio_core zbic)
+target_include_directories(skyline PRIVATE libraries/zbic)
 target_link_libraries_system(skyline android perfetto fmt lz4_static tzcode vkma mbedcrypto opus Boost::intrusive Boost::container Boost::preprocessor Boost::regex range-v3 adrenotools tsl::robin_map)

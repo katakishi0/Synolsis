@@ -1,0 +1,5 @@
+Source: DarkMatterCore/nxdumptool @ ade1a481121498ec649fbc832afe733050790acd.
+Zstd amalgamation based on Meta Zstandard 1.5.7 with BIC-format changes.
+File headers offer BSD or GPLv2; nxdumptool integration is GPLv3-or-later.
+Original notices and project licenses must be retained and reviewed.
+No console files or decryption keys.
