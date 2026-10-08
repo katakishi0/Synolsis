@@ -381,6 +381,7 @@ jobs:
           store=(base.parent/"java/org/stratoemu/strato/data/GameContentStore.kt").read_text()
           assert '"Unterminated NSP filename"' in store
           assert '"Duplicate NSP entry filename"' in store
+          assert '"NSP contains no content metadata NCA"' in store
           assert 'staging.renameTo(destination)' in store
           assert 'validatePfs0(staging)' in store
           print("PASS: no duplicate values, pt-BR strings, AAPT quote safety, NSP PFS0 staging checks")
