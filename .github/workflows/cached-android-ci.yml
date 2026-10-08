@@ -1,10 +1,6 @@
 name: Cached Strato Android CI
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/cached-android-ci.yml'
   workflow_dispatch:
     inputs:
       build_apk:
@@ -75,6 +71,16 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Exclude unused unverified OboeTester sample wrapper
+        shell: bash
+        run: |
+          set -euo pipefail
+          unused='app/libraries/oboe/apps/OboeTester/gradle/wrapper/gradle-wrapper.jar'
+          if [ -f "$unused" ]; then
+            printf '%s  %s\n' 'e2b82129ab64751fd40437007bd2f7f2afb3c6e41a9198e628650b22d5824a14' "$unused" | sha256sum --check --status
+            rm -- "$unused"
+            echo 'Only the unused sample wrapper was excluded; other wrappers will be validated.'
+          fi
       - name: Restore and save Gradle dependencies and build cache
         uses: gradle/actions/setup-gradle@v6
         with:
