@@ -122,6 +122,7 @@ object GameContentStore {
             raf.readFully(stringTable)
             val entries = ByteBuffer.wrap(entryTable).order(ByteOrder.LITTLE_ENDIAN)
             var ncaCount = 0
+            var metaCount = 0
             val seenNames = HashSet<String>()
             repeat(count) {
                 val offset = entries.long
@@ -146,8 +147,15 @@ object GameContentStore {
                     "Duplicate NSP entry filename"
                 }
                 if (name.endsWith(".nca", ignoreCase = true)) ncaCount++
+                if (name.endsWith(".cnmt.nca", ignoreCase = true)) metaCount++
             }
             require(ncaCount > 0) { "NSP contains no NCA content" }
+            // A standard installable update/DLC NSP carries a Content Meta
+            // NCA (CNMT). This catches plain arbitrary PFS0+NCA archives
+            // before wasting storage, but CNMT remains encrypted: matching
+            // the title ID and patch/DLC content type still requires the
+            // native NCA/key services at install time.
+            require(metaCount > 0) { "NSP contains no content metadata NCA" }
         }
     }
 }
