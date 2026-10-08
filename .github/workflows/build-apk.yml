@@ -16,6 +16,7 @@ on:
           - none
           - '252'
           - '291'
+          - '9001'
 
 permissions:
   contents: read
@@ -42,14 +43,22 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Configure Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Locate preinstalled Android SDK
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          test -d "$ANDROID_HOME/cmdline-tools"
 
       - name: Install build dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y ninja-build ccache
-          sdkmanager --install "platforms;android-34" "build-tools;34.0.0" "ndk;26.1.10909125" "cmake;3.22.1"
+          SDKMGR="$(command -v sdkmanager || true)"
+          if [ -z "$SDKMGR" ]; then
+            SDKMGR="$(find "$ANDROID_HOME/cmdline-tools" -type f -path '*/bin/sdkmanager' | sort -V | tail -1)"
+          fi
+          test -n "$SDKMGR"
+          "$SDKMGR" --version
+          "$SDKMGR" --install "platforms;android-34" "build-tools;34.0.0" "ndk;26.1.10909125" "cmake;3.22.1"
 
       - name: Report source revision and selected fix
         run: |
