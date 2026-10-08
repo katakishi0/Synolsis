@@ -17,6 +17,7 @@ The C++ key-file parser also discarded the final line if the input didn't end wi
 
 - `patches/pr-2200.patch` updates the key arrays to 32 entries (indexes 0x00–0x1F), introduces bounds checking for parsed indexes and NCA key accesses, and makes reading keyset lines robust. **No key bytes are included.**
 - `patches/pr-2201.patch` improves firmware version detection: skips unrelated unreadable NCA archives, reports missing keys separately, and avoids replacing an existing firmware on detected missing-key errors. Also tightens key-file input length/hex validation.
+- `patches/pr-2202.patch` is an **optional** follow-up: tolerates unrelated unreadable NCAs and newly named fonts during extraction. It is not included in the first 22.0 APK build until combined compatibility checks and native compilation are confirmed.
 - The patches are designed to be applied together to a **clean** `upstream/strato` checkout. CI validates syntax and `git apply --check` before assembling the APK.
 
 ## Critical limitations
@@ -36,7 +37,7 @@ Other changes since original Strato may require additional IPC services, NCA for
 ## Acceptance gates
 
 - [ ] CI confirms both patch files apply without conflict
-- [ ] ARM64 APK builds with both patches enabled
+- [ ] ARM64 APK builds with both patches enabled (GitHub Actions underway)
 - [ ] Keys with recognized 0x15 revision are parsed without memory overrun
 - [ ] Firmware version 22.0.0 import succeeds using authorized inputs
 - [ ] New/unsupported NSO compression returns a clear error rather than memory corruption
