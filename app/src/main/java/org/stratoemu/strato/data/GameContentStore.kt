@@ -180,11 +180,15 @@ object GameContentStore {
                 require(nameOffset in 0 until namesSize) { "Invalid NSP filename offset" }
                 val nameEnd = (nameOffset until namesSize)
                     .firstOrNull { stringTable[it].toInt() == 0 } ?: namesSize
+                require(nameEnd < namesSize) { "Unterminated NSP filename" }
                 val name = String(stringTable, nameOffset, nameEnd - nameOffset, Charsets.UTF_8)
-                require(name.isNotBlank() && '/' !in name && '\\' !in name) {
+                require(name.isNotBlank() && '/' !in name && '\\' !in name &&
+                    name != "." && name != ".." && name.all { it.code in 0x20..0x7E }) {
                     "Invalid NSP entry filename"
                 }
-                require(entryNames.add(name.lowercase())) { "Duplicate NSP filename" }
+                require(entryNames.add(name.lowercase(java.util.Locale.ROOT))) {
+                    "Duplicate NSP filename"
+                }
                 if (size > 0L) segments.add(offset to (offset + size))
                 if (name.endsWith(".nca", ignoreCase = true)) {
                     ncaCount++
