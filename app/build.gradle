@@ -92,6 +92,25 @@ android {
             shrinkResources false
             signingConfig signingConfigs.debug
         }
+
+        // Performance comparison build. The old mainlineDebug compiled the
+        // Skyline core with -O0, while third-party libraries used -Ofast.
+        // Preserve debug signing, source mappings and the same Android app ID,
+        // but compile the native emulator with CMake's optimized Release flags.
+        // Keep shrinking disabled so the baseline Java/Android behavior stays
+        // comparable and JNI entry points are not affected by R8.
+        optimized {
+            debuggable true
+            minifyEnabled false
+            shrinkResources false
+            signingConfig signingConfigs.debug
+            matchingFallbacks = ['release', 'debug']
+            externalNativeBuild {
+                cmake {
+                    arguments "-DCMAKE_BUILD_TYPE=RELEASE"
+                }
+            }
+        }
     }
 
     flavorDimensions += "version"
