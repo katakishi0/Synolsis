@@ -279,8 +279,8 @@ jobs:
           assert any(node.attrib.get("{http://schemas.android.com/apk/res/android}name")==".GameContentManagerActivity" for node in manifest.iter())
           ET.parse(root/"res/values/synolsis_game_content_strings.xml")
           ET.parse(root/"res/values-pt-rBR/synolsis_game_content_strings.xml")
-          ET.parse(root/"res/values-pt-rBR/synolsis_frame_skip.xml")
-          ET.parse(root/"res/values-pt-rBR/synolsis_gpu_presets.xml")
+          ET.parse(root/"res/values-pt-rBR/synolsis_arrays.xml")
+          ET.parse(root/"res/values-pt-rBR/synolsis_native_controls.xml")
           print("PASS: game-specific NSP import/removal, pt-BR and honest inactive-content status")
           assert '"pt-BR"' in gradle
           android_ns="{http://schemas.android.com/apk/res/android}"
@@ -289,8 +289,8 @@ jobs:
           # All resource files below are part of the unified V4 frontend.
           # Do not assert obsolete GameContentActivity names from an abandoned
           # prototype: V4 uses GameContentManagerActivity/GameContentStore.
-          for name in ("synolsis_ui_strings.xml", "synolsis_frame_skip.xml",
-                       "synolsis_gpu_presets.xml", "synolsis_game_content_strings.xml"):
+          for name in ("synolsis_ui_strings.xml", "synolsis_arrays.xml",
+                       "synolsis_native_controls.xml", "synolsis_game_content_strings.xml"):
               ET.parse(root/"res/values-pt-rBR"/name)
           ET.parse(root/"res/values/synolsis_game_content_strings.xml")
           assert "GameContentManagerActivity::class.java" in app_dialog
