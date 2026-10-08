@@ -9,6 +9,12 @@
             android:summaryOn="@string/use_custom_settings_desc_on"
             app:key="use_custom_settings"
             app:title="@string/use_custom_settings" />
+        <!-- Game-specific GPU driver overrides remain available,
+             but only when this title uses its custom settings. -->
+        <org.stratoemu.strato.preference.GpuDriverPreference
+            android:dependency="use_custom_settings"
+            app:key="gpu_driver"
+            app:title="@string/synolsis_per_game_gpu_driver" />
         <org.stratoemu.strato.preference.ExportCustomSettingsPreference
             android:summary="@string/export_custom_settings_desc"
             app:key="@string/export_custom_settings"
