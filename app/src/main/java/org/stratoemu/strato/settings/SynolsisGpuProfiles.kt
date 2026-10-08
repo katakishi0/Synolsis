@@ -18,6 +18,7 @@ object SynolsisGpuProfiles {
     const val CONSERVATIVE = "conservative"
     const val BALANCED = "balanced"
     const val EXPERIMENTAL = "experimental"
+    const val FPS_HACK = "fps_hack"
 
     fun apply(settings : EmulationSettings, profile : String) : Boolean {
         when (profile) {
@@ -35,6 +36,15 @@ object SynolsisGpuProfiles {
                 settings.executorSlotCountScale = 6
                 settings.executorFlushThreshold = 512
                 settings.freeGuestTextureMemory = false
+            }
+            FPS_HACK -> {
+                // Candidate for 6 GB Adreno + Turnip, not a guaranteed FPS
+                // unlock. Keep the shader cache and guest safety defaults.
+                settings.executorSlotCountScale = 3
+                settings.executorFlushThreshold = 96
+                settings.freeGuestTextureMemory = true
+                settings.enableFastGpuReadbackHack = true
+                settings.enableFastReadbackWrites = false
             }
             else -> return false
         }
