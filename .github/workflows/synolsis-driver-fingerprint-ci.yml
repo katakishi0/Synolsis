@@ -378,7 +378,12 @@ jobs:
           msg=ET.parse(base/"values/synolsis_game_content_strings.xml").getroot()
           confirm=next(x.text for x in msg if x.get("name")=="synolsis_clear_cache_confirm")
           assert "&#39;" not in confirm and "game's" not in confirm, "AAPT-invalid apostrophe"
-          print("PASS: no duplicate values per locale; 298+ pt-BR labels and quote safety")
+          store=(base.parent/"java/org/stratoemu/strato/data/GameContentStore.kt").read_text()
+          assert '"Unterminated NSP filename"' in store
+          assert '"Duplicate NSP entry filename"' in store
+          assert 'staging.renameTo(destination)' in store
+          assert 'validatePfs0(staging)' in store
+          print("PASS: no duplicate values, pt-BR strings, AAPT quote safety, NSP PFS0 staging checks")
           PY
 
       - name: Setup Java 17
