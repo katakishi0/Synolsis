@@ -117,9 +117,14 @@ namespace skyline::gpu {
             windowScalingMode = frame.scalingMode;
         }
 
-        if ((result = window->perform(window, NATIVE_WINDOW_SET_BUFFERS_TRANSFORM, static_cast<i32>(frame.transform))))
-            throw exception("Setting the buffer transform to '{}' failed with {}", ToString(frame.transform), result);
-        windowTransform = frame.transform;
+        // Avoid a redundant native-window perform/Binder transition on every
+        // frame if the Switch output transform did not change.
+        if (!windowTransformApplied || frame.transform != windowTransform) {
+            if ((result = window->perform(window, NATIVE_WINDOW_SET_BUFFERS_TRANSFORM, static_cast<i32>(frame.transform))))
+                throw exception("Setting the buffer transform to '{}' failed with {}", ToString(frame.transform), result);
+            windowTransform = frame.transform;
+            windowTransformApplied = true;
+        }
 
         auto &acquireSemaphore{acquireSemaphores[frameIndex]};
         auto &frameFence{frameFences[frameIndex]};
@@ -388,6 +393,7 @@ namespace skyline::gpu {
             jSurface = env->NewGlobalRef(newSurface);
 
         vkSwapchain.reset();
+        windowTransformApplied = false; // New native window needs fresh transform
 
         if (jSurface) {
             window = ANativeWindow_fromSurface(env, jSurface);
