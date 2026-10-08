@@ -322,7 +322,18 @@ namespace skyline::gpu {
         if ((capabilities.supportedUsageFlags & presentUsage) != presentUsage)
             throw exception("Swapchain doesn't support image usage '{}': {}", vk::to_string(presentUsage), vk::to_string(capabilities.supportedUsageFlags));
 
-        auto requestedMode{*state.settings->disableFrameThrottling ? vk::PresentModeKHR::eMailbox : vk::PresentModeKHR::eFifo};
+        vk::PresentModeKHR requestedMode{
+            *state.settings->disableFrameThrottling ? vk::PresentModeKHR::eMailbox : vk::PresentModeKHR::eFifo
+        };
+        // Keep Auto equivalent to the original Strato behavior. The other
+        // selections are real Vulkan present modes, opt-in and capability-
+        // checked below; unsupported choices fall back to mandatory FIFO.
+        switch (*state.settings->vulkanPresentMode) {
+            case 1: requestedMode = vk::PresentModeKHR::eFifo; break;
+            case 2: requestedMode = vk::PresentModeKHR::eMailbox; break;
+            case 3: requestedMode = vk::PresentModeKHR::eImmediate; break;
+            default: break;
+        }
         auto modes{gpu.vkPhysicalDevice.getSurfacePresentModesKHR(**vkSurface)};
         if (std::find(modes.begin(), modes.end(), requestedMode) == modes.end()) {
             // FIFO is Vulkan's portable presentation mode and must be used
