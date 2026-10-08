@@ -10,4 +10,14 @@
         <item>balanced</item>
         <item>experimental</item>
     </string-array>
+    <string-array name="synolsis_readback_mode_entries">
+        <item>Preciso (compatibilidade)</item>
+        <item>Equilibrado (fast readback)</item>
+        <item>Rápido experimental (readback + writes)</item>
+    </string-array>
+    <string-array name="synolsis_readback_mode_values">
+        <item>accurate</item>
+        <item>balanced</item>
+        <item>experimental</item>
+    </string-array>
 </resources>
