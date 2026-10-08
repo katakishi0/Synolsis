@@ -100,7 +100,10 @@ namespace skyline::gpu {
         // and progressively longer cache replays.
         stagingStream.close();
         mainStream.close();
-        std::filesystem::remove(stagingPath);
+        std::error_code removeError;
+        std::filesystem::remove(stagingPath, removeError);
+        if (removeError)
+            LOGW("Could not remove merged pipeline cache staging file: {}", removeError.message());
     }
 
     PipelineCacheManager::PipelineCacheManager(const DeviceState &state, const std::string &path)
