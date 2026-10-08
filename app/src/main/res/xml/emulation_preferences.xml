@@ -122,13 +122,67 @@
             app:key="disable_shader_cache"
             app:title="@string/shader_cache" />
     </PreferenceCategory>
+    <!-- Native-backed experiments are deliberately inline: no navigation or
+         extra page tap is required. Per-game category is disabled when
+         "use_custom_settings" is disabled (GameSettingsFragment). -->
     <PreferenceCategory
-        android:key="category_experimental_navigation"
+        android:key="category_experimental"
         android:title="@string/experimental_settings_title">
         <Preference
-            app:key="open_experimental_settings"
-            app:title="@string/experimental_open_title"
-            app:summary="@string/experimental_open_summary" />
+            app:key="experimental_warning"
+            android:selectable="false"
+            app:title="@string/experimental_warning_title"
+            app:summary="@string/experimental_warning_summary" />
+        <SeekBarPreference
+            android:defaultValue="6"
+            android:min="1"
+            android:max="6"
+            app:key="executor_slot_count_scale"
+            app:showSeekBarValue="true"
+            app:title="@string/executor_slot_count_scale"
+            android:summary="@string/executor_slot_count_scale_desc" />
+        <SeekBarPreference
+            android:defaultValue="256"
+            android:min="0"
+            android:max="1024"
+            app:key="executor_flush_threshold"
+            app:showSeekBarValue="true"
+            app:title="@string/executor_flush_threshold"
+            android:summary="@string/executor_flush_threshold_desc" />
+        <SwitchPreferenceCompat
+            android:defaultValue="true"
+            app:key="free_guest_texture_memory"
+            app:title="@string/free_guest_texture_memory"
+            android:summary="@string/free_guest_texture_memory_desc" />
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            app:key="force_max_gpu_clocks"
+            app:title="@string/force_max_gpu_clocks"
+            android:summary="@string/force_max_gpu_clocks_desc" />
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            app:key="use_direct_memory_import"
+            app:title="@string/use_direct_memory_import"
+            android:summary="@string/experimental_direct_import_warning" />
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            app:key="enable_fast_gpu_readback_hack"
+            app:title="@string/enable_fast_gpu_readback"
+            android:summaryOff="@string/enable_fast_gpu_readback_disabled"
+            android:summaryOn="@string/enable_fast_gpu_readback_enabled" />
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:dependency="enable_fast_gpu_readback_hack"
+            app:key="enable_fast_readback_writes"
+            app:title="@string/enable_fast_readback_writes"
+            android:summaryOff="@string/enable_fast_readback_writes_disabled"
+            android:summaryOn="@string/enable_fast_readback_writes_enabled" />
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            app:key="disable_subgroup_shuffle"
+            app:title="@string/disable_subgroup_shuffle"
+            android:summaryOff="@string/disable_subgroup_shuffle_disabled"
+            android:summaryOn="@string/disable_subgroup_shuffle_enabled" />
     </PreferenceCategory>
     <PreferenceCategory
         android:key="category_debug"
