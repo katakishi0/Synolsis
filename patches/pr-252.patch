@@ -1,0 +1,114 @@
+diff --git a/app/src/main/cpp/loader_jni.cpp b/app/src/main/cpp/loader_jni.cpp
+index 8a8922d91..491b18ac5 100644
+--- a/app/src/main/cpp/loader_jni.cpp
++++ b/app/src/main/cpp/loader_jni.cpp
+@@ -94,23 +94,27 @@ extern "C" JNIEXPORT jstring Java_org_stratoemu_strato_preference_FirmwareImport
+     auto systemArchives{systemArchivesFileSystem->OpenDirectory("")};
+     auto keyStore{std::make_shared<skyline::crypto::KeyStore>(skyline::JniString(env, keysPathJstring))};
+ 
+-    for (const auto &entry : systemArchives->Read()) {
+-        std::shared_ptr<skyline::vfs::Backing> backing{systemArchivesFileSystem->OpenFile(entry.name)};
+-        auto nca{skyline::vfs::NCA(backing, keyStore)};
+-
+-        if (nca.header.programId == systemVersionProgramId && nca.romFs != nullptr) {
+-            auto controlRomFs{std::make_shared<skyline::vfs::RomFileSystem>(nca.romFs)};
+-            auto file{controlRomFs->OpenFile("file")};
+-            SystemVersion systemVersion;
+-            file->Read<SystemVersion>(systemVersion);
+-            return env->NewStringUTF(reinterpret_cast<char *>(systemVersion.displayVersion));
++    try {
++        for (const auto &entry : systemArchives->Read()) {
++            std::shared_ptr<skyline::vfs::Backing> backing{systemArchivesFileSystem->OpenFile(entry.name)};
++            auto nca{skyline::vfs::NCA(backing, keyStore)};
++
++            if (nca.header.programId == systemVersionProgramId && nca.romFs != nullptr) {
++                auto controlRomFs{std::make_shared<skyline::vfs::RomFileSystem>(nca.romFs)};
++                auto file{controlRomFs->OpenFile("file")};
++                SystemVersion systemVersion;
++                file->Read<SystemVersion>(systemVersion);
++                return env->NewStringUTF(reinterpret_cast<char *>(systemVersion.displayVersion));
++            }
+         }
++    } catch (skyline::loader::loader_exception &e) {
++        return env->NewStringUTF("-1");
+     }
+ 
+     return env->NewStringUTF("");
+ }
+ 
+-std::vector<skyline::u8> decodeBfttfFont(const std::shared_ptr<skyline::vfs::Backing> bfttfFile){
++std::vector<skyline::u8> decodeBfttfFont(const std::shared_ptr<skyline::vfs::Backing> bfttfFile) {
+     constexpr skyline::u32 fontKey{0x06186249};
+     constexpr skyline::u32 BFTTFMagic{0x18029a7f};
+ 
+diff --git a/app/src/main/java/org/stratoemu/strato/preference/FirmwareImportPreference.kt b/app/src/main/java/org/stratoemu/strato/preference/FirmwareImportPreference.kt
+index 80cff75fc..9d9b98cc6 100644
+--- a/app/src/main/java/org/stratoemu/strato/preference/FirmwareImportPreference.kt
++++ b/app/src/main/java/org/stratoemu/strato/preference/FirmwareImportPreference.kt
+@@ -25,7 +25,8 @@ import java.io.FilenameFilter
+ import java.io.IOException
+ 
+ class FirmwareImportPreference @JvmOverloads constructor(context : Context, attrs : AttributeSet? = null, defStyleAttr : Int = androidx.preference.R.attr.preferenceStyle) : Preference(context, attrs, defStyleAttr) {
+-    private class Firmware(val valid : Boolean, val version : String)
++    private enum class FirmwareStatus { VALID, INVALID, KEYS_OUTDATED }
++    private class Firmware(val status : FirmwareStatus, val version : String?)
+ 
+     private val firmwarePath = File(context.getPublicFilesDir().canonicalPath + "/switch/nand/system/Contents/registered/")
+     private val keysPath = "${context.filesDir.canonicalPath}/keys/"
+@@ -49,17 +50,19 @@ class FirmwareImportPreference @JvmOverloads constructor(context : Context, attr
+                     ZipUtils.unzip(inputZip, cacheFirmwareDir)
+ 
+                     val firmware = isFirmwareValid(cacheFirmwareDir)
+-                    messageToShow = if (!firmware.valid) {
+-                        R.string.import_firmware_invalid_contents
+-                    } else {
+-                        firmwarePath.deleteRecursively()
+-                        cacheFirmwareDir.copyRecursively(firmwarePath, true)
+-                        persistString(firmware.version)
+-                        extractFonts(firmwarePath.path, keysPath, fontsPath)
+-                        CoroutineScope(Dispatchers.Main).launch {
+-                            notifyChanged()
++                    messageToShow = when (firmware.status) {
++                        FirmwareStatus.INVALID -> R.string.import_firmware_invalid_contents
++                        FirmwareStatus.KEYS_OUTDATED -> R.string.import_firmware_outdated_keys
++                        else -> {
++                            firmwarePath.deleteRecursively()
++                            cacheFirmwareDir.copyRecursively(firmwarePath, true)
++                            persistString(firmware.version)
++                            extractFonts(firmwarePath.path, keysPath, fontsPath)
++                            CoroutineScope(Dispatchers.Main).launch {
++                                notifyChanged()
++                            }
++                            R.string.import_firmware_success
+                         }
+-                        R.string.import_firmware_success
+                     }
+                 } catch (e : IOException) {
+                     messageToShow = R.string.error
+@@ -104,8 +107,12 @@ class FirmwareImportPreference @JvmOverloads constructor(context : Context, attr
+ 
+         return if (unfilteredNumOfFiles == filteredNumOfFiles) {
+             val version = fetchFirmwareVersion(cacheFirmwareDir.path, keysPath)
+-            Firmware(version.isNotEmpty(), version)
+-        } else Firmware(false, "")
++            when {
++                version.isEmpty() -> Firmware(FirmwareStatus.INVALID, null)
++                version == "-1" -> Firmware(FirmwareStatus.KEYS_OUTDATED, null)
++                else -> Firmware(FirmwareStatus.VALID, version)
++            }
++        } else Firmware(FirmwareStatus.INVALID, null)
+     }
+ 
+     private external fun fetchFirmwareVersion(systemArchivesPath : String, keysPath : String) : String
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index c8b866924..d6595394b 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -52,6 +52,7 @@
+     <string name="import_firmware_success">Firmware was successfully imported</string>
+     <string name="import_firmware_failure">Firmware installation failed</string>
+     <string name="import_firmware_invalid_contents">The supplied firmware package does not contain a valid firmware</string>
++    <string name="import_firmware_outdated_keys">The supplied firmware package version is newer than the currently installed keys</string>
+     <string name="firmware_keys_needed">Valid keys are required for firmware installation</string>
+     <string name="firmware_not_installed">No firmware installed</string>
+     <!-- Settings - Appearance -->
