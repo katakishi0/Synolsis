@@ -37,7 +37,7 @@
         <org.stratoemu.strato.preference.IntegerListPreference
             android:defaultValue="0"
             android:entries="@array/synolsis_palette_entries"
-            app:entryValues="@array/synolsis_palette_values"
+            android:entryValues="@array/synolsis_palette_values"
             app:key="synolsis_palette"
             app:title="@string/synolsis_palette"
             app:useSimpleSummaryProvider="true" />
