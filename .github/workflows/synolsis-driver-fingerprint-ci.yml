@@ -41,7 +41,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           # Source is checked out at the start of the run, then built from that snapshot.
-          ref: fix/synolsis-v4-localization-nsp
+          ref: feature/synolsis-v4-nsp-validation
           submodules: false
 
       - name: Assert full source is checked in
@@ -296,6 +296,17 @@ jobs:
           assert "GameContentManagerActivity::class.java" in app_dialog
           assert "ActivityResultContracts.OpenDocument()" in manager
           assert "validatePfs0" in store and "GameContentStore" in manager
+          # Import/staging must validate PFS0 metadata, preserve the original
+          # filename and never represent the NSP as mounted game content.
+          for token in ('"cnmt_count"', '"native_status"', '"staged_not_mounted"',
+                        '"title_id_verified"', "Overlapping NSP entry data",
+                        "Duplicate NSP filename", "fd.sync()"):
+              assert token in store, "Missing NSP import safety: "+token
+          assert "synolsis_content_package_summary" in manager
+          assert "entry.displayName" in manager
+          for locale in ("values", "values-pt-rBR"):
+              content_xml=ET.parse(root/"res"/locale/"synolsis_game_content_strings.xml").getroot()
+              assert content_xml.find("./string[@name='synolsis_content_package_summary']") is not None
           cache_clean=(root/"java/org/stratoemu/strato/utils/GameShaderCacheUtils.kt").read_text()
           assert "graphics_pipeline_cache" in cache_clean
           assert "vk_graphics_pipeline_cache" in cache_clean
@@ -514,7 +525,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: synolsis-emu-ptbr-game-content-v4-${{ inputs.build_type || 'optimized' }}-${{ github.run_number }}
+          name: synolsis-emu-ptbr-nsp-validated-${{ inputs.build_type || 'optimized' }}-${{ github.run_number }}
           path: app/build/outputs/apk/mainline/*/*.apk
           if-no-files-found: error
           retention-days: 30
