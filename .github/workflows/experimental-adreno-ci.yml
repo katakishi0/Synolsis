@@ -70,7 +70,10 @@ jobs:
               assert native_key in native and native_key in cpp, native_key
           assert "EXTRA_EXPERIMENTAL_SETTINGS" in (root/"java/org/stratoemu/strato/settings/SettingsActivity.kt").read_text()
           assert "pref.useDirectMemoryImport && pref.gpuDriver == EmulationSettings.SYSTEM_GPU_DRIVER" in native
-          print("Validated:", len(required), "real native-backed Experimental controls")
+          for fragment in ("GlobalSettingsFragment.kt", "GameSettingsFragment.kt"):
+              text=(root/"java/org/stratoemu/strato/settings"/fragment).read_text()
+              assert 'findPreference<TwoStatePreference>("force_max_gpu_clocks")!!' not in text, fragment
+          print("Validated:", len(required), "native-backed controls and no stale preference references")
           PY
 
       - name: Setup Java 17
