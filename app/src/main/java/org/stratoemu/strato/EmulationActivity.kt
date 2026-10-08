@@ -194,7 +194,9 @@ class EmulationActivity : AppCompatActivity(), SurfaceHolder.Callback, View.OnTo
         // Hack for MIUI devices since they don't support the standard Android APIs
         try {
             val setFpsIntent = Intent("com.miui.powerkeeper.SET_ACTIVITY_FPS")
-            setFpsIntent.putExtra("package_name", "skyline.emu")
+            // Android package has changed to org.synolsis.emu; the MIUI
+            // refresh-rate service must address the currently installed app.
+            setFpsIntent.putExtra("package_name", packageName)
             setFpsIntent.putExtra("isEnter", enable)
             sendBroadcast(setFpsIntent)
         } catch (_ : Exception) {
@@ -342,7 +344,18 @@ class EmulationActivity : AppCompatActivity(), SurfaceHolder.Callback, View.OnTo
                         updatePerformanceStatistics()
                         // We read the `VmRSS` value from the kernel
                         ramUsage = File("/proc/self/statm").readLines()[0].split(' ')[1].toLong() * 4096 / 1000000
-                        text = "$fps FPS • $ramUsage MB"
+                        // Native telemetry already contains average frametime
+                        // and its deviation; expose them only when explicitly
+                        // requested to keep the default HUD compact.
+                        text = if (emulationSettings.perfStatsDetails) {
+                            String.format(
+                                java.util.Locale.US,
+                                "%d FPS • %d MB • %.1f ms (±%.1f)",
+                                fps, ramUsage, averageFrametime, averageFrametimeDeviation
+                            )
+                        } else {
+                            "$fps FPS • $ramUsage MB"
+                        }
                         postDelayed(this, 250)
                     }
                 }, 250)
