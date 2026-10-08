@@ -67,6 +67,13 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
 
         setSupportActionBar(binding.titlebar.toolbar)
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
+        // Keep each Synolsis settings section visually distinct.
+        supportActionBar?.title = when (intent.getStringExtra("synolsis_settings_section")) {
+            "advanced" -> getString(R.string.synolsis_hub_advanced)
+            "appearance" -> getString(R.string.synolsis_hub_theme)
+            "content" -> getString(R.string.synolsis_hub_data)
+            else -> getString(R.string.settings)
+        }
 
         var layoutDone = false // Tracks if the layout is complete to avoid retrieving invalid attributes
         binding.coordinatorLayout.viewTreeObserver.addOnTouchModeChangeListener { isTouchMode ->
