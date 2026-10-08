@@ -111,18 +111,34 @@ object GameContentStore {
             } ?: error("Cannot read selected content")
             check(written >= 16L) { "NSP file is empty or incomplete" }
 
-            validatePfs0(staging)
+            val info = validatePfs0(staging)
 
-            // Same-directory rename is atomic on Android's app-private storage.
+            // This is a verified NSP container, NOT necessarily an update/DLC
+            // for this game: encrypted CNMT metadata needs native validation.
             check(staging.renameTo(destination)) { "Could not finalize imported NSP" }
-            return Entry(destination, written)
+            val safeName = displayName.filter { it >= ' ' }.take(160)
+            val metadata = org.json.JSONObject()
+                .put("name", safeName)
+                .put("selected_title_id", titleId.uppercase())
+                .put("selected_kind", kind.directory)
+                .put("nca_count", info.first)
+                .put("cnmt_count", info.second)
+                .put("native_status", "staged_not_mounted")
+                .put("title_id_verified", false)
+            try {
+                metadataFile(destination).writeText(metadata.toString())
+            } catch (error: Exception) {
+                destination.delete()
+                throw error
+            }
+            return Entry(destination, written, safeName, info.first, info.second)
         } finally {
             if (staging.exists()) staging.delete()
         }
     }
 
     /** Validates NSP/PFS0 layout and every entry range before storing it. */
-    private fun validatePfs0(file: File) {
+    private fun validatePfs0(file: File): Pair<Int, Int> {
         RandomAccessFile(file, "r").use { raf ->
             val header = ByteArray(16)
             raf.readFully(header)
@@ -145,6 +161,9 @@ object GameContentStore {
             raf.readFully(stringTable)
             val entries = ByteBuffer.wrap(entryTable).order(ByteOrder.LITTLE_ENDIAN)
             var ncaCount = 0
+            var cnmtCount = 0
+            val entryNames = HashSet<String>(count)
+            val segments = ArrayList<Pair<Long, Long>>(count)
             repeat(count) {
                 val offset = entries.long
                 val size = entries.long
@@ -159,9 +178,21 @@ object GameContentStore {
                 require(name.isNotBlank() && '/' !in name && '\\' !in name) {
                     "Invalid NSP entry filename"
                 }
-                if (name.endsWith(".nca", ignoreCase = true)) ncaCount++
+                require(entryNames.add(name.lowercase())) { "Duplicate NSP filename" }
+                if (size > 0L) segments.add(offset to (offset + size))
+                if (name.endsWith(".nca", ignoreCase = true)) {
+                    ncaCount++
+                    if (name.endsWith(".cnmt.nca", ignoreCase = true)) cnmtCount++
+                }
             }
+            segments.sortBy { it.first }
+            for (index in 1 until segments.size)
+                require(segments[index].first >= segments[index - 1].second) {
+                    "Overlapping NSP entry data"
+                }
             require(ncaCount > 0) { "NSP contains no NCA content" }
+            require(cnmtCount > 0) { "NSP is missing CNMT metadata" }
+            return ncaCount to cnmtCount
         }
     }
 }
