@@ -41,7 +41,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           # Source is checked out at the start of the run, then built from that snapshot.
-          ref: fix/synolsis-cache-transactional-merge
+          ref: feature/synolsis-frame-skip-fps-profiles
           submodules: false
 
       - name: Assert full source is checked in
@@ -169,6 +169,42 @@ jobs:
               assert field in gpu_source, "Vulkan fingerprint missing "+field
           assert 'vkPhysicalDevice.getProperties()' in gpu_source
           assert 'std::hash' not in gpu_source.split("void GPU::Initialise()",1)[1] or 'std::hash is not stable' in gpu_source
+          # Real host-frame skip / Vulkan present mode feature wiring (not
+          # empty UI toggles). This verifies the complete Android-to-native path.
+          frame_xml=ET.parse(root/"res/values/synolsis_frame_skip.xml").getroot()
+          for prefix, bounds in (("synolsis_frame_skip", [0, 1, 2]),
+                                 ("synolsis_present_mode", [0, 1, 2, 3])):
+              arr=frame_xml.find("./integer-array[@name='"+prefix+"_values']")
+              labels=frame_xml.find("./string-array[@name='"+prefix+"_entries']")
+              assert arr is not None and labels is not None
+              assert [int(v.text) for v in arr]==bounds
+              assert len(labels)==len(bounds)
+          ui=ET.parse(root/"res/xml/emulation_preferences.xml")
+          app_ns="{http://schemas.android.com/apk/res-auto}"
+          integer_prefs={
+              node.get(app_ns+"key"):node for node in ui.iter()
+              if node.tag.endswith("IntegerListPreference")
+          }
+          assert integer_prefs["presentation_frame_skip"] is not None
+          assert integer_prefs["vulkan_present_mode"] is not None
+          settings_cpp=(root/"cpp/skyline/common/settings.h").read_text()
+          android_cpp=(root/"cpp/skyline/common/android_settings.h").read_text()
+          kotlin=(root/"java/org/stratoemu/strato/settings/NativeSettings.kt").read_text()
+          kpref=(root/"java/org/stratoemu/strato/settings/EmulationSettings.kt").read_text()
+          for field in ("presentationFrameSkip", "vulkanPresentMode"):
+              assert field in settings_cpp and field in android_cpp
+              assert field in kotlin and field in kpref
+          present=(root/"cpp/skyline/gpu/presentation_engine.cpp").read_text()
+          present_h=(root/"cpp/skyline/gpu/presentation_engine.h").read_text()
+          assert "frame.fence.Wait(state.soc->host1x)" in present
+          assert "frame.presentCallback()" in present and "vsyncEvent->Signal()" in present
+          assert "presentationFrameCounter++" in present and "presentationFrameCounter" in present_h
+          for mode in ("eFifo","eMailbox","eImmediate"):
+              assert "vk::PresentModeKHR::"+mode in present
+          profiles=(root/"java/org/stratoemu/strato/settings/SynolsisGpuProfiles.kt").read_text()
+          assert 'const val FPS_HACK = "fps_hack"' in profiles
+          assert "settings.enableFastReadbackWrites = false" in profiles
+          print("PASS: GPU profiler, frame-skipping with callbacks, Vulkan mode and native settings")
           print("PASS: separated settings and Vulkan physical-driver fingerprint identity")
           # Synolsis v2: diagnostics only expose existing native telemetry,
           # and the MIUI refresh-rate IPC must address the actual Android app.
@@ -316,7 +352,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: synolsis-emu-adreno-v2-${{ inputs.build_type || 'optimized' }}-${{ github.run_number }}
+          name: synolsis-emu-adreno-v3-${{ inputs.build_type || 'optimized' }}-${{ github.run_number }}
           path: app/build/outputs/apk/mainline/*/*.apk
           if-no-files-found: error
           retention-days: 30
