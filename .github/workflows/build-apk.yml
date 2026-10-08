@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/build-apk.yml'
+      - 'patches/pr-2200.patch'
+      - 'patches/pr-2201.patch'
   workflow_dispatch:
     inputs:
       patch:
