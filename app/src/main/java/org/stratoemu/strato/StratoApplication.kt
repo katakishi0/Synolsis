@@ -10,6 +10,7 @@ import android.app.Activity
 import android.os.Bundle
 import org.stratoemu.strato.settings.AppSettings
 import org.stratoemu.strato.utils.applySynolsisPalette
+import org.stratoemu.strato.utils.SynolsisLocaleBootstrap
 import android.content.Context
 import com.google.android.material.color.DynamicColors
 import com.google.android.material.color.DynamicColorsOptions
@@ -38,6 +39,9 @@ class StratoApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+        // English is the first-install default; locale picker remains fully
+        // functional and persisted choices are never replaced on later runs.
+        SynolsisLocaleBootstrap.initialize(this)
         System.loadLibrary("skyline")
 
         // Theme resources must be applied before Activity.onCreate, including
