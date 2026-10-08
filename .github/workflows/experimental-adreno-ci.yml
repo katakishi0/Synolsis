@@ -1,4 +1,4 @@
-name: Experimental Adreno Settings APK
+name: Experimental Adreno + FW23 ZBIC APK
 
 on:
   push:
@@ -31,7 +31,7 @@ jobs:
       - name: Checkout standalone Strato feature branch
         uses: actions/checkout@v4
         with:
-          ref: feature/experimental-adreno-settings
+          ref: feature/experimental-adreno-fw23-zbic
           submodules: false
 
       - name: Assert full source is checked in
@@ -140,7 +140,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: skyline-strato-adreno-experimental-${{ github.run_number }}
+          name: skyline-strato-adreno-fw23-experimental-${{ github.run_number }}
           path: app/build/outputs/apk/dev/debug/*.apk
           if-no-files-found: error
           retention-days: 30
