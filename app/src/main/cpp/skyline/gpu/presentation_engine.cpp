@@ -279,13 +279,19 @@ namespace skyline::gpu {
     }
 
     void PresentationEngine::UpdateSwapchain(texture::Format format, texture::Dimensions extent) {
-        auto minImageCount{std::max(vkSurfaceCapabilities.minImageCount, *state.settings->forceTripleBuffering ? 3U : 2U)};
+        // Some Adreno/Turnip surfaces expose only two swapchain buffers.
+        // Prefer triple buffering when available but avoid failing startup
+        // when the Vulkan implementation advertises a smaller maximum.
+        const auto &capabilities{vkSurfaceCapabilities};
+        auto minImageCount{std::max(capabilities.minImageCount, *state.settings->forceTripleBuffering ? 3U : 2U)};
+        if (capabilities.maxImageCount && minImageCount > capabilities.maxImageCount) {
+            LOGW("Clamping requested swapchain images {} to device maximum {}", minImageCount, capabilities.maxImageCount);
+            minImageCount = capabilities.maxImageCount;
+        }
         if (minImageCount > MaxSwapchainImageCount)
             throw exception("Requesting swapchain with higher image count ({}) than maximum slot count ({})", minImageCount, MaxSwapchainImageCount);
-
-        const auto &capabilities{vkSurfaceCapabilities};
-        if (minImageCount < capabilities.minImageCount || (capabilities.maxImageCount && minImageCount > capabilities.maxImageCount))
-            throw exception("Cannot update swapchain to accomodate image count: {} ({}-{})", minImageCount, capabilities.minImageCount, capabilities.maxImageCount);
+        if (minImageCount < capabilities.minImageCount)
+            throw exception("Swapchain cannot satisfy the minimum image count {}", capabilities.minImageCount);
         else if (capabilities.minImageExtent.height > extent.height || capabilities.minImageExtent.width > extent.width || capabilities.maxImageExtent.height < extent.height || capabilities.maxImageExtent.width < extent.width)
             throw exception("Cannot update swapchain to accomodate image extent: {}x{} ({}x{}-{}x{})", extent.width, extent.height, capabilities.minImageExtent.width, capabilities.minImageExtent.height, capabilities.maxImageExtent.width, capabilities.maxImageExtent.height);
 
@@ -305,8 +311,14 @@ namespace skyline::gpu {
 
         auto requestedMode{*state.settings->disableFrameThrottling ? vk::PresentModeKHR::eMailbox : vk::PresentModeKHR::eFifo};
         auto modes{gpu.vkPhysicalDevice.getSurfacePresentModesKHR(**vkSurface)};
-        if (std::find(modes.begin(), modes.end(), requestedMode) == modes.end())
-            throw exception("Swapchain doesn't support present mode: {}", vk::to_string(requestedMode));
+        if (std::find(modes.begin(), modes.end(), requestedMode) == modes.end()) {
+            // FIFO is Vulkan's portable presentation mode and must be used
+            // when MAILBOX is unavailable instead of terminating game launch.
+            LOGW("Present mode {} unavailable; falling back to FIFO", vk::to_string(requestedMode));
+            requestedMode = vk::PresentModeKHR::eFifo;
+            if (std::find(modes.begin(), modes.end(), requestedMode) == modes.end())
+                throw exception("Swapchain does not support required FIFO present mode");
+        }
 
         vkSwapchain.emplace(gpu.vkDevice, vk::SwapchainCreateInfoKHR{
             .surface = **vkSurface,
