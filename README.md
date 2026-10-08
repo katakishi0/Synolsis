@@ -5,6 +5,21 @@
 > Current status **v0.2 — source link + patch candidates + CI preparation**.
 > The complete upstream core is linked as a pinned Git submodule. Patches are **not merged** into the core by default. No APK has been verified yet.
 
+## Independent full Strato core branch
+
+**[Browse `strato-full-core`](../../tree/strato-full-core)** — all native emulator sources, our experimental 22.x/23.x key generation and firmware patches, and *recursive third-party source dependencies* are committed directly into this repository. The branch has **no Git submodule pointers**. This preserves the build's source materials even if original upstream repositories disappear.
+
+```powershell
+git clone --branch strato-full-core --single-branch https://github.com/vps-generator/Skyline-Strato-Android.git
+cd Skyline-Strato-Android
+# You now have full Strato sources + vendored native dependencies in app/libraries/
+./gradlew :app:assembleDevDebug
+```
+
+The upstream reference SHA, origin and license notices are recorded in the branch's `UPSTREAM_PROVENANCE.md`. The original Strato GitHub Actions workflows are omitted due to GitHub App permission limitations; our own build workflow lives on `main`.
+
+**Current Nintendo Switch firmware is 23.0.1 (September/October 2026)**. KeyGeneration `0x17` corresponds to master key index `0x16` and fits our patched 32-entry key tables; this is key-format support, **not full firmware execution compatibility**. See [firmware compatibility scope](docs/FIRMWARE_COMPATIBILITY.md) and the standalone [APK build workflow](../../actions/workflows/build-standalone-core.yml).
+
 ### Source and licensing
 
 - **Emulator core:** [Strato](https://github.com/strato-emu/strato), continuation of Skyline, pinned at commit `ae1566a48285816a87e81d4aeb40bd2f4e56e60b`. View it in [`upstream/strato`](upstream/strato).
