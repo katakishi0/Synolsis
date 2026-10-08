@@ -14,4 +14,5 @@
     <string name="synolsis_clear_cache_title">Limpar cache de shaders do jogo</string>
     <string name="synolsis_clear_cache_confirm">Excluir os pipelines gráficos armazenados deste jogo para todos os drivers GPU? O jogo deve estar fechado. Pode haver engasgos até o cache ser recompilado.</string>
     <string name="synolsis_clear_cache_result">%1$d arquivos de cache removidos (%2$d MiB)</string>
+    <string name="synolsis_content_package_summary">%1$s\n%2$.1f MiB • %3$d NCA • %4$d CNMT (não montado)</string>
 </resources>
