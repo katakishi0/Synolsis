@@ -18,7 +18,6 @@ import androidx.window.layout.WindowInfoTracker
 import org.stratoemu.strato.BuildConfig
 import org.stratoemu.strato.MainActivity
 import org.stratoemu.strato.R
-import org.stratoemu.strato.utils.GpuDriverHelper
 import org.stratoemu.strato.utils.WindowInsetsHelper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -79,11 +78,7 @@ class GlobalSettingsFragment : PreferenceFragmentCompat() {
         if (BuildConfig.BUILD_TYPE != "release")
             findPreference<Preference>("validation_layer")?.isVisible = true
 
-        if (!GpuDriverHelper.supportsForceMaxGpuClocks()) {
-            val forceMaxGpuClocksPref = findPreference<TwoStatePreference>("force_max_gpu_clocks")!!
-            forceMaxGpuClocksPref.isSelectable = false
-            forceMaxGpuClocksPref.isChecked = false
-            forceMaxGpuClocksPref.summary = context!!.getString(R.string.force_max_gpu_clocks_desc_unsupported)
-        }
+        // Maximum GPU clocks moved to ExperimentalSettingsFragment.
+        // That screen checks support before enabling the preference.
     }
 }
