@@ -122,6 +122,7 @@ object GameContentStore {
             raf.readFully(stringTable)
             val entries = ByteBuffer.wrap(entryTable).order(ByteOrder.LITTLE_ENDIAN)
             var ncaCount = 0
+            val seenNames = HashSet<String>()
             repeat(count) {
                 val offset = entries.long
                 val size = entries.long
@@ -132,9 +133,17 @@ object GameContentStore {
                 require(nameOffset in 0 until namesSize) { "Invalid NSP filename offset" }
                 val nameEnd = (nameOffset until namesSize)
                     .firstOrNull { stringTable[it].toInt() == 0 } ?: namesSize
+                // NSP/PFS0 filenames must be NUL terminated inside the
+                // declared string table. A missing terminator can hide an
+                // intentionally malformed metadata table.
+                require(nameEnd < namesSize) { "Unterminated NSP filename" }
                 val name = String(stringTable, nameOffset, nameEnd - nameOffset, Charsets.UTF_8)
-                require(name.isNotBlank() && '/' !in name && '\\' !in name) {
+                require(name.isNotBlank() && '/' !in name && '\\' !in name &&
+                    name != "." && name != ".." && name.all { it.code in 0x20..0x7E }) {
                     "Invalid NSP entry filename"
+                }
+                require(seenNames.add(name.lowercase(java.util.Locale.ROOT))) {
+                    "Duplicate NSP entry filename"
                 }
                 if (name.endsWith(".nca", ignoreCase = true)) ncaCount++
             }
