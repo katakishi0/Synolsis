@@ -111,6 +111,14 @@
             android:summaryOn="@string/triple_buffering_enabled"
             app:key="force_triple_buffering"
             app:title="@string/force_triple_buffering" />
+        <org.stratoemu.strato.preference.IntegerListPreference
+            android:defaultValue="0"
+            android:entries="@array/synolsis_frame_skip_entries"
+            android:entryValues="@array/synolsis_frame_skip_values"
+            app:key="presentation_frame_skip"
+            app:title="@string/synolsis_frame_skip_title"
+            android:summary="@string/synolsis_frame_skip_summary"
+            app:useSimpleSummaryProvider="false" />
         <SwitchPreferenceCompat
             android:defaultValue="false"
             android:dependency="force_triple_buffering"
