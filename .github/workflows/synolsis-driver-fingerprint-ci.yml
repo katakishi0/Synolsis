@@ -6,13 +6,22 @@ on:
     paths:
       - '.github/workflows/synolsis-driver-fingerprint-ci.yml'
   workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Native compilation mode (optimized for performance or debug baseline)'
+        type: choice
+        required: true
+        default: optimized
+        options:
+          - optimized
+          - debug
 
 permissions:
   contents: read
 
 concurrency:
   group: synolsis-vulkan-driver-fingerprint
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -175,6 +184,14 @@ jobs:
           cache=(root/"cpp/skyline/gpu/pipeline_cache_manager.cpp").read_text()
           assert "Pipeline cache has an impossible pipeline count" in cache
           assert "mainStream.seekg(sizeof(PipelineCacheFileHeader), std::ios::beg)" in cache
+          gradle=Path("app/build.gradle").read_text()
+          cmake=(root.parent/"CMakeLists.txt").read_text()
+          assert "optimized {" in gradle and 'arguments "-DCMAKE_BUILD_TYPE=RELEASE"' in gradle
+          assert 'applicationId "org.synolsis.emu"' in gradle
+          assert 'set(CMAKE_CXX_FLAGS_DEBUG "-O0' in cmake
+          assert 'set(CMAKE_CXX_FLAGS_RELEASE "-Ofast' in cmake
+          assert "minifyEnabled false" in gradle
+          print("PASS: Synolsis optimized APK variant versus -O0 debug baseline")
           print("PASS: Synolsis v2 MIUI, native frametime HUD, readback consistency and cache validation")
 
           PY
@@ -271,7 +288,21 @@ jobs:
         run: |
           set -euo pipefail
           chmod +x ./gradlew
-          ./gradlew :app:assembleMainlineDebug --no-daemon --stacktrace --build-cache
+          BUILD_TYPE="${{ inputs.build_type || 'optimized' }}"
+          case "$BUILD_TYPE" in
+            optimized)
+              echo "Building optimized Strato core (-Ofast/LTO native), without R8 shrinking"
+              ./gradlew :app:assembleMainlineOptimized --no-daemon --stacktrace --build-cache
+              ;;
+            debug)
+              echo "Building original unoptimized Debug baseline"
+              ./gradlew :app:assembleMainlineDebug --no-daemon --stacktrace --build-cache
+              ;;
+            *)
+              echo "::error::Unknown build_type $BUILD_TYPE"
+              exit 1
+              ;;
+          esac
 
       - name: Report compiler cache stats
         if: always()
@@ -281,7 +312,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: synolsis-emu-adreno-v2-${{ github.run_number }}
-          path: app/build/outputs/apk/mainline/debug/*.apk
+          name: synolsis-emu-adreno-v2-${{ inputs.build_type || 'optimized' }}-${{ github.run_number }}
+          path: app/build/outputs/apk/mainline/*/*.apk
           if-no-files-found: error
           retention-days: 30
