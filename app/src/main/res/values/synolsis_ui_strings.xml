@@ -26,4 +26,6 @@
     <string name="synolsis_hub_firmware_desc">Importar seus próprios arquivos de firmware e configurações</string>
     <string name="synolsis_hub_data">Biblioteca e dados</string>
     <string name="synolsis_hub_data_desc">Pastas, saves e gerenciador de dados do emulador</string>
+    <string name="synolsis_per_game_gpu_driver">Driver Vulkan deste jogo (opcional)</string>
+    <string name="synolsis_gpu_manager_separation">Drivers personalizados são gerenciados em Configurações → Gerenciador de driver GPU.</string>
 </resources>
