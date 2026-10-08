@@ -19,7 +19,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.color.MaterialColors
-import org.stratoemu.strato.input.ControllerActivity
 import org.stratoemu.strato.preference.GpuDriverActivity
 import org.stratoemu.strato.settings.SettingsActivity
 import kotlin.math.roundToInt
@@ -32,8 +31,9 @@ import kotlin.math.roundToInt
 class SynolsisSettingsHubActivity : AppCompatActivity() {
     private fun dp(value : Int) = (resources.displayMetrics.density * value).roundToInt()
 
-    private fun openSettings(key : String? = null) {
+    private fun openSettings(section : String, key : String? = null) {
         startActivity(Intent(this, SettingsActivity::class.java).apply {
+            putExtra(SettingsActivity.EXTRA_SYNOLSIS_SECTION, section)
             key?.let { putExtra("synolsis_target_preference", it) }
         })
     }
@@ -109,22 +109,27 @@ class SynolsisSettingsHubActivity : AppCompatActivity() {
         }
 
         addCard(R.string.synolsis_hub_advanced, R.string.synolsis_hub_advanced_desc, R.drawable.ic_settings) {
-            openSettings()
+            openSettings(SettingsActivity.SECTION_ADVANCED)
         }
         addCard(R.string.synolsis_hub_gpu, R.string.synolsis_hub_gpu_desc, R.drawable.ic_settings) {
             startActivity(Intent(this, GpuDriverActivity::class.java))
         }
         addCard(R.string.synolsis_hub_controls, R.string.synolsis_hub_controls_desc, R.drawable.ic_controller) {
-            startActivity(Intent(this, ControllerActivity::class.java).putExtra("index", 0))
+            // Open the existing preference list for all eight controllers,
+            // instead of jumping directly to player 1.
+            openSettings(SettingsActivity.SECTION_CONTROLS)
         }
         addCard(R.string.synolsis_hub_theme, R.string.synolsis_hub_theme_desc, R.drawable.ic_settings) {
-            openSettings("synolsis_palette")
+            openSettings(SettingsActivity.SECTION_APPEARANCE, "synolsis_palette")
         }
         addCard(R.string.synolsis_hub_firmware, R.string.synolsis_hub_firmware_desc, R.drawable.ic_play) {
-            openSettings("firmware")
+            openSettings(SettingsActivity.SECTION_CONTENT, "firmware")
         }
         addCard(R.string.synolsis_hub_data, R.string.synolsis_hub_data_desc, R.drawable.ic_search) {
-            openSettings("document_provider")
+            openSettings(SettingsActivity.SECTION_CONTENT, "document_provider")
+        }
+        addCard(R.string.synolsis_hub_about, R.string.synolsis_hub_about_desc, R.drawable.ic_settings) {
+            openSettings(SettingsActivity.SECTION_ABOUT)
         }
         // QLauncher will be shown here only after the native system-applet
         // bootstrap and missing-service handling are implemented and tested.
