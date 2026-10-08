@@ -1,0 +1,79 @@
+name: Experimental Android APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/build-apk.yml'
+  workflow_dispatch:
+    inputs:
+      patch:
+        description: 'One fix to stage for this build'
+        type: choice
+        required: true
+        default: none
+        options:
+          - none
+          - '252'
+          - '291'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: experimental-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    env:
+      PATCH_ID: ${{ inputs.patch || 'none' }}
+    steps:
+      - name: Check out toolkit and complete Strato core
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Configure Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Configure Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build ccache
+          sdkmanager --install "platforms;android-34" "build-tools;34.0.0" "ndk;26.1.10909125" "cmake;3.22.1"
+
+      - name: Report source revision and selected fix
+        run: |
+          git submodule status upstream/strato
+          echo "Staged patch ID: $PATCH_ID"
+          python -m unittest discover -s tests -q
+
+      - name: Stage selected candidate in a clean upstream checkout
+        if: env.PATCH_ID != 'none'
+        run: python tools/verify_patches.py --upstream upstream/strato --pr "$PATCH_ID" --write
+
+      - name: Build Strato ARM64 dev debug APK
+        working-directory: upstream/strato
+        env:
+          CMAKE_C_COMPILER_LAUNCHER: ccache
+          CMAKE_CXX_COMPILER_LAUNCHER: ccache
+        run: |
+          chmod +x ./gradlew
+          ./gradlew :app:assembleDevDebug --no-daemon --stacktrace --build-cache
+
+      - name: Publish experimental APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: skyline-strato-devdebug-${{ inputs.patch || 'baseline' }}
+          path: upstream/strato/app/build/outputs/apk/dev/debug/*.apk
+          if-no-files-found: error
+          retention-days: 7
