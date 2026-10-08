@@ -43,10 +43,32 @@ class GlobalSettingsFragment : PreferenceFragmentCompat() {
      * This constructs the preferences from XML preference resources
      */
     override fun onCreatePreferences(savedInstanceState : Bundle?, rootKey : String?) {
-        addPreferencesFromResource(R.xml.app_preferences)
-        addPreferencesFromResource(R.xml.emulation_preferences)
-        addPreferencesFromResource(R.xml.input_preferences)
-        addPreferencesFromResource(R.xml.credits_preferences)
+        // Each hub entry has its own real preference screen. Do not
+        // duplicate GPU driver management in Advanced or hide a dummy page.
+        // The app's existing preference store and emulation config are shared.
+        val section = requireActivity().intent.getStringExtra(
+            SettingsActivity.EXTRA_SYNOLSIS_SECTION
+        ) ?: SettingsActivity.SECTION_ADVANCED
+        when (section) {
+            SettingsActivity.SECTION_APPEARANCE, SettingsActivity.SECTION_CONTENT -> {
+                addPreferencesFromResource(R.xml.app_preferences)
+                val categoryToKeep = if (section == SettingsActivity.SECTION_APPEARANCE)
+                    "category_appearance" else "category_content"
+                // Remove unused categories rather than merely hiding them;
+                // search will then never reveal wrong entries in this section.
+                for (index in preferenceScreen.preferenceCount - 1 downTo 0) {
+                    val item = preferenceScreen.getPreference(index)
+                    if (item.key != categoryToKeep)
+                        preferenceScreen.removePreference(item)
+                }
+            }
+            SettingsActivity.SECTION_CONTROLS ->
+                addPreferencesFromResource(R.xml.input_preferences)
+            SettingsActivity.SECTION_ABOUT ->
+                addPreferencesFromResource(R.xml.credits_preferences)
+            else ->
+                addPreferencesFromResource(R.xml.emulation_preferences)
+        }
 
 
         // Recreate the interface after the new palette preference is persisted.
@@ -78,10 +100,10 @@ class GlobalSettingsFragment : PreferenceFragmentCompat() {
         }
 
         // Uncheck `disable_frame_throttling` if `force_triple_buffering` gets disabled
-        val disableFrameThrottlingPref = findPreference<TwoStatePreference>("disable_frame_throttling")!!
+        val disableFrameThrottlingPref = findPreference<TwoStatePreference>("disable_frame_throttling")
         findPreference<TwoStatePreference>("force_triple_buffering")?.setOnPreferenceChangeListener { _, newValue ->
             if (newValue == false)
-                disableFrameThrottlingPref.isChecked = false
+                disableFrameThrottlingPref?.isChecked = false
             true
         }
 
