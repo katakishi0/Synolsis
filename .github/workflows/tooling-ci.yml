@@ -28,7 +28,7 @@ jobs:
           python - <<'PY'
           import pathlib
           from tools.verify_patches import changed_files
-          for pr in (252, 291):
+          for pr in (252, 291, 9001):
               data = pathlib.Path(f"patches/pr-{pr}.patch").read_bytes()
               print(f"PR #{pr}: {changed_files(data)}")
           PY
@@ -50,3 +50,5 @@ jobs:
         run: python tools/verify_patches.py --pr 252
       - name: Check landscape PR #291 (no modifications)
         run: python tools/verify_patches.py --pr 291
+      - name: Check Vulkan driver loader safeguard #9001 (no modifications)
+        run: python tools/verify_patches.py --pr 9001
