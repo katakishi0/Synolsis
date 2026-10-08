@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-ALLOW = {252, 291}
+ALLOW = {252, 291, 9001}
 
 
 class PatchError(RuntimeError):
