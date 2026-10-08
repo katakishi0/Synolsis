@@ -90,10 +90,10 @@ namespace skyline::gpu {
         LOGI("Wrote Vulkan pipeline cache to {} (size: 0x{:X} bytes)", path.string(), data.size());
     }
 
-    GraphicsPipelineAssembler::GraphicsPipelineAssembler(GPU &gpu, std::string_view pipelineCacheDir)
+    GraphicsPipelineAssembler::GraphicsPipelineAssembler(GPU &gpu, std::string_view pipelineCacheDir, u32 pipelineCompileThreads)
         : gpu{gpu},
           vkPipelineCache{DeserialisePipelineCache(gpu, pipelineCacheDir)},
-          pool{gpu.traits.quirks.brokenMultithreadedPipelineCompilation ? 1U : 0U},
+          pool{gpu.traits.quirks.brokenMultithreadedPipelineCompilation ? 1U : std::min(pipelineCompileThreads, 4U)},
           pipelineCacheDir{pipelineCacheDir} {}
 
     #define VEC_CPY(pointer, size) state.pointer, state.pointer + state.size
