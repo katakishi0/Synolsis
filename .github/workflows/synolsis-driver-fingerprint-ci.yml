@@ -41,7 +41,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           # Source is checked out at the start of the run, then built from that snapshot.
-          ref: feature/synolsis-ptbr-content-manager
+          ref: feature/synolsis-v4-ptbr-updates
           submodules: false
 
       - name: Assert full source is checked in
@@ -263,6 +263,25 @@ jobs:
           pt_ids={x.attrib.get("name") for x in pt.findall("string")}
           default_ids={x.attrib.get("name") for x in default.findall("string")}
           assert len(pt_ids & default_ids) >= 285, "Insufficient Brazilian Portuguese coverage"
+          # The Update/DLC screens must import, verify and store real NSPs,
+          # but must not pretend to activate packages without a native mount.
+          store=(root/"java/org/stratoemu/strato/data/GameContentStore.kt").read_text()
+          manager=(root/"java/org/stratoemu/strato/GameContentManagerActivity.kt").read_text()
+          app_dialog=(root/"java/org/stratoemu/strato/AppDialog.kt").read_text()
+          layout=ET.parse(root/"res/layout/app_dialog.xml")
+          for field in ("game_install_update", "game_install_dlc"):
+              assert any(n.attrib.get("{http://schemas.android.com/apk/res/android}id")=="@+id/"+field for n in layout.iter())
+          assert "GameContentManagerActivity::class.java" in app_dialog
+          assert "PFS0" in store and "validatePfs0(staging)" in store
+          assert "ActivityResultContracts.OpenDocument()" in manager
+          assert "synolsis_content_not_active" in manager
+          manifest=ET.parse(root/"AndroidManifest.xml")
+          assert any(node.attrib.get("{http://schemas.android.com/apk/res/android}name")==".GameContentManagerActivity" for node in manifest.iter())
+          ET.parse(root/"res/values/synolsis_game_content_strings.xml")
+          ET.parse(root/"res/values-pt-rBR/synolsis_game_content_strings.xml")
+          ET.parse(root/"res/values-pt-rBR/synolsis_frame_skip.xml")
+          ET.parse(root/"res/values-pt-rBR/synolsis_gpu_presets.xml")
+          print("PASS: game-specific NSP import/removal, pt-BR and honest inactive-content status")
           assert '"pt-BR"' in gradle
           android_ns="{http://schemas.android.com/apk/res/android}"
           locales=ET.parse(root/"res/xml/locales_config.xml").getroot()
@@ -408,7 +427,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: synolsis-emu-ptbr-content-v4-${{ inputs.build_type || 'optimized' }}-${{ github.run_number }}
+          name: synolsis-emu-ptbr-game-content-v4-${{ inputs.build_type || 'optimized' }}-${{ github.run_number }}
           path: app/build/outputs/apk/mainline/*/*.apk
           if-no-files-found: error
           retention-days: 30
