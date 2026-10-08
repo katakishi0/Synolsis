@@ -109,12 +109,14 @@ class AppDialog : BottomSheetDialogFragment() {
 
         // Import is a real checked NSP copy, but does not activate the
         // installed data until native CNMT/BKTR/DLC mounting is available.
-        val validContentTitle = item.titleId.matches(Regex("[0-9a-fA-F]{16}"))
+        val contentTitleId = item.titleId?.takeIf { it.matches(Regex("[0-9a-fA-F]{16}")) }
+        val validContentTitle = contentTitleId != null
         binding.gameInstallUpdate.isEnabled = validContentTitle
         binding.gameInstallDlc.isEnabled = validContentTitle
         fun openGameContent(category: String) {
+            val titleId = contentTitleId ?: return // NRO/homebrew may have no title ID
             startActivity(Intent(requireContext(), GameContentManagerActivity::class.java).apply {
-                putExtra(GameContentManagerActivity.EXTRA_TITLE_ID, item.titleId)
+                putExtra(GameContentManagerActivity.EXTRA_TITLE_ID, titleId)
                 putExtra(GameContentManagerActivity.EXTRA_GAME_TITLE, item.title)
                 putExtra(GameContentManagerActivity.EXTRA_CATEGORY, category)
             })
@@ -123,6 +125,7 @@ class AppDialog : BottomSheetDialogFragment() {
         binding.gameInstallDlc.setOnClickListener { openGameContent("dlc") }
         binding.synolsisClearGameCache.isEnabled = validContentTitle
         binding.synolsisClearGameCache.setOnClickListener {
+            val titleId = contentTitleId ?: return@setOnClickListener
             AlertDialog.Builder(requireContext())
                 .setTitle(R.string.synolsis_clear_cache_title)
                 .setMessage(R.string.synolsis_clear_cache_confirm)
@@ -131,7 +134,7 @@ class AppDialog : BottomSheetDialogFragment() {
                     val context = requireContext().applicationContext
                     viewLifecycleOwner.lifecycleScope.launch {
                         val result = withContext(Dispatchers.IO) {
-                            runCatching { GameShaderCacheUtils.clear(context, item.titleId) }
+                            runCatching { GameShaderCacheUtils.clear(context, titleId) }
                         }
                         if (!isAdded) return@launch
                         result.fold(
