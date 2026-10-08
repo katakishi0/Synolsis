@@ -39,28 +39,28 @@ diff --git a/app/src/main/cpp/loader_jni.cpp b/app/src/main/cpp/loader_jni.cpp
 +        try {
 +            std::shared_ptr<skyline::vfs::Backing> backing{systemArchivesFileSystem->OpenFile(entry.name)};
 +            auto nca{skyline::vfs::NCA(backing, keyStore)};
-+    
++
 +            if (nca.header.programId >= firstFontProgramId && nca.header.programId <= lastFontProgramId && nca.romFs != nullptr) {
 +                auto controlRomFs{std::make_shared<skyline::vfs::RomFileSystem>(nca.romFs)};
-+    
++
 +                for (auto fileEntry = controlRomFs->fileMap.begin(); fileEntry != controlRomFs->fileMap.end(); fileEntry++) {
 +                    auto fileName{fileEntry->first};
 +                    auto bfttfFile{controlRomFs->OpenFile(fileName)};
-+    
++
 +                    auto decodedFont{decodeBfttfFont(bfttfFile)};
 +                    if (decodedFont.empty())
 +                        continue;
-+    
++
 +                    const auto fontIt{sharedFontFilenameDictionary.find(fileName)};
 +                    if (fontIt == sharedFontFilenameDictionary.end())
 +                        continue; // Firmware may contain additional font names.
 +                    auto ttfFileName{fontIt->second + ".ttf"};
 +                    if (fontsFileSystem->FileExists(ttfFileName))
 +                        fontsFileSystem->DeleteFile(ttfFileName);
-+    
++
 +                    fontsFileSystem->CreateFile(ttfFileName, decodedFont.size());
 +                    std::shared_ptr<skyline::vfs::Backing> ttfFile{fontsFileSystem->OpenFile(ttfFileName, {true, true, false})};
-+    
++
 +                    ttfFile->Write(decodedFont);
 +                }
              }
