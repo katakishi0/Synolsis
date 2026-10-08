@@ -15,6 +15,11 @@ class SearchBarView @JvmOverloads constructor(context : Context, attrs : Attribu
         get() = binding.searchField.text
         set(value) = binding.searchField.setText(value)
 
+    /** Provides real EditText focus for the navigation's Search tab. */
+    val inputView get() = binding.searchField
+    fun focusInput() { binding.searchField.requestFocus() }
+    fun clearInputFocus() { binding.searchField.clearFocus() }
+
     fun addTextChangedListener(
         beforeTextChanged : (
             text : CharSequence?,
