@@ -44,6 +44,16 @@ class GlobalSettingsFragment : PreferenceFragmentCompat() {
         addPreferencesFromResource(R.xml.credits_preferences)
 
 
+        // Recreate the interface after the new palette preference is persisted.
+        findPreference<Preference>("synolsis_palette")?.setOnPreferenceChangeListener { _, _ ->
+            val host = requireActivity()
+            host.window.decorView.post {
+                host.finishAffinity()
+                startActivity(Intent(host, MainActivity::class.java))
+            }
+            true
+        }
+
         // Re-launch the app if Material You is toggled
         findPreference<Preference>("use_material_you")?.setOnPreferenceChangeListener { _, _ ->
             requireActivity().finishAffinity()
