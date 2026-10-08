@@ -37,6 +37,10 @@ import org.stratoemu.strato.utils.WindowInsetsHelper
 private const val PREFERENCE_DIALOG_FRAGMENT_TAG = "androidx.preference.PreferenceFragment.DIALOG"
 
 class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPreferenceDisplayDialogCallback {
+    companion object {
+        const val EXTRA_EXPERIMENTAL_SETTINGS = "org.stratoemu.strato.EXPERIMENTAL_SETTINGS"
+    }
+
     val binding by lazy { SettingsActivityBinding.inflate(layoutInflater) }
     val hiddenCategoriesFromSearch = if (BuildConfig.BUILD_TYPE == "release") {
         arrayOf("category_debug", "category_credits", "category_licenses")
@@ -49,7 +53,9 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
      * Retrieves extras from the intent if any and instantiates the appropriate fragment
      */
     private val preferenceFragment by lazy {
-        if (intent.hasExtra(AppItemTag))
+        if (intent.getBooleanExtra(EXTRA_EXPERIMENTAL_SETTINGS, false))
+            ExperimentalSettingsFragment().apply { arguments = intent.extras }
+        else if (intent.hasExtra(AppItemTag))
             GameSettingsFragment().apply { arguments = intent.extras }
         else
             GlobalSettingsFragment()
@@ -116,6 +122,8 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
 
         // Reset the subtitle to null
         supportActionBar?.subtitle = null
+        if (intent.getBooleanExtra(EXTRA_EXPERIMENTAL_SETTINGS, false))
+            supportActionBar?.title = getString(R.string.experimental_settings_title)
 
         if (savedInstanceState == null) {
             supportFragmentManager
