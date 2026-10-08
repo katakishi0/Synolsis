@@ -204,6 +204,13 @@ jobs:
           profiles=(root/"java/org/stratoemu/strato/settings/SynolsisGpuProfiles.kt").read_text()
           assert 'const val FPS_HACK = "fps_hack"' in profiles
           assert "settings.enableFastReadbackWrites = false" in profiles
+          assert "HeaderBatchSize{16}" in cache
+          assert "if (++pendingHeaderUpdates >= HeaderBatchSize)" in cache
+          assert "flushHeader();" in cache
+          assert "windowTransformApplied = false" in present
+          assert "if (!windowTransformApplied || frame.transform != windowTransform)" in present
+          assert "windowTransformApplied" in present_h
+          print("PASS: bounded shader-cache header batching and ANativeWindow transform reuse")
           print("PASS: GPU profiler, frame-skipping with callbacks, Vulkan mode and native settings")
           print("PASS: separated settings and Vulkan physical-driver fingerprint identity")
           # Synolsis v2: diagnostics only expose existing native telemetry,
