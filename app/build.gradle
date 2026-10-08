@@ -17,7 +17,10 @@ android {
     compileSdk 34
 
     defaultConfig {
-        applicationId "org.stratoemu.strato"
+        applicationId "org.synolsis.emu"
+        // Native JNI signatures and BuildConfig stay in org.stratoemu.strato.
+        // Only the Android install identifier changes here; class migration
+        // is a separate high-risk task requiring end-to-end native validation.
 
         minSdk 29
         targetSdk 33
