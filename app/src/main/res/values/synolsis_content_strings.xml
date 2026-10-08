@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="synolsis_content_title">Game updates and DLC</string>
+    <string name="synolsis_content_open">Updates / DLC</string>
+    <string name="synolsis_content_not_mounted">Experimental NSP archive library. Imported files are saved locally but are NOT installed, patched into the game or mounted by the current Strato core. Game updates and DLC will not work until native support is implemented.</string>
+    <string name="synolsis_import_update">Import update NSP</string>
+    <string name="synolsis_import_dlc">Import DLC NSP</string>
+    <string name="synolsis_imported_count">Saved archives: %1$d</string>
+    <string name="synolsis_content_remove">Remove archive</string>
+    <string name="synolsis_content_remove_confirm">Delete this local copy of the archive? Your source file will not be touched.</string>
+    <string name="synolsis_import_saved">Archive saved</string>
+    <string name="synolsis_import_saved_description">NSP validated and stored in the game library. This content is not mounted by the Strato core yet.</string>
+    <string name="synolsis_import_failed">Import failed</string>
+    <string name="synolsis_nsp_only">Select an uncompressed NSP file. NSZ/XCI formats are not supported by this importer.</string>
+    <string name="synolsis_nsp_invalid">This file is not a valid PFS0 NSP container or appears truncated.</string>
+</resources>
