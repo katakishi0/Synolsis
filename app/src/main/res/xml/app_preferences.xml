@@ -34,6 +34,13 @@
             app:key="app_theme"
             app:title="@string/theme"
             app:useSimpleSummaryProvider="true" />
+        <org.stratoemu.strato.preference.IntegerListPreference
+            android:defaultValue="0"
+            android:entries="@array/synolsis_palette_entries"
+            app:entryValues="@array/synolsis_palette_values"
+            app:key="synolsis_palette"
+            app:title="@string/synolsis_palette"
+            app:useSimpleSummaryProvider="true" />
         <SwitchPreferenceCompat
             android:defaultValue="false"
             app:key="use_material_you"
