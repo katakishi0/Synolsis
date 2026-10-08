@@ -18,6 +18,7 @@ object SynolsisGpuProfiles {
     const val CONSERVATIVE = "conservative"
     const val BALANCED = "balanced"
     const val EXPERIMENTAL = "experimental"
+    const val FPS_HACK = "fps_hack"
 
     fun apply(settings : EmulationSettings, profile : String) : Boolean {
         when (profile) {
@@ -25,16 +26,31 @@ object SynolsisGpuProfiles {
                 settings.executorSlotCountScale = 3
                 settings.executorFlushThreshold = 128
                 settings.freeGuestTextureMemory = true
+                settings.enableFastGpuReadbackHack = false
+                settings.enableFastReadbackWrites = false
             }
             BALANCED -> {
                 settings.executorSlotCountScale = 4
                 settings.executorFlushThreshold = 256
                 settings.freeGuestTextureMemory = true
+                settings.enableFastGpuReadbackHack = false
+                settings.enableFastReadbackWrites = false
             }
             EXPERIMENTAL -> {
                 settings.executorSlotCountScale = 6
                 settings.executorFlushThreshold = 512
                 settings.freeGuestTextureMemory = false
+                settings.enableFastGpuReadbackHack = false
+                settings.enableFastReadbackWrites = false
+            }
+            FPS_HACK -> {
+                // Candidate for 6 GB Adreno + Turnip, not a guaranteed FPS
+                // unlock. Keep the shader cache and guest safety defaults.
+                settings.executorSlotCountScale = 3
+                settings.executorFlushThreshold = 96
+                settings.freeGuestTextureMemory = true
+                settings.enableFastGpuReadbackHack = true
+                settings.enableFastReadbackWrites = false
             }
             else -> return false
         }
@@ -59,6 +75,12 @@ internal fun PreferenceFragmentCompat.wireSynolsisGpuProfiles(settings : Emulati
                 settings.freeGuestTextureMemory
             findPreference<TwoStatePreference>("disable_shader_cache")?.isChecked =
                 settings.disableShaderCache
+            findPreference<TwoStatePreference>("enable_fast_gpu_readback_hack")?.isChecked =
+                settings.enableFastGpuReadbackHack
+            findPreference<TwoStatePreference>("enable_fast_readback_writes")?.isChecked =
+                settings.enableFastReadbackWrites
+            findPreference<ListPreference>("synolsis_readback_precision")?.value =
+                if (settings.enableFastGpuReadbackHack) "balanced" else "accurate"
             true
         }
     }

@@ -117,9 +117,14 @@ namespace skyline::gpu {
             windowScalingMode = frame.scalingMode;
         }
 
-        if ((result = window->perform(window, NATIVE_WINDOW_SET_BUFFERS_TRANSFORM, static_cast<i32>(frame.transform))))
-            throw exception("Setting the buffer transform to '{}' failed with {}", ToString(frame.transform), result);
-        windowTransform = frame.transform;
+        // Avoid a redundant native-window perform/Binder transition on every
+        // frame if the Switch output transform did not change.
+        if (!windowTransformApplied || frame.transform != windowTransform) {
+            if ((result = window->perform(window, NATIVE_WINDOW_SET_BUFFERS_TRANSFORM, static_cast<i32>(frame.transform))))
+                throw exception("Setting the buffer transform to '{}' failed with {}", ToString(frame.transform), result);
+            windowTransform = frame.transform;
+            windowTransformApplied = true;
+        }
 
         auto &acquireSemaphore{acquireSemaphores[frameIndex]};
         auto &frameFence{frameFences[frameIndex]};
@@ -235,10 +240,23 @@ namespace skyline::gpu {
 
         try {
             presentQueue.Process([this](const PresentableFrame &frame) {
-                PresentFrame(frame);
-                frame.presentCallback(); // We're calling the callback here as it's outside of all the locks in PresentFrame
+                // Experimental HOST presentation frame skipping. It cannot
+                // skip game simulation or guest GPU rendering. Keeping fence
+                // waits and callbacks is necessary so Horizon buffer slots
+                // get released and the guest does not deadlock.
+                const u32 skippedFrames{std::min(*state.settings->presentationFrameSkip, 2U)};
+                const bool skipPresent{
+                    skippedFrames != 0 &&
+                    (presentationFrameCounter++ % (static_cast<u64>(skippedFrames) + 1)) != 0
+                };
+                if (skipPresent) {
+                    frame.fence.Wait(state.soc->host1x);
+                } else {
+                    PresentFrame(frame);
+                }
+                frame.presentCallback(); // Must happen even if host output is skipped
                 skipSignal = true;
-                vsyncEvent->Signal();
+                vsyncEvent->Signal(); // Preserve the guest's VI synchronization
             }, [] {});
         } catch (const signal::SignalException &e) {
             LOGE("{}\nStack Trace:{}", e.what(), state.loader->GetStackTrace(e.frames));
@@ -309,7 +327,18 @@ namespace skyline::gpu {
         if ((capabilities.supportedUsageFlags & presentUsage) != presentUsage)
             throw exception("Swapchain doesn't support image usage '{}': {}", vk::to_string(presentUsage), vk::to_string(capabilities.supportedUsageFlags));
 
-        auto requestedMode{*state.settings->disableFrameThrottling ? vk::PresentModeKHR::eMailbox : vk::PresentModeKHR::eFifo};
+        vk::PresentModeKHR requestedMode{
+            *state.settings->disableFrameThrottling ? vk::PresentModeKHR::eMailbox : vk::PresentModeKHR::eFifo
+        };
+        // Keep Auto equivalent to the original Strato behavior. The other
+        // selections are real Vulkan present modes, opt-in and capability-
+        // checked below; unsupported choices fall back to mandatory FIFO.
+        switch (*state.settings->vulkanPresentMode) {
+            case 1: requestedMode = vk::PresentModeKHR::eFifo; break;
+            case 2: requestedMode = vk::PresentModeKHR::eMailbox; break;
+            case 3: requestedMode = vk::PresentModeKHR::eImmediate; break;
+            default: break;
+        }
         auto modes{gpu.vkPhysicalDevice.getSurfacePresentModesKHR(**vkSurface)};
         if (std::find(modes.begin(), modes.end(), requestedMode) == modes.end()) {
             // FIFO is Vulkan's portable presentation mode and must be used
@@ -364,6 +393,7 @@ namespace skyline::gpu {
             jSurface = env->NewGlobalRef(newSurface);
 
         vkSwapchain.reset();
+        windowTransformApplied = false; // New native window needs fresh transform
 
         if (jSurface) {
             window = ANativeWindow_fromSurface(env, jSurface);

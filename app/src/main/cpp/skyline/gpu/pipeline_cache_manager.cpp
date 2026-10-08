@@ -27,12 +27,37 @@ namespace skyline::gpu {
     void PipelineCacheManager::Run() {
         std::ofstream stream{stagingPath, std::ios::binary | std::ios::trunc};
         PipelineCacheFileHeader header{};
-        stream.write(reinterpret_cast<const char *>(&header), sizeof(PipelineCacheFileHeader));
+        stream.write(reinterpret_cast<const char *>(&header), sizeof(header));
+        stream.flush();
+
+        // Shader creation can enqueue hundreds of bundles at once. Avoid
+        // seeking to offset zero and rewriting the header for every shader,
+        // which causes avoidable flash I/O and queue contention on Adreno.
+        // Bound the uncommitted staging tail to at most 15 bundles.
+        constexpr u32 HeaderBatchSize{16};
+        u32 pendingHeaderUpdates{};
+
+        const auto flushHeader{[&]() {
+            if (!pendingHeaderUpdates)
+                return;
+            const auto savedPosition{stream.tellp()};
+            stream.seekp(0, std::ios_base::beg);
+            stream.write(reinterpret_cast<const char *>(&header), sizeof(header));
+            stream.seekp(savedPosition);
+            stream.flush();
+            pendingHeaderUpdates = 0;
+        }};
 
         while (true) {
             std::unique_lock lock(writeMutex);
-            if (writeQueue.empty())
-                stream.flush();
+            if (writeQueue.empty()) {
+                lock.unlock();
+                // Persist the count promptly when the shader queue goes idle.
+                // If Android kills the app while busy, a short trailing cache
+                // segment may be ignored safely on next launch.
+                flushHeader();
+                lock.lock();
+            }
 
             writeCondition.wait(lock, [this] { return !writeQueue.empty(); });
             auto bundle{std::move(writeQueue.front())};
@@ -40,13 +65,9 @@ namespace skyline::gpu {
             lock.unlock();
 
             bundle->Serialise(stream);
-
-            header.count++;
-            // Rewrite the header with the updated count
-            auto savedPosition{stream.tellp()};
-            stream.seekp(0, std::ios_base::beg);
-            stream.write(reinterpret_cast<const char *>(&header), sizeof(PipelineCacheFileHeader));
-            stream.seekp(savedPosition);
+            ++header.count;
+            if (++pendingHeaderUpdates >= HeaderBatchSize)
+                flushHeader();
         }
     }
 

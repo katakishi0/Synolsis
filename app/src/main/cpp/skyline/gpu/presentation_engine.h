@@ -29,6 +29,7 @@ namespace skyline::gpu {
         service::hosbinder::AndroidRect windowCrop{}; //!< A rectangle with the bounds of the current crop performed on the image prior to presentation
         service::hosbinder::NativeWindowScalingMode windowScalingMode{service::hosbinder::NativeWindowScalingMode::ScaleToWindow}; //!< The mode in which the cropped image is scaled up to the surface
         service::hosbinder::NativeWindowTransform windowTransform{}; //!< The transformation performed on the image prior to presentation
+        bool windowTransformApplied{}; //!< Reset for each new Android surface so first transform is always submitted
         i64 windowLastTimestamp{}; //!< The last timestamp submitted to the window, 0 or CLOCK_MONOTONIC value
 
         std::optional<vk::raii::SurfaceKHR> vkSurface; //!< The Vulkan Surface object that is backed by ANativeWindow
@@ -79,6 +80,7 @@ namespace skyline::gpu {
         CircularQueue<PresentableFrame> presentQueue{PresentQueueFrameCount}; //!< A circular queue containing all the frames that we can present
         std::thread presentationThread; //!< A thread for asynchronously presenting queued frames after their corresponded fences are signalled
         size_t nextFrameId{1}; //!< The frame ID to use for the next frame
+        u64 presentationFrameCounter{}; //!< Counts submitted host frames for optional frame skipping; presentation-thread only
 
         /**
          * @url https://developer.android.com/ndk/reference/group/choreographer#achoreographer_postframecallback64

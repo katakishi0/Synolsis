@@ -127,7 +127,7 @@ namespace skyline::gpu {
         vk::raii::Pipeline AssemblePipeline(std::list<PipelineDescription>::iterator pipelineDescIt, vk::PipelineLayout pipelineLayout);
 
       public:
-        GraphicsPipelineAssembler(GPU &gpu, std::string_view pipelineCacheDir);
+        GraphicsPipelineAssembler(GPU &gpu, std::string_view pipelineCacheDir, u32 pipelineCompileThreads);
 
         struct CompiledPipeline {
             vk::raii::DescriptorSetLayout descriptorSetLayout;
