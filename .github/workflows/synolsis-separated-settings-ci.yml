@@ -141,6 +141,11 @@ jobs:
           assert 'disableFrameThrottlingPref?.isChecked' in global_prefs
           main=(root/"java/org/stratoemu/strato/MainActivity.kt").read_text()
           assert main.count("settingsCallback.launch(Intent(")>=2, "All main settings entry points must use hub"
+          screen=(root/"java/org/stratoemu/strato/settings/SettingsActivity.kt").read_text()
+          assert "isCategoryAllowed(preferenceCategory)" in screen
+          assert "preference.isVisible = allowed" in screen
+          assert '"appearance" -> preference.key == "category_appearance"' in screen
+          assert '"content" -> preference.key == "category_content"' in screen
           assert "org.synolsis.emu" in Path("app/build.gradle").read_text()
           print("PASS: globally separated GPU driver, per-game override, section isolation and navigation")
           PY
