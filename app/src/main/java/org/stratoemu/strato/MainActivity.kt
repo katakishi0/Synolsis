@@ -149,6 +149,36 @@ class MainActivity : AppCompatActivity() {
             })
         }
 
+        // A lightweight frontend navigation adapted from modern Android
+        // Switch emulators, wired into this project's existing activities.
+        // The settings tab launches actual SettingsActivity; it never presents
+        // a dummy screen or shadows the existing settings database.
+        binding.bottomNavigation.selectedItemId = R.id.nav_games
+        binding.bottomNavigation.setOnItemSelectedListener { item ->
+            when (item.itemId) {
+                R.id.nav_games -> {
+                    binding.searchBar.setText("")
+                    binding.searchBar.clearFocus()
+                    (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager)
+                        .hideSoftInputFromWindow(binding.searchBar.windowToken, 0)
+                    true
+                }
+                R.id.nav_search -> {
+                    binding.appBarLayout.setExpanded(true, true)
+                    binding.searchBar.requestFocus()
+                    (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager)
+                        .showSoftInput(binding.searchBar, InputMethodManager.SHOW_IMPLICIT)
+                    true
+                }
+                R.id.nav_settings -> {
+                    settingsCallback.launch(Intent(this, SettingsActivity::class.java))
+                    // Keep Games/Search selected until the user returns.
+                    false
+                }
+                else -> false
+            }
+        }
+
         window.decorView.findViewById<View>(android.R.id.content).viewTreeObserver.addOnTouchModeChangeListener { isInTouchMode ->
             refreshIconVisible = !isInTouchMode
         }
