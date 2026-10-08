@@ -43,10 +43,27 @@ class GlobalSettingsFragment : PreferenceFragmentCompat() {
      * This constructs the preferences from XML preference resources
      */
     override fun onCreatePreferences(savedInstanceState : Bundle?, rootKey : String?) {
-        addPreferencesFromResource(R.xml.app_preferences)
-        addPreferencesFromResource(R.xml.emulation_preferences)
-        addPreferencesFromResource(R.xml.input_preferences)
-        addPreferencesFromResource(R.xml.credits_preferences)
+        // The Synolsis hub explicitly separates frontend preferences from
+        // advanced emulator options. Ordinary launches retain the complete
+        // legacy screen so existing entry points and settings remain available.
+        val section = activity?.intent?.getStringExtra("synolsis_settings_section")
+        when (section) {
+            "advanced" -> addPreferencesFromResource(R.xml.emulation_preferences)
+            "appearance" -> {
+                addPreferencesFromResource(R.xml.app_preferences)
+                findPreference<PreferenceCategory>("category_content")?.isVisible = false
+            }
+            "content" -> {
+                addPreferencesFromResource(R.xml.app_preferences)
+                findPreference<PreferenceCategory>("category_appearance")?.isVisible = false
+            }
+            else -> {
+                addPreferencesFromResource(R.xml.app_preferences)
+                addPreferencesFromResource(R.xml.emulation_preferences)
+                addPreferencesFromResource(R.xml.input_preferences)
+                addPreferencesFromResource(R.xml.credits_preferences)
+            }
+        }
 
 
         // Recreate the interface after the new palette preference is persisted.
@@ -78,10 +95,10 @@ class GlobalSettingsFragment : PreferenceFragmentCompat() {
         }
 
         // Uncheck `disable_frame_throttling` if `force_triple_buffering` gets disabled
-        val disableFrameThrottlingPref = findPreference<TwoStatePreference>("disable_frame_throttling")!!
+        val disableFrameThrottlingPref = findPreference<TwoStatePreference>("disable_frame_throttling")
         findPreference<TwoStatePreference>("force_triple_buffering")?.setOnPreferenceChangeListener { _, newValue ->
             if (newValue == false)
-                disableFrameThrottlingPref.isChecked = false
+                disableFrameThrottlingPref?.isChecked = false
             true
         }
 
