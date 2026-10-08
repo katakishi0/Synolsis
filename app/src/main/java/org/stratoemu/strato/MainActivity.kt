@@ -142,7 +142,9 @@ class MainActivity : AppCompatActivity() {
                     Snackbar.make(this@MainActivity.findViewById(android.R.id.content), getString(R.string.logs_not_found), Snackbar.LENGTH_SHORT).show()
                 }
             }
-            binding.settingsIcon.setOnClickListener { settingsCallback.launch(Intent(context, SettingsActivity::class.java)) }
+            binding.settingsIcon.setOnClickListener {
+                settingsCallback.launch(Intent(context, SynolsisSettingsHubActivity::class.java))
+            }
             binding.refreshIcon.setOnClickListener { loadRoms(false) }
             addTextChangedListener(afterTextChanged = { editable ->
                 editable?.let { text -> adapter.filter.filter(text.toString()) }
