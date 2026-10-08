@@ -76,7 +76,7 @@ def main() -> None:
     print("Expected revision:", report["latest_revision"])
     print("Key names found:", report["keys_count"])
     for group, present in report["latest_revision_fields_present"].items():
-        print(f"{group}_${report['latest_revision']}: {'present' if present else 'absent'}".replace("$", ""))
+        print(f"{group}_{report['latest_revision']}: {'present' if present else 'absent'}")
     print("Formatting errors:", len(report["errors"]))
     for msg in report["errors"]:
         print("-", msg)
