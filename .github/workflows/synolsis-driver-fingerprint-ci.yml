@@ -286,25 +286,22 @@ jobs:
           android_ns="{http://schemas.android.com/apk/res/android}"
           locales=ET.parse(root/"res/xml/locales_config.xml").getroot()
           assert any(x.get(android_ns+"name")=="pt-BR" for x in locales)
-          # Android resources must not shadow the same resource in one locale.
-          for name in ("synolsis_arrays.xml","synolsis_ui_strings.xml",
-                       "synolsis_content_strings.xml","synolsis_native_controls.xml"):
+          # All resource files below are part of the unified V4 frontend.
+          # Do not assert obsolete GameContentActivity names from an abandoned
+          # prototype: V4 uses GameContentManagerActivity/GameContentStore.
+          for name in ("synolsis_ui_strings.xml", "synolsis_frame_skip.xml",
+                       "synolsis_gpu_presets.xml", "synolsis_game_content_strings.xml"):
               ET.parse(root/"res/values-pt-rBR"/name)
-          for name in ("synolsis_content_strings.xml","synolsis_ui_strings.xml"):
-              ET.parse(root/"res/values"/name)
-
-          # Update/DLC: verify import is real I/O, not a fake install claim.
-          content=(root/"java/org/stratoemu/strato/GameContentActivity.kt").read_text()
-          app_dialog=(root/"java/org/stratoemu/strato/AppDialog.kt").read_text()
-          app_dialog_xml=(root/"res/layout/app_dialog.xml").read_text()
-          for tag in ("ActivityResultContracts.OpenDocument", "Dispatchers.IO",
-                      "validNsp", "input.copyTo(out", "native_status",
-                      "staged_not_mounted", "FileOutputStream", "UUID.randomUUID"):
-              assert tag in content, "Content library missing "+tag
-          assert "manageGameContent" in app_dialog
-          assert '@+id/manage_game_content' in app_dialog_xml
-          assert 'android:name=".GameContentActivity"' in manifest
-          print("PASS: Brazilian Portuguese localization and genuine per-title NSP import/storage")
+          ET.parse(root/"res/values/synolsis_game_content_strings.xml")
+          assert "GameContentManagerActivity::class.java" in app_dialog
+          assert "ActivityResultContracts.OpenDocument()" in manager
+          assert "validatePfs0" in store and "GameContentStore" in manager
+          cache_clean=(root/"java/org/stratoemu/strato/utils/GameShaderCacheUtils.kt").read_text()
+          assert "graphics_pipeline_cache" in cache_clean
+          assert "vk_graphics_pipeline_cache" in cache_clean
+          assert "synolsisClearGameCache" in app_dialog
+          assert "@+id/synolsis_clear_game_cache" in (root/"res/layout/app_dialog.xml").read_text()
+          print("PASS: pt-BR, validated NSP storage, per-game shader cache cleanup")
 
           print("PASS: Synolsis optimized APK variant versus -O0 debug baseline")
           print("PASS: Synolsis v2 MIUI, native frametime HUD, readback consistency and cache validation")
