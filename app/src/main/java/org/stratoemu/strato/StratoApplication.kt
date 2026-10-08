@@ -42,7 +42,7 @@ class StratoApplication : Application() {
 
         // Theme resources must be applied before Activity.onCreate, including
         // the driver manager, per-game settings and emulation overlay.
-        registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
+        registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
             override fun onActivityPreCreated(activity : Activity, savedInstanceState : Bundle?) {
                 activity.applySynolsisPalette()
             }
