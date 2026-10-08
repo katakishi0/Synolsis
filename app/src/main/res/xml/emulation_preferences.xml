@@ -49,6 +49,12 @@
             app:title="@string/perf_stats" />
         <SwitchPreferenceCompat
             android:defaultValue="false"
+            android:dependency="perf_stats"
+            app:key="perf_stats_details"
+            app:title="@string/synolsis_frametime_overlay"
+            android:summary="@string/synolsis_frametime_overlay_desc" />
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
             android:summaryOff="@string/max_refresh_rate_disabled"
             android:summaryOn="@string/max_refresh_rate_enabled"
             app:key="max_refresh_rate"
