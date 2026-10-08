@@ -1,7 +1,7 @@
 diff --git a/app/src/main/cpp/skyline/gpu.cpp b/app/src/main/cpp/skyline/gpu.cpp
 --- a/app/src/main/cpp/skyline/gpu.cpp
 +++ b/app/src/main/cpp/skyline/gpu.cpp
-@@ -380,11 +380,24 @@
+@@ -380,11 +380,26 @@
                  LOGW("Failed to load builtin Vulkan driver: {}", error ? error : "");
              }
  
