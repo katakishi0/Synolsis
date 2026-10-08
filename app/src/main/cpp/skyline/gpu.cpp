@@ -424,13 +424,27 @@ namespace skyline::gpu {
 
     void GPU::Initialise() {
         std::string titleId{state.loader->nacp->GetSaveDataOwnerId()};
-        graphicsPipelineAssembler.emplace(*this, state.os->publicAppFilesPath + "vk_graphics_pipeline_cache/" + titleId);
+
+        // Key host Vulkan caches by the selected driver. A pipeline built under
+        // Qualcomm's stock ICD is not necessarily reusable under Turnip, and
+        // a custom driver label can contain unsafe filesystem characters.
+        // Stable FNV-1a hashing makes the cache directory safe and bounded.
+        std::string driverCacheKey{"system"};
+        if (!(*state.settings->gpuDriver).empty()) {
+            u64 driverHash{14695981039346656037ULL};
+            for (unsigned char byte : *state.settings->gpuDriver) {
+                driverHash ^= byte;
+                driverHash *= 1099511628211ULL;
+            }
+            driverCacheKey = fmt::format("custom_{:016x}", driverHash);
+        }
+        graphicsPipelineAssembler.emplace(*this, state.os->publicAppFilesPath + "vk_graphics_pipeline_cache/" + driverCacheKey + "/" + titleId);
         shader.emplace(state, *this,
                        state.os->publicAppFilesPath + "shader_replacements/" + titleId,
                        state.os->publicAppFilesPath + "shader_dumps/" + titleId);
         if (!*state.settings->disableShaderCache)
             graphicsPipelineCacheManager.emplace(state,
-                                                 state.os->publicAppFilesPath + "graphics_pipeline_cache/" + titleId);
+                                                 state.os->publicAppFilesPath + "graphics_pipeline_cache/" + driverCacheKey + "/" + titleId);
         graphicsPipelineManager.emplace(*this, *state.jvm);
     }
 }
