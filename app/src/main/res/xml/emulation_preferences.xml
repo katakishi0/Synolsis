@@ -113,6 +113,13 @@
             app:title="@string/force_triple_buffering" />
         <org.stratoemu.strato.preference.IntegerListPreference
             android:defaultValue="0"
+            android:entries="@array/synolsis_present_mode_entries"
+            android:entryValues="@array/synolsis_present_mode_values"
+            app:key="vulkan_present_mode"
+            app:title="@string/synolsis_present_mode_title"
+            android:summary="@string/synolsis_present_mode_summary" />
+        <org.stratoemu.strato.preference.IntegerListPreference
+            android:defaultValue="0"
             android:entries="@array/synolsis_frame_skip_entries"
             android:entryValues="@array/synolsis_frame_skip_values"
             app:key="presentation_frame_skip"
