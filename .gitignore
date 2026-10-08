@@ -1,0 +1,14 @@
+# Cloned upstream (kept independent of toolkit)
+strato/
+__pycache__/
+*.py[cod]
+.venv/
+.idea/
+.gradle/
+build/
+*.apk
+*.aab
+*.log
+gpu_report.json
+local.properties
+.DS_Store
