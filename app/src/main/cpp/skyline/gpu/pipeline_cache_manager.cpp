@@ -151,9 +151,10 @@ namespace skyline::gpu {
         // stall or an out-of-bounds stream read. Every serialized bundle
         // occupies at least one byte after the fixed header.
         mainStream.seekg(0, std::ios::end);
-        const auto endOffset{mainStream.tellg()};
-        if (endOffset < static_cast<std::streamoff>(sizeof(PipelineCacheFileHeader)) ||
-            header.count > static_cast<u64>(endOffset - static_cast<std::streamoff>(sizeof(PipelineCacheFileHeader))))
+        const auto endOffset{static_cast<std::streamoff>(mainStream.tellg())};
+        constexpr auto headerSize{static_cast<std::streamoff>(sizeof(PipelineCacheFileHeader))};
+        if (endOffset < headerSize ||
+            static_cast<u64>(header.count) > static_cast<u64>(endOffset - headerSize))
             throw exception("Pipeline cache has an impossible pipeline count!");
 
         mainStream.seekg(sizeof(PipelineCacheFileHeader), std::ios::beg);
