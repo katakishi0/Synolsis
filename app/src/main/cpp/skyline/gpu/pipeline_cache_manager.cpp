@@ -82,16 +82,38 @@ namespace skyline::gpu {
             return;
         }
 
-        // Update the main header with the new count
-        mainHeader.count += stagingHeader.count;
-        mainStream.seekp(0, std::ios_base::beg);
-        mainStream.write(reinterpret_cast<const char *>(&mainHeader), sizeof(PipelineCacheFileHeader));
-
+        // Append payload first, commit the new count only after the bytes
+        // have been written successfully. The old code increased the count
+        // before copying data, corrupting the cache on a short disk write.
         mainStream.seekp(0, std::ios::end);
+        const auto originalEnd{mainStream.tellp()};
+        if (originalEnd == std::streampos(-1)) {
+            LOGW("Cannot determine graphics pipeline cache size; keeping staging");
+            return;
+        }
+        if (stagingHeader.count > std::numeric_limits<u32>::max() - mainHeader.count) {
+            LOGW("Pipeline cache count overflow; keeping staging for recovery");
+            return;
+        }
+
         mainStream << stagingStream.rdbuf();
         mainStream.flush();
         if (!mainStream || stagingStream.bad()) {
-            LOGW("Pipeline cache staging merge failed; retaining staging for recovery");
+            LOGW("Pipeline cache append failed; restoring previous length");
+            mainStream.close();
+            std::error_code rollbackError;
+            std::filesystem::resize_file(mainPath, static_cast<u64>(originalEnd), rollbackError);
+            if (rollbackError)
+                LOGW("Pipeline cache rollback failed: {}", rollbackError.message());
+            return;
+        }
+
+        mainHeader.count += stagingHeader.count;
+        mainStream.seekp(0, std::ios_base::beg);
+        mainStream.write(reinterpret_cast<const char *>(&mainHeader), sizeof(PipelineCacheFileHeader));
+        mainStream.flush();
+        if (!mainStream) {
+            LOGW("Pipeline cache header commit failed; keeping staging for recovery");
             return;
         }
 
