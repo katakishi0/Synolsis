@@ -33,6 +33,32 @@
     <string-array name="app_theme">
         <item>Claro</item><item>Escuro</item><item>Seguir o sistema</item>
     </string-array>
+    <!-- Indices deliberately match values/array.xml; the native HOS
+         SystemLanguage IDs are read from a separate integer-array. -->
+    <string-array name="system_languages">
+        <item>Inglês americano</item>
+        <item>Inglês britânico</item>
+        <item>Francês</item>
+        <item>Francês canadense</item>
+        <item>Alemão</item>
+        <item>Espanhol</item>
+        <item>Espanhol latino-americano</item>
+        <item>Italiano</item>
+        <item>Holandês</item>
+        <item>Português</item>
+        <item>Português do Brasil</item>
+        <item>Russo</item>
+        <item>Japonês</item>
+        <item>Chinês</item>
+        <item>Chinês tradicional</item>
+        <item>Chinês simplificado</item>
+        <item>Coreano</item>
+        <item>Chinês taiwanês</item>
+    </string-array>
+    <string-array name="sort_apps_by">
+        <item>A–Z</item>
+        <item>Z–A</item>
+    </string-array>
     <string-array name="system_region">
         <item>Automática</item><item>Japão</item><item>Américas</item><item>Europa</item>
         <item>Austrália / Nova Zelândia</item><item>Hong Kong / Taiwan / Coreia do Sul</item><item>China</item>

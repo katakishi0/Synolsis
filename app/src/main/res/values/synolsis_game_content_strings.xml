@@ -12,6 +12,7 @@
     <string name="synolsis_content_invalid_title">This game has no valid title ID.</string>
     <string name="synolsis_content_not_active">Experimental package manager: NSP files are copied, checked and stored privately for this title. They are NOT installed in the emulated Switch yet. Game updates require CNMT/BKTR patch loading; DLC needs AOC mounting. These features are still under development. Do not expect this content to affect gameplay yet.</string>
     <string name="synolsis_clear_cache_title">Clear game shader cache</string>
-    <string name="synolsis_clear_cache_confirm">Delete cached graphics pipelines for this game for all GPU drivers? The game must not be running. Shaders may stutter again until the cache is rebuilt.</string>
+    <string name="synolsis_clear_cache_confirm">Delete all cached graphics pipelines for this game across GPU drivers? The game must not be running. Shaders may stutter again until the cache is rebuilt.</string>
     <string name="synolsis_clear_cache_result">Removed %1$d cache files (%2$d MiB)</string>
+    <string name="synolsis_content_package_summary">%1$s\n%2$.1f MiB • %3$d NCA • %4$d CNMT (not mounted)</string>
 </resources>

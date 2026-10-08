@@ -8,6 +8,7 @@ import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
 import java.io.File
+import java.io.FileOutputStream
 import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -26,7 +27,26 @@ object GameContentStore {
         UPDATE("updates"), DLC("dlc")
     }
 
-    data class Entry(val file: File, val size: Long)
+    data class Entry(
+        val file: File,
+        val size: Long,
+        val displayName: String = file.name,
+        val ncaCount: Int = 0,
+        val cnmtCount: Int = 0
+    )
+
+    private fun metadataFile(file: File) = File(file.parentFile, file.nameWithoutExtension + ".json")
+
+    private fun loadEntry(file: File): Entry {
+        val metadata = runCatching { org.json.JSONObject(metadataFile(file).readText()) }.getOrNull()
+        return Entry(
+            file = file,
+            size = file.length(),
+            displayName = metadata?.optString("name")?.takeIf { it.isNotBlank() } ?: file.name,
+            ncaCount = metadata?.optInt("nca_count") ?: 0,
+            cnmtCount = metadata?.optInt("cnmt_count") ?: 0
+        )
+    }
 
     private val titlePattern = Regex("[0-9a-fA-F]{16}")
     private val safeName = Regex("[^a-zA-Z0-9._-]")
@@ -44,12 +64,16 @@ object GameContentStore {
             .listFiles()
             ?.filter { it.isFile && it.extension.equals("nsp", ignoreCase = true) }
             ?.sortedByDescending { it.lastModified() }
-            ?.map { Entry(it, it.length()) }
+            ?.map(::loadEntry)
             ?: emptyList()
 
     fun delete(context: Context, titleId: String, kind: Kind, filename: String): Boolean {
         if (filename != File(filename).name || !filename.endsWith(".nsp", true)) return false
-        return File(storageDir(context, titleId, kind), filename).delete()
+        val file = File(storageDir(context, titleId, kind), filename)
+        if (!file.isFile) return false
+        val removed = file.delete()
+        if (removed) metadataFile(file).delete()
+        return removed
     }
 
     fun importNsp(context: Context, titleId: String, kind: Kind, source: Uri): Entry {
@@ -72,7 +96,10 @@ object GameContentStore {
         try {
             var written = 0L
             context.contentResolver.openInputStream(source)?.use { input ->
-                staging.outputStream().buffered().use { output ->
+                FileOutputStream(staging).use { raw ->
+                    // Stream large NSP archives using a fixed-size buffer to
+                    // avoid filling the 6 GB Android device's Java heap.
+                    val output = raw.buffered()
                     val buffer = ByteArray(128 * 1024)
                     while (true) {
                         val count = input.read(buffer)
@@ -84,22 +111,40 @@ object GameContentStore {
                         }
                         output.write(buffer, 0, count)
                     }
+                    output.flush()
+                    raw.fd.sync()
                 }
             } ?: error("Cannot read selected content")
             check(written >= 16L) { "NSP file is empty or incomplete" }
 
-            validatePfs0(staging)
+            val info = validatePfs0(staging)
 
-            // Same-directory rename is atomic on Android's app-private storage.
+            // This is a verified NSP container, NOT necessarily an update/DLC
+            // for this game: encrypted CNMT metadata needs native validation.
             check(staging.renameTo(destination)) { "Could not finalize imported NSP" }
-            return Entry(destination, written)
+            val safeName = displayName.filter { it >= ' ' }.take(160)
+            val metadata = org.json.JSONObject()
+                .put("name", safeName)
+                .put("selected_title_id", titleId.uppercase())
+                .put("selected_kind", kind.directory)
+                .put("nca_count", info.first)
+                .put("cnmt_count", info.second)
+                .put("native_status", "staged_not_mounted")
+                .put("title_id_verified", false)
+            try {
+                metadataFile(destination).writeText(metadata.toString())
+            } catch (error: Exception) {
+                destination.delete()
+                throw error
+            }
+            return Entry(destination, written, safeName, info.first, info.second)
         } finally {
             if (staging.exists()) staging.delete()
         }
     }
 
     /** Validates NSP/PFS0 layout and every entry range before storing it. */
-    private fun validatePfs0(file: File) {
+    private fun validatePfs0(file: File): Pair<Int, Int> {
         RandomAccessFile(file, "r").use { raf ->
             val header = ByteArray(16)
             raf.readFully(header)
@@ -122,8 +167,9 @@ object GameContentStore {
             raf.readFully(stringTable)
             val entries = ByteBuffer.wrap(entryTable).order(ByteOrder.LITTLE_ENDIAN)
             var ncaCount = 0
-            var metaCount = 0
-            val seenNames = HashSet<String>()
+            var cnmtCount = 0
+            val entryNames = HashSet<String>(count)
+            val segments = ArrayList<Pair<Long, Long>>(count)
             repeat(count) {
                 val offset = entries.long
                 val size = entries.long
@@ -134,28 +180,29 @@ object GameContentStore {
                 require(nameOffset in 0 until namesSize) { "Invalid NSP filename offset" }
                 val nameEnd = (nameOffset until namesSize)
                     .firstOrNull { stringTable[it].toInt() == 0 } ?: namesSize
-                // NSP/PFS0 filenames must be NUL terminated inside the
-                // declared string table. A missing terminator can hide an
-                // intentionally malformed metadata table.
                 require(nameEnd < namesSize) { "Unterminated NSP filename" }
                 val name = String(stringTable, nameOffset, nameEnd - nameOffset, Charsets.UTF_8)
                 require(name.isNotBlank() && '/' !in name && '\\' !in name &&
                     name != "." && name != ".." && name.all { it.code in 0x20..0x7E }) {
                     "Invalid NSP entry filename"
                 }
-                require(seenNames.add(name.lowercase(java.util.Locale.ROOT))) {
-                    "Duplicate NSP entry filename"
+                require(entryNames.add(name.lowercase(java.util.Locale.ROOT))) {
+                    "Duplicate NSP filename"
                 }
-                if (name.endsWith(".nca", ignoreCase = true)) ncaCount++
-                if (name.endsWith(".cnmt.nca", ignoreCase = true)) metaCount++
+                if (size > 0L) segments.add(offset to (offset + size))
+                if (name.endsWith(".nca", ignoreCase = true)) {
+                    ncaCount++
+                    if (name.endsWith(".cnmt.nca", ignoreCase = true)) cnmtCount++
+                }
             }
+            segments.sortBy { it.first }
+            for (index in 1 until segments.size)
+                require(segments[index].first >= segments[index - 1].second) {
+                    "Overlapping NSP entry data"
+                }
             require(ncaCount > 0) { "NSP contains no NCA content" }
-            // A standard installable update/DLC NSP carries a Content Meta
-            // NCA (CNMT). This catches plain arbitrary PFS0+NCA archives
-            // before wasting storage, but CNMT remains encrypted: matching
-            // the title ID and patch/DLC content type still requires the
-            // native NCA/key services at install time.
-            require(metaCount > 0) { "NSP contains no content metadata NCA" }
+            require(cnmtCount > 0) { "NSP is missing CNMT metadata" }
+            return ncaCount to cnmtCount
         }
     }
 }
