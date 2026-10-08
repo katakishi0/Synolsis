@@ -368,7 +368,7 @@ jobs:
                        "aspect_ratios","orientation_entries"):
               en_arr=arrays_en.find("./string-array[@name='"+name+"']")
               pt_arr=arrays_pt.find("./string-array[@name='"+name+"']")
-              assert en_arr is not None and pt_arr is not None
+              assert en_arr is not None and pt_arr is not None, ("Missing localized array", name)
               assert len(en_arr)==len(pt_arr), ("Wrong pt-BR entry count", name)
           print("PASS: pt-BR arrays preserve Switch language/region ordering")
           print("PASS: pt-BR selectable; single validated NSP staging manager")
