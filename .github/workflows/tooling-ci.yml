@@ -28,7 +28,7 @@ jobs:
           python - <<'PY'
           import pathlib
           from tools.verify_patches import changed_files
-          for pr in (252, 291, 9001, 2200, 2201):
+          for pr in (252, 291, 9001, 2200, 2201, 2202):
               data = pathlib.Path(f"patches/pr-{pr}.patch").read_bytes()
               print(f"PR #{pr}: {changed_files(data)}")
           PY
@@ -56,5 +56,9 @@ jobs:
         run: python tools/verify_patches.py --pr 2200
       - name: Check firmware import patch #2201 (no modifications)
         run: python tools/verify_patches.py --pr 2201
+      - name: Check optional newer-firmware font fix #2202 (no modifications)
+        run: python tools/verify_patches.py --pr 2202
       - name: Check 22.0 patches can be staged together
         run: git -C upstream/strato apply --check ../../patches/pr-2200.patch ../../patches/pr-2201.patch
+      - name: Check font fix can be staged with firmware patches
+        run: git -C upstream/strato apply --check ../../patches/pr-2200.patch ../../patches/pr-2201.patch ../../patches/pr-2202.patch
