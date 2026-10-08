@@ -33,6 +33,17 @@ Source branch: `feature/synolsis-frame-skip-fps-profiles`. Tested target: POCO X
 - Existing transaction-safe staging append, corrupted-count guard and driver-aware cache identities from the previous build are preserved.
 - All these changes reduce overhead in host I/O/presentation but cannot promise larger game simulation FPS on GPU-limited titles.
 
+## Async pipeline compilation and 6 GB memory safeguards
+
+Strato **already supported asynchronous Vulkan graphics pipeline construction** using `BS::thread_pool` and `AssemblePipelineAsync`; there is no need to copy an unrelated Yuzu switch or promise previously nonexistent asynchronous shaders.
+
+- New **Pipeline Compile Threads** option is native-backed (Auto, 1, 2, 4). Auto preserves the existing hardware-concurrency behavior; drivers with the `brokenMultithreadedPipelineCompilation` quirk always use 1 for safety.
+- Reducing workers may lower temporary compilation RAM and CPU contention on 6 GB phones but could increase shader compilation stalls. Test Auto vs 2 first; changes apply on the next game boot.
+- `DeserialisePipelineCache` validates the header and exact on-disk payload length, caps a warmed-up driver cache at **256 MiB**, and avoids allocating a corrupt `header.size` into RAM.
+- `SerialisePipelineCache` writes to a temporary file and replaces the old Vulkan cache only after successful completion. This protects previously cached pipelines if the process crashes or the filesystem fills.
+- Oversized cache files are ignored/rejected; this favors avoiding out-of-memory crashes over an enormous warm shader cache. The driver may have to compile shaders again if its valid cache exceeds the limit.
+- This limit is not a simulated VRAM allocation, and it does **not** increase the actual physical video memory.
+
 ## Regression/validation
 
 CI validates Java/Kotlin -> native settings field wiring, preference integer types and values, source-backed Vulkan mode and frame skip callbacks, and builds an optimized ARM64 APK. On-device QA still required:
