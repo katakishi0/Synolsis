@@ -185,7 +185,7 @@ jobs:
           assert "Pipeline cache has an impossible pipeline count" in cache
           assert "mainStream.seekg(sizeof(PipelineCacheFileHeader), std::ios::beg)" in cache
           gradle=Path("app/build.gradle").read_text()
-          cmake=(root.parent/"CMakeLists.txt").read_text()
+          cmake=Path("app/CMakeLists.txt").read_text()
           assert "optimized {" in gradle and 'arguments "-DCMAKE_BUILD_TYPE=RELEASE"' in gradle
           assert 'applicationId "org.synolsis.emu"' in gradle
           assert 'set(CMAKE_CXX_FLAGS_DEBUG "-O0' in cmake
