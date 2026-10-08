@@ -120,6 +120,18 @@
     <string name="disable_audio_output">Disable Audio Output</string>
     <string name="disable_audio_output_enabled">Audio output is disabled</string>
     <string name="disable_audio_output_disabled">Audio output is enabled</string>
+    <!-- Experimental Android native-backed settings -->
+    <string name="experimental_settings_title">Experimental</string>
+    <string name="experimental_open_title">Experimental settings (Adreno / Vulkan)</string>
+    <string name="experimental_open_summary">Risky GPU options and performance tuning. All toggles here affect existing Strato native settings.</string>
+    <string name="experimental_warning_title">Use one change at a time</string>
+    <string name="experimental_warning_summary">These features can cause graphics glitches, crashes or higher temperatures. Default settings are safer; restart the game after changing native options.</string>
+    <string name="experimental_warning_custom">This game is using global settings. Enable custom game settings first, otherwise changes here will not apply to this game.</string>
+    <string name="experimental_performance_title">Performance and memory</string>
+    <string name="experimental_driver_title">Driver compatibility</string>
+    <string name="experimental_gpu_hacks_title">Accuracy and readback experiments</string>
+    <string name="experimental_direct_import_warning">Only works on proprietary Qualcomm Adreno drivers. Not supported with custom Turnip drivers.</string>
+    <string name="experimental_direct_import_turnip">Disabled: direct memory import is not supported with custom Turnip drivers.</string>
     <!-- Settings - GPU -->
     <string name="gpu">GPU</string>
     <string name="gpu_driver_config">GPU Driver Configuration</string>
