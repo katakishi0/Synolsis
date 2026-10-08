@@ -41,7 +41,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           # Source is checked out at the start of the run, then built from that snapshot.
-          ref: feature/synolsis-frame-skip-fps-profiles
+          ref: feature/synolsis-ptbr-content-manager
           submodules: false
 
       - name: Assert full source is checked in
@@ -256,6 +256,37 @@ jobs:
           assert 'set(CMAKE_CXX_FLAGS_DEBUG "-O0' in cmake
           assert 'set(CMAKE_CXX_FLAGS_RELEASE "-Ofast' in cmake
           assert "minifyEnabled false" in gradle
+          # Localization: Portuguese (Brazil) is selectable and actually
+          # translates the bulk of the original Skyline preference strings.
+          pt=ET.parse(root/"res/values-pt-rBR/strings.xml").getroot()
+          default=ET.parse(root/"res/values/strings.xml").getroot()
+          pt_ids={x.attrib.get("name") for x in pt.findall("string")}
+          default_ids={x.attrib.get("name") for x in default.findall("string")}
+          assert len(pt_ids & default_ids) >= 285, "Insufficient Brazilian Portuguese coverage"
+          assert '"pt-BR"' in gradle
+          android_ns="{http://schemas.android.com/apk/res/android}"
+          locales=ET.parse(root/"res/xml/locales_config.xml").getroot()
+          assert any(x.get(android_ns+"name")=="pt-BR" for x in locales)
+          # Android resources must not shadow the same resource in one locale.
+          for name in ("synolsis_arrays.xml","synolsis_ui_strings.xml",
+                       "synolsis_content_strings.xml","synolsis_native_controls.xml"):
+              ET.parse(root/"res/values-pt-rBR"/name)
+          for name in ("synolsis_content_strings.xml","synolsis_ui_strings.xml"):
+              ET.parse(root/"res/values"/name)
+
+          # Update/DLC: verify import is real I/O, not a fake install claim.
+          content=(root/"java/org/stratoemu/strato/GameContentActivity.kt").read_text()
+          app_dialog=(root/"java/org/stratoemu/strato/AppDialog.kt").read_text()
+          app_dialog_xml=(root/"res/layout/app_dialog.xml").read_text()
+          for tag in ("ActivityResultContracts.OpenDocument", "Dispatchers.IO",
+                      "validNsp", "input.copyTo(out", "native_status",
+                      "staged_not_mounted", "FileOutputStream", "UUID.randomUUID"):
+              assert tag in content, "Content library missing "+tag
+          assert "manageGameContent" in app_dialog
+          assert '@+id/manage_game_content' in app_dialog_xml
+          assert 'android:name=".GameContentActivity"' in manifest
+          print("PASS: Brazilian Portuguese localization and genuine per-title NSP import/storage")
+
           print("PASS: Synolsis optimized APK variant versus -O0 debug baseline")
           print("PASS: Synolsis v2 MIUI, native frametime HUD, readback consistency and cache validation")
 
@@ -377,7 +408,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: synolsis-emu-adreno-v3-${{ inputs.build_type || 'optimized' }}-${{ github.run_number }}
+          name: synolsis-emu-ptbr-content-v4-${{ inputs.build_type || 'optimized' }}-${{ github.run_number }}
           path: app/build/outputs/apk/mainline/*/*.apk
           if-no-files-found: error
           retention-days: 30
