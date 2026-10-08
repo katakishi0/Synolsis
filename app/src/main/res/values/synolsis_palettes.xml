@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="synolsis_palette_entries">
+        <item>Clássico (sistema)</item>
+        <item>Midnight Blue</item>
+        <item>Neon Purple</item>
+        <item>Emerald Green</item>
+        <item>AMOLED Red</item>
+        <item>Solar Amber</item>
+    </string-array>
+    <integer-array name="synolsis_palette_values">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+        <item>4</item>
+        <item>5</item>
+    </integer-array>
+    <style name="SynolsisTheme.Midnight" parent="AppTheme">
+        <item name="colorPrimary">#90C5FF</item>
+        <item name="colorOnPrimary">#002B57</item>
+        <item name="colorPrimaryContainer">#1A416B</item>
+        <item name="colorOnPrimaryContainer">#D0E4FF</item>
+        <item name="colorSecondary">#A6D9EF</item>
+        <item name="colorOnSecondary">#003544</item>
+        <item name="colorSurface">#0B1322</item>
+        <item name="colorOnSurface">#E4EDFF</item>
+        <item name="colorSurfaceVariant">#1B3047</item>
+        <item name="colorOnSurfaceVariant">#BDCCE3</item>
+        <item name="colorOutline">#8092AB</item>
+        <item name="android:colorBackground">#0B1322</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
+    <style name="SynolsisTheme.Purple" parent="AppTheme">
+        <item name="colorPrimary">#D5A4FF</item>
+        <item name="colorOnPrimary">#381450</item>
+        <item name="colorPrimaryContainer">#583476</item>
+        <item name="colorOnPrimaryContainer">#F6DAFF</item>
+        <item name="colorSecondary">#FFB5E4</item>
+        <item name="colorOnSecondary">#541139</item>
+        <item name="colorSurface">#191020</item>
+        <item name="colorOnSurface">#F3E9FF</item>
+        <item name="colorSurfaceVariant">#372940</item>
+        <item name="colorOnSurfaceVariant">#DCCBE8</item>
+        <item name="colorOutline">#AD97BC</item>
+        <item name="android:colorBackground">#191020</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
+    <style name="SynolsisTheme.Emerald" parent="AppTheme">
+        <item name="colorPrimary">#7CE9B5</item>
+        <item name="colorOnPrimary">#003923</item>
+        <item name="colorPrimaryContainer">#115D41</item>
+        <item name="colorOnPrimaryContainer">#B2FFD6</item>
+        <item name="colorSecondary">#B2DFB5</item>
+        <item name="colorOnSecondary">#1C4126</item>
+        <item name="colorSurface">#081B16</item>
+        <item name="colorOnSurface">#DCFFF0</item>
+        <item name="colorSurfaceVariant">#19352C</item>
+        <item name="colorOnSurfaceVariant">#BADBC8</item>
+        <item name="colorOutline">#83A999</item>
+        <item name="android:colorBackground">#081B16</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
+    <style name="SynolsisTheme.Amoled" parent="AppTheme">
+        <item name="colorPrimary">#FF8D95</item>
+        <item name="colorOnPrimary">#630019</item>
+        <item name="colorPrimaryContainer">#830028</item>
+        <item name="colorOnPrimaryContainer">#FFDDE0</item>
+        <item name="colorSecondary">#F3B1B7</item>
+        <item name="colorOnSecondary">#4B1A22</item>
+        <item name="colorSurface">#000000</item>
+        <item name="colorOnSurface">#F9EFF0</item>
+        <item name="colorSurfaceVariant">#1C1416</item>
+        <item name="colorOnSurfaceVariant">#D9C1C4</item>
+        <item name="colorOutline">#B39DA0</item>
+        <item name="android:colorBackground">#000000</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
+    <style name="SynolsisTheme.Amber" parent="AppTheme">
+        <item name="colorPrimary">#FFCC75</item>
+        <item name="colorOnPrimary">#593500</item>
+        <item name="colorPrimaryContainer">#805200</item>
+        <item name="colorOnPrimaryContainer">#FFDEAB</item>
+        <item name="colorSecondary">#FFD9AA</item>
+        <item name="colorOnSecondary">#53340C</item>
+        <item name="colorSurface">#24180C</item>
+        <item name="colorOnSurface">#FFEFDB</item>
+        <item name="colorSurfaceVariant">#3B2C1A</item>
+        <item name="colorOnSurfaceVariant">#E9D2B5</item>
+        <item name="colorOutline">#BDA484</item>
+        <item name="android:colorBackground">#24180C</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
+</resources>
