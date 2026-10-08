@@ -425,19 +425,34 @@ namespace skyline::gpu {
     void GPU::Initialise() {
         std::string titleId{state.loader->nacp->GetSaveDataOwnerId()};
 
-        // Key host Vulkan caches by the selected driver. A pipeline built under
-        // Qualcomm's stock ICD is not necessarily reusable under Turnip, and
-        // a custom driver label can contain unsafe filesystem characters.
-        // Stable FNV-1a hashing makes the cache directory safe and bounded.
-        std::string driverCacheKey{"system"};
-        if (!(*state.settings->gpuDriver).empty()) {
-            u64 driverHash{14695981039346656037ULL};
-            for (unsigned char byte : *state.settings->gpuDriver) {
-                driverHash ^= byte;
-                driverHash *= 1099511628211ULL;
-            }
-            driverCacheKey = fmt::format("custom_{:016x}", driverHash);
+        // Keep host caches apart for distinct Vulkan ICDs *and* driver
+        // updates. The selected Turnip label alone can remain unchanged even
+        // though its compiled pipeline format/driver version has changed.
+        // Hash physical device/driver identity and pipeline UUID together
+        // with the user-selected driver name. Use a stable algorithm because
+        // std::hash is not stable across toolchains/platforms.
+        const auto properties{vkPhysicalDevice.getProperties()};
+        u64 driverHash{14695981039346656037ULL};
+        const auto mixByte{[&](u8 value) {
+            driverHash ^= value;
+            driverHash *= 1099511628211ULL;
+        }};
+        for (unsigned char byte : *state.settings->gpuDriver)
+            mixByte(byte);
+
+        for (u32 value : {properties.vendorID, properties.deviceID,
+                          properties.driverVersion, properties.apiVersion}) {
+            for (u32 shift{0}; shift < 32; shift += 8)
+                mixByte(static_cast<u8>(value >> shift));
         }
+        for (u8 byte : properties.pipelineCacheUUID)
+            mixByte(byte);
+
+        const std::string driverCacheKey{
+            (*state.settings->gpuDriver).empty()
+                ? fmt::format("system_{:016x}", driverHash)
+                : fmt::format("custom_{:016x}", driverHash)
+        };
         graphicsPipelineAssembler.emplace(*this, state.os->publicAppFilesPath + "vk_graphics_pipeline_cache/" + driverCacheKey + "/" + titleId);
         shader.emplace(state, *this,
                        state.os->publicAppFilesPath + "shader_replacements/" + titleId,
