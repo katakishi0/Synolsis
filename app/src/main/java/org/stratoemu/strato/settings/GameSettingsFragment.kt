@@ -5,7 +5,6 @@
 
 package org.stratoemu.strato.settings
 
-import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
@@ -40,20 +39,13 @@ class GameSettingsFragment : PreferenceFragmentCompat() {
         addPreferencesFromResource(R.xml.custom_game_preferences)
         addPreferencesFromResource(R.xml.emulation_preferences)
 
-        findPreference<Preference>("open_experimental_settings")?.setOnPreferenceClickListener {
-            startActivity(Intent(requireContext(), SettingsActivity::class.java).apply {
-                putExtras(requireActivity().intent)
-                putExtra(SettingsActivity.EXTRA_EXPERIMENTAL_SETTINGS, true)
-            })
-            true
-        }
 
         // Toggle emulation settings enabled state based on use_custom_settings state
         listOf<Preference?>(
             findPreference("category_system"),
             findPreference("category_presentation"),
             findPreference("category_gpu"),
-            findPreference("category_hacks"),
+            findPreference("category_experimental"),
             findPreference("category_audio"),
             findPreference("category_debug")
         ).forEach { it?.dependency = "use_custom_settings" }
@@ -71,8 +63,9 @@ class GameSettingsFragment : PreferenceFragmentCompat() {
         if (BuildConfig.BUILD_TYPE != "release")
             findPreference<Preference>("validation_layer")?.isVisible = true
 
-        // Maximum GPU clocks moved to ExperimentalSettingsFragment.
-        // That screen checks support before enabling the preference.
+        // These switches are displayed inline and obey the per-game
+        // "Use Custom Settings" dependency above.
+        configureInlineExperimentalOptions(EmulationSettings.forTitleId(item.titleId ?: item.key()).gpuDriver)
 
         findPreference<GpuDriverPreference>("gpu_driver")?.item = item
 
