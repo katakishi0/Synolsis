@@ -29,6 +29,7 @@ namespace skyline::gpu {
         service::hosbinder::AndroidRect windowCrop{}; //!< A rectangle with the bounds of the current crop performed on the image prior to presentation
         service::hosbinder::NativeWindowScalingMode windowScalingMode{service::hosbinder::NativeWindowScalingMode::ScaleToWindow}; //!< The mode in which the cropped image is scaled up to the surface
         service::hosbinder::NativeWindowTransform windowTransform{}; //!< The transformation performed on the image prior to presentation
+        bool windowTransformApplied{}; //!< Reset for each new Android surface so first transform is always submitted
         i64 windowLastTimestamp{}; //!< The last timestamp submitted to the window, 0 or CLOCK_MONOTONIC value
 
         std::optional<vk::raii::SurfaceKHR> vkSurface; //!< The Vulkan Surface object that is backed by ANativeWindow
