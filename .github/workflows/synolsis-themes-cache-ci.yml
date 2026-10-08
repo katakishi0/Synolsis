@@ -31,7 +31,9 @@ jobs:
       - name: Checkout standalone Strato feature branch
         uses: actions/checkout@v4
         with:
-          ref: feature/synolsis-themes-cache
+          # Pin source to the validated commit so later branch updates do not
+          # alter a running build unpredictably.
+          ref: 04b8205ca788c696ddb106be3e28e15b8b894f37
           submodules: false
 
       - name: Assert full source is checked in
@@ -79,6 +81,14 @@ jobs:
                      for el in appxml.iter() for a,v in el.attrib.items())
           ui=(root/"res/xml/app_preferences.xml").read_text()
           assert 'android:entryValues="@array/synolsis_palette_values"' in ui
+          activity=(root/"java/org/stratoemu/strato/StratoApplication.kt").read_text()
+          assert "applySynolsisPalette()" in activity
+          assert "Application.ActivityLifecycleCallbacks" in activity
+          title=(root/"res/layout/main_activity.xml").read_text()
+          assert "@drawable/skyline_text" not in title
+          theme=(root/"java/org/stratoemu/strato/settings/GlobalSettingsFragment.kt").read_text()
+          assert '"synolsis_palette"' in theme
+          print("Pinned Synolsis source commit:", "04b8205ca788c696ddb106be3e28e15b8b894f37")
           print("PASS: Synolsis branding, 6 palettes, inline experiments, driver cache isolation and staging cleanup")
           PY
 
