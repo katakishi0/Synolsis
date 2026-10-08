@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       patch:
-        description: 'One fix to stage for this build'
+        description: 'Patch preset to stage for this build'
         type: choice
         required: true
         default: none
@@ -17,6 +17,9 @@ on:
           - '252'
           - '291'
           - '9001'
+          - '2200'
+          - '2201'
+          - 'firmware-22'
 
 permissions:
   contents: read
@@ -30,7 +33,7 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 120
     env:
-      PATCH_ID: ${{ inputs.patch || 'none' }}
+      PATCH_ID: ${{ inputs.patch || 'firmware-22' }}
     steps:
       - name: Check out toolkit and complete Strato core
         uses: actions/checkout@v4
@@ -68,7 +71,13 @@ jobs:
 
       - name: Stage selected candidate in a clean upstream checkout
         if: env.PATCH_ID != 'none'
-        run: python tools/verify_patches.py --upstream upstream/strato --pr "$PATCH_ID" --write
+        run: |
+          if [ "$PATCH_ID" = "firmware-22" ]; then
+            git -C upstream/strato apply --check ../../patches/pr-2200.patch ../../patches/pr-2201.patch
+            git -C upstream/strato apply ../../patches/pr-2200.patch ../../patches/pr-2201.patch
+          else
+            python tools/verify_patches.py --upstream upstream/strato --pr "$PATCH_ID" --write
+          fi
 
       - name: Build Strato ARM64 dev debug APK
         working-directory: upstream/strato
@@ -82,7 +91,7 @@ jobs:
       - name: Publish experimental APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: skyline-strato-devdebug-${{ inputs.patch || 'baseline' }}
+          name: skyline-strato-devdebug-${{ inputs.patch || 'firmware-22' }}
           path: upstream/strato/app/build/outputs/apk/dev/debug/*.apk
           if-no-files-found: error
           retention-days: 7
