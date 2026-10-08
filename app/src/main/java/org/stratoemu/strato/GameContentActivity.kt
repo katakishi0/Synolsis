@@ -205,17 +205,18 @@ class GameContentActivity : AppCompatActivity() {
             if (!dir.exists() && !dir.mkdirs())
                 return false to getString(R.string.synolsis_import_failed)
             val token = UUID.randomUUID().toString()
-            incomplete = File(dir, "$token.pending")
+            val pendingFile = File(dir, "$token.pending")
+            incomplete = pendingFile
             val destination = File(dir, "$token.nsp")
             contentResolver.openInputStream(uri)?.use { input ->
-                FileOutputStream(incomplete).use { out ->
+                FileOutputStream(pendingFile).use { out ->
                     input.copyTo(out, 1024 * 1024)
                     out.fd.sync()
                 }
             } ?: return false to getString(R.string.synolsis_import_failed)
-            if (!validNsp(incomplete))
+            if (!validNsp(pendingFile))
                 return false to getString(R.string.synolsis_nsp_invalid)
-            if (!incomplete.renameTo(destination))
+            if (!pendingFile.renameTo(destination))
                 return false to getString(R.string.synolsis_import_failed)
             val meta = JSONObject()
                 .put("display_name", fileName)
