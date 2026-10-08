@@ -6,6 +6,30 @@
     <string-array name="layout_type">
         <item>Lista</item><item>Grade</item><item>Grade compacta</item>
     </string-array>
+    <string-array name="sort_apps_by">
+        <item>A–Z (ordem crescente)</item>
+        <item>Z–A (ordem decrescente)</item>
+    </string-array>
+    <string-array name="system_languages">
+        <item>Inglês americano</item>
+        <item>Inglês britânico</item>
+        <item>Francês</item>
+        <item>Francês canadense</item>
+        <item>Alemão</item>
+        <item>Espanhol</item>
+        <item>Espanhol latino-americano</item>
+        <item>Italiano</item>
+        <item>Holandês</item>
+        <item>Português (Portugal)</item>
+        <item>Português (Brasil)</item>
+        <item>Russo</item>
+        <item>Japonês</item>
+        <item>Chinês</item>
+        <item>Chinês tradicional</item>
+        <item>Chinês simplificado</item>
+        <item>Coreano</item>
+        <item>Chinês (Taiwan)</item>
+    </string-array>
     <string-array name="app_theme">
         <item>Claro</item><item>Escuro</item><item>Seguir o sistema</item>
     </string-array>
