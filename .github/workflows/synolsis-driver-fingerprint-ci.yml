@@ -1,4 +1,4 @@
-name: Synolsis Adreno Optimization APK
+name: Synolsis Adreno Optimization + Cache Safety APK
 
 on:
   push:
@@ -25,7 +25,7 @@ concurrency:
 
 jobs:
   build:
-    name: Synolsis ARM64 Adreno/Turnip optimization v2
+    name: Synolsis ARM64 Adreno optimization and transactional cache
     runs-on: ubuntu-22.04
     timeout-minutes: 150
     env:
@@ -41,7 +41,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           # Source is checked out at the start of the run, then built from that snapshot.
-          ref: feature/synolsis-adreno-frametime-cache-v2
+          ref: fix/synolsis-cache-transactional-merge
           submodules: false
 
       - name: Assert full source is checked in
@@ -78,6 +78,10 @@ jobs:
           assert any(x.attrib.get("{http://schemas.android.com/apk/res/android}key")=="category_experimental" for x in ep.iter())
           driver=(root/"cpp/skyline/gpu.cpp").read_text()
           cache=(root/"cpp/skyline/gpu/pipeline_cache_manager.cpp").read_text()
+          assert cache.index("mainStream << stagingStream.rdbuf()") < cache.index("mainHeader.count += stagingHeader.count"), "Header must be committed after payload"
+          assert 'Pipeline cache append failed; restoring previous length' in cache
+          assert 'static_cast<std::streamoff>(originalEnd)' in cache
+          assert "std::numeric_limits<u32>::max() - mainHeader.count" in cache
           assert "custom_{:016x}" in driver and "driverCacheKey" in driver
           assert "std::filesystem::remove(stagingPath, removeError)" in cache
           assert "stream.gcount() == static_cast<std::streamsize>(sizeof(PipelineCacheFileHeader))" in cache
