@@ -349,6 +349,17 @@ jobs:
           assert Path("app/src/main/java/org/stratoemu/strato/GameContentManagerActivity.kt").exists()
           assert not Path("app/src/main/java/org/stratoemu/strato/GameContentActivity.kt").exists()
           print(f"PASS: {total} resource declarations have no duplicate names per qualifier")
+          # Localized arrays must keep indices identical to the English
+          # defaults: title region/language IDs must never be reordered.
+          arrays_en=ET.parse(root/"values/array.xml").getroot()
+          arrays_pt=ET.parse(root/"values-pt-rBR/synolsis_arrays.xml").getroot()
+          for name in ("system_languages","system_region","sort_apps_by",
+                       "aspect_ratios","orientation_entries"):
+              en_arr=arrays_en.find("./string-array[@name='"+name+"']")
+              pt_arr=arrays_pt.find("./string-array[@name='"+name+"']")
+              assert en_arr is not None and pt_arr is not None
+              assert len(en_arr)==len(pt_arr), ("Wrong pt-BR entry count", name)
+          print("PASS: pt-BR arrays preserve Switch language/region ordering")
           print("PASS: pt-BR selectable; single validated NSP staging manager")
           PY
 
