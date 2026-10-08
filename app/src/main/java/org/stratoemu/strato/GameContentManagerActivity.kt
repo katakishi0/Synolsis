@@ -117,7 +117,7 @@ class GameContentManagerActivity : AppCompatActivity() {
                 setPadding(0, dp(10), 0, dp(10))
             }
             row.addView(TextView(this).apply {
-                text = entry.file.name + "\n" + String.format("%.1f MiB", entry.size / 1048576.0)
+                text = getString(R.string.synolsis_content_package_summary, entry.displayName, entry.size / 1048576.0, entry.ncaCount, entry.cnmtCount)
                 maxLines = 3
                 layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
             })
