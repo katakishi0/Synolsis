@@ -1,4 +1,4 @@
-name: Synolsis Adreno Driver-Cache ID APK
+name: Synolsis Adreno Optimization APK
 
 on:
   push:
@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   build:
-    name: Synolsis ARM64 Vulkan driver cache migration
+    name: Synolsis ARM64 Adreno/Turnip optimization v2
     runs-on: ubuntu-22.04
     timeout-minutes: 150
     env:
@@ -32,7 +32,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           # Source is checked out at the start of the run, then built from that snapshot.
-          ref: feature/synolsis-vulkan-driver-cache-id
+          ref: feature/synolsis-adreno-frametime-cache-v2
           submodules: false
 
       - name: Assert full source is checked in
@@ -157,6 +157,25 @@ jobs:
           assert 'vkPhysicalDevice.getProperties()' in gpu_source
           assert 'std::hash' not in gpu_source.split("void GPU::Initialise()",1)[1] or 'std::hash is not stable' in gpu_source
           print("PASS: separated settings and Vulkan physical-driver fingerprint identity")
+          # Synolsis v2: diagnostics only expose existing native telemetry,
+          # and the MIUI refresh-rate IPC must address the actual Android app.
+          emulation=(root/"java/org/stratoemu/strato/EmulationActivity.kt").read_text()
+          assert 'setFpsIntent.putExtra("package_name", packageName)' in emulation
+          assert '"skyline.emu"' not in emulation
+          assert "averageFrametimeDeviation" in emulation
+          assert "emulationSettings.perfStatsDetails" in emulation
+          assert "this@EmulationActivity.isDestroyed" in emulation
+          assert "postDelayed(this, 500)" in emulation
+          prefs=(root/"java/org/stratoemu/strato/settings/EmulationSettings.kt").read_text()
+          assert "var perfStatsDetails by sharedPreferences" in prefs
+          assert 'app:key="perf_stats_details"' in (root/"res/xml/emulation_preferences.xml").read_text()
+          profiles=(root/"java/org/stratoemu/strato/settings/SynolsisGpuProfiles.kt").read_text()
+          assert "fun currentMode(readback : Boolean, fastWrites : Boolean)" in profiles
+          assert "settings.enableFastReadbackWrites = false" in profiles
+          cache=(root/"cpp/skyline/gpu/pipeline_cache_manager.cpp").read_text()
+          assert "Pipeline cache has an impossible pipeline count" in cache
+          assert "mainStream.seekg(sizeof(PipelineCacheFileHeader), std::ios::beg)" in cache
+          print("PASS: Synolsis v2 MIUI, native frametime HUD, readback consistency and cache validation")
 
           PY
 
@@ -247,7 +266,7 @@ jobs:
             adreno-experimental-ccache-v1-${{ runner.os }}-
             strato-ccache-v1-${{ runner.os }}-
 
-      - name: Build experimental Strato APK
+      - name: Build Synolsis Emu APK
         shell: bash
         run: |
           set -euo pipefail
@@ -258,11 +277,11 @@ jobs:
         if: always()
         run: command -v ccache >/dev/null && ccache --show-stats || true
 
-      - name: Upload experimental APK
+      - name: Upload Synolsis APK
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: synolsis-emu-vulkan-driver-cache-${{ github.run_number }}
+          name: synolsis-emu-adreno-v2-${{ github.run_number }}
           path: app/build/outputs/apk/mainline/debug/*.apk
           if-no-files-found: error
           retention-days: 30
