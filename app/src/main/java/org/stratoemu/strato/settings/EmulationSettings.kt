@@ -50,6 +50,7 @@ class EmulationSettings private constructor(context : Context, prefName : String
     var disableFrameThrottling by sharedPreferences(context, false, prefName = prefName)
     var presentationFrameSkip by sharedPreferences(context, 0, prefName = prefName)
     var vulkanPresentMode by sharedPreferences(context, 0, prefName = prefName)
+    var shaderCompileThreads by sharedPreferences(context, 0, prefName = prefName)
     var executorSlotCountScale by sharedPreferences(context, 6, prefName = prefName)
     var executorFlushThreshold by sharedPreferences(context, 256, prefName = prefName)
     var useDirectMemoryImport by sharedPreferences(context, false, prefName = prefName)
