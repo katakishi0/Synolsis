@@ -308,6 +308,50 @@ jobs:
 
           PY
 
+      - name: Validate translations and Android resources without collisions
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+
+          root=Path("app/src/main/res")
+          seen={}
+          total=0
+          for xml in sorted(root.glob("values*/*.xml")):
+              qualifier=xml.parent.name
+              tree=ET.parse(xml).getroot()
+              for node in tree:
+                  name=node.get("name")
+                  if not name:
+                      continue
+                  kind=node.tag
+                  if kind in ("string-array","integer-array"):
+                      kind="array"   # Android arrays share one resource namespace
+                  if kind=="item":
+                      kind=node.get("type", "item")
+                  key=(qualifier, kind, name)
+                  if key in seen:
+                      raise RuntimeError(f"Duplicate Android resource {key}: {seen[key]} and {xml}")
+                  seen[key]=xml
+                  total+=1
+
+          en=Path("app/src/main/res/values/strings.xml")
+          br=Path("app/src/main/res/values-pt-rBR/strings.xml")
+          assert en.exists() and br.exists()
+          source=Path("app/build.gradle").read_text()
+          assert '"pt-BR"' in source
+          manifest=Path("app/src/main/AndroidManifest.xml").read_text()
+          assert 'android:localeConfig="@xml/locales_config"' in manifest
+          locale_config=Path("app/src/main/res/xml/locales_config.xml").read_text()
+          assert 'android:name="pt-BR"' in locale_config
+          assert Path("app/src/main/java/org/stratoemu/strato/data/GameContentStore.kt").exists()
+          assert Path("app/src/main/java/org/stratoemu/strato/GameContentManagerActivity.kt").exists()
+          assert not Path("app/src/main/java/org/stratoemu/strato/GameContentActivity.kt").exists()
+          print(f"PASS: {total} resource declarations have no duplicate names per qualifier")
+          print("PASS: pt-BR selectable; single validated NSP staging manager")
+          PY
+
       - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
