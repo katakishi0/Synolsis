@@ -192,9 +192,10 @@ namespace skyline::gpu {
         if (timestamp && (result = window->perform(window, NATIVE_WINDOW_SET_BUFFERS_TIMESTAMP, timestamp)))
             throw exception("Setting the buffer timestamp to {} failed with {}", timestamp, result);
 
-        u64 frameId{};
-        if ((result = window->perform(window, NATIVE_WINDOW_GET_NEXT_FRAME_ID, &frameId)))
-            throw exception("Retrieving the next frame's ID failed with {}", result);
+        // The next frame ID was fetched through ANativeWindow::perform on
+        // every frame, then discarded without being read. Avoid this extra
+        // native-window/SurfaceFlinger round-trip on the present hot path.
+        // Vulkan acquire/present ordering and VI callbacks are unchanged.
 
         {
             std::scoped_lock queueLock{gpu.queueMutex};
