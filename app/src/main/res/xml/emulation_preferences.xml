@@ -99,10 +99,7 @@
     <PreferenceCategory
         android:key="category_gpu"
         android:title="@string/gpu">
-        <org.stratoemu.strato.preference.GpuDriverPreference
-            app:key="gpu_driver"
-            app:title="@string/gpu_driver_config" />
-        <SwitchPreferenceCompat
+<SwitchPreferenceCompat
             android:defaultValue="true"
             android:summaryOff="@string/triple_buffering_disabled"
             android:summaryOn="@string/triple_buffering_enabled"
