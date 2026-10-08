@@ -63,3 +63,33 @@ internal fun PreferenceFragmentCompat.wireSynolsisGpuProfiles(settings : Emulati
         }
     }
 }
+
+/**
+ * Only readback-related precision changes are exposed here.
+ * This is not a floating-point shader accuracy selector or a CPU accuracy hack.
+ */
+internal fun PreferenceFragmentCompat.wireSynolsisReadbackPrecision(settings : EmulationSettings) {
+    findPreference<ListPreference>("synolsis_readback_precision")
+        ?.setOnPreferenceChangeListener { _, value ->
+            when (value as? String) {
+                "accurate" -> {
+                    settings.enableFastGpuReadbackHack = false
+                    settings.enableFastReadbackWrites = false
+                }
+                "balanced" -> {
+                    settings.enableFastGpuReadbackHack = true
+                    settings.enableFastReadbackWrites = false
+                }
+                "experimental" -> {
+                    settings.enableFastGpuReadbackHack = true
+                    settings.enableFastReadbackWrites = true
+                }
+                else -> return@setOnPreferenceChangeListener false
+            }
+            findPreference<TwoStatePreference>("enable_fast_gpu_readback_hack")?.isChecked =
+                settings.enableFastGpuReadbackHack
+            findPreference<TwoStatePreference>("enable_fast_readback_writes")?.isChecked =
+                settings.enableFastReadbackWrites
+            true
+        }
+}
