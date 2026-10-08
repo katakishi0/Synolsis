@@ -1,6 +1,6 @@
 # Synolsis Emu — Adreno/Turnip cache and theme experiment
 
-**Branch:** `feature/synolsis-themes-cache`. Core: native Skyline/Strato, unchanged application ID so existing app data and saves remain accessible when upgrading a correctly signed APK. Source and original author/license headers preserved.
+**Branch:** `feature/synolsis-themes-cache`. Core: native Skyline/Strato, unchanged application ID, but an APK can upgrade an existing installation **only with the same signing certificate** (CI debug APKs may differ). Back up saves before any reinstall. Source and original author/license headers preserved.
 
 **Hardware under evaluation:** POCO X5 Pro 5G, Snapdragon 778G/Adreno 642L, 6 GiB RAM, user-provided Turnip driver.
 
