@@ -173,6 +173,13 @@
             app:key="use_direct_memory_import"
             app:title="@string/use_direct_memory_import"
             android:summary="@string/experimental_direct_import_warning" />
+        <ListPreference
+            android:defaultValue="accurate"
+            android:entries="@array/synolsis_readback_mode_entries"
+            android:entryValues="@array/synolsis_readback_mode_values"
+            app:key="synolsis_readback_precision"
+            app:title="@string/synolsis_readback_precision"
+            app:summary="@string/synolsis_readback_precision_desc" />
         <SwitchPreferenceCompat
             android:defaultValue="false"
             app:key="enable_fast_gpu_readback_hack"
