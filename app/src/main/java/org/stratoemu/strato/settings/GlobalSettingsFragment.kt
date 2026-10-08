@@ -43,12 +43,6 @@ class GlobalSettingsFragment : PreferenceFragmentCompat() {
         addPreferencesFromResource(R.xml.input_preferences)
         addPreferencesFromResource(R.xml.credits_preferences)
 
-        findPreference<Preference>("open_experimental_settings")?.setOnPreferenceClickListener {
-            startActivity(Intent(requireContext(), SettingsActivity::class.java).apply {
-                putExtra(SettingsActivity.EXTRA_EXPERIMENTAL_SETTINGS, true)
-            })
-            true
-        }
 
         // Re-launch the app if Material You is toggled
         findPreference<Preference>("use_material_you")?.setOnPreferenceChangeListener { _, _ ->
@@ -78,7 +72,7 @@ class GlobalSettingsFragment : PreferenceFragmentCompat() {
         if (BuildConfig.BUILD_TYPE != "release")
             findPreference<Preference>("validation_layer")?.isVisible = true
 
-        // Maximum GPU clocks moved to ExperimentalSettingsFragment.
-        // That screen checks support before enabling the preference.
+        // The Experimental category now appears directly in this same screen.
+        configureInlineExperimentalOptions(EmulationSettings.global.gpuDriver)
     }
 }
