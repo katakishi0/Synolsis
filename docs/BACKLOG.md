@@ -8,7 +8,12 @@ Critérios: (1) baseline compila, (2) logs e diagnóstico, (3) reproduzir bug, (
 - [x] Proteções: diretório sujo, revisão inesperada e branch repetida.
 - [x] Diagnóstico de GPU via ADB (PowerVR/Mali/Adreno).
 - [x] Testes Python para fluxo básico (rodar localmente).
-- [ ] Clone integral do upstream e APK compilado: requerem ambiente Android Studio e dependências.
+- [x] Incorporar upstream Strato em submódulo Git fixado e clonar dependências no workflow.
+- [x] Publicar diffs #252/#291 e protótipo de correção #9001 (falha no carregamento de Vulkan).
+- [x] Verificar compatibilidade sintática e de contexto de patches com o core pinado via GitHub Actions.
+- [x] Executar testes automatizados de patches e proteções no GitHub Actions.
+- [ ] APK compilado e testado em Android: build automático em andamento; não afirmar sucesso antes do artefato.
+- [ ] Criar patches da nossa branch do motor após compilação confirmada.
 
 ## Checkpoint 1
 - [ ] Validar PR #252, crash ao importar firmware com chaves desatualizadas.
@@ -29,3 +34,11 @@ Critérios: (1) baseline compila, (2) logs e diagnóstico, (3) reproduzir bug, (
 - [ ] PR #160: VFS com atualizações/DLC em branch separada.
 
 Não incluir arquivos de ROM, firmware ou chaves. Não instalar Turnip/AdrenoTools para PowerVR. Não adotar hacks sem benchmarks.
+
+## Testes automáticos e acompanhamento
+- [Actions](https://github.com/vps-generator/Skyline-Strato-Android/actions)
+- [Build APK #1](https://github.com/vps-generator/Skyline-Strato-Android/issues/1)
+- [PowerVR/Vulkan #2](https://github.com/vps-generator/Skyline-Strato-Android/issues/2)
+- [Firmware/layout #3](https://github.com/vps-generator/Skyline-Strato-Android/issues/3)
+
+Compilações no CI são experimentais, não uma release do emulador.
