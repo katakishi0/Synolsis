@@ -12,4 +12,18 @@
         <item>1</item>
         <item>2</item>
     </integer-array>
+    <string name="synolsis_present_mode_title">Modo de apresentação Vulkan</string>
+    <string name="synolsis_present_mode_summary">Padrão automático, FIFO com VSync, Mailbox de baixa latência ou Immediate (pode causar tearing). Se indisponível, usa FIFO. Reinicie o jogo.</string>
+    <string-array name="synolsis_present_mode_entries">
+        <item>Automático (padrão do Strato)</item>
+        <item>FIFO (VSync)</item>
+        <item>Mailbox (baixa latência)</item>
+        <item>Immediate (sem VSync; experimental)</item>
+    </string-array>
+    <integer-array name="synolsis_present_mode_values">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+    </integer-array>
 </resources>
