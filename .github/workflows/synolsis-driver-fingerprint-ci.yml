@@ -406,7 +406,15 @@ jobs:
           assert '"NSP is missing CNMT metadata"' in store
           assert 'staging.renameTo(destination)' in store
           assert 'validatePfs0(staging)' in store
-          print("PASS: no duplicate values, pt-BR strings, AAPT quote safety, NSP PFS0 staging checks")
+          # Avoid 20-minute C++ compiles failing on nullable metadata from
+          # homebrew/NRO titles; AppItem.titleId is String?, not String.
+          dialog=(base.parent/"java/org/stratoemu/strato/AppDialog.kt").read_text()
+          assert "val contentTitleId = item.titleId?.takeIf" in dialog
+          assert "val titleId = contentTitleId ?: return // NRO/homebrew may have no title ID" in dialog
+          assert "val titleId = contentTitleId ?: return@setOnClickListener" in dialog
+          assert "GameShaderCacheUtils.clear(context, titleId)" in dialog
+          assert "item.titleId.matches(" not in dialog
+          print("PASS: no duplicate values, pt-BR strings, AAPT quote safety, NSP PFS0 staging and null-safe title IDs")
           PY
 
       - name: Setup Java 17
@@ -495,6 +503,20 @@ jobs:
             synolsis-ccache-v1-${{ runner.os }}-
             adreno-experimental-ccache-v1-${{ runner.os }}-
             strato-ccache-v1-${{ runner.os }}-
+
+      - name: Compile Android Kotlin frontend before expensive native build
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x ./gradlew
+          BUILD_TYPE="${{ inputs.build_type || 'optimized' }}"
+          # Compile Kotlin first to surface nullable/type errors before C++.
+          # Gradle reuses the successful Kotlin output during APK assembly.
+          case "$BUILD_TYPE" in
+            optimized) ./gradlew :app:compileMainlineOptimizedKotlin --no-daemon --build-cache ;;
+            debug) ./gradlew :app:compileMainlineDebugKotlin --no-daemon --build-cache ;;
+            *) echo "::error::Unknown build_type $BUILD_TYPE"; exit 1 ;;
+          esac
 
       - name: Build Synolsis Emu APK
         shell: bash
