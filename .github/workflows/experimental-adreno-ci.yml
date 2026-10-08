@@ -1,4 +1,4 @@
-name: Experimental Adreno + FW23 ZBIC APK
+name: Experimental Inline Adreno + FW23 APK
 
 on:
   push:
@@ -31,7 +31,7 @@ jobs:
       - name: Checkout standalone Strato feature branch
         uses: actions/checkout@v4
         with:
-          ref: feature/experimental-adreno-fw23-zbic
+          ref: fix/experimental-inline-controls
           submodules: false
 
       - name: Assert full source is checked in
@@ -42,17 +42,22 @@ jobs:
           test -z "$(git ls-files -s | grep '^160000 ' || true)"
           git log -1 --oneline
 
-      - name: Verify Experimental controls target actual native options
+      - name: Verify eight native-backed controls appear INLINE
         run: |
           python3 - <<'PY'
           from pathlib import Path
           from xml.etree import ElementTree as ET
           root=Path("app/src/main")
-          ep=root/"res/xml/experimental_preferences.xml"
-          general=root/"res/xml/emulation_preferences.xml"
-          ET.parse(ep); ET.parse(general)
-          namespace="{http://schemas.android.com/apk/res-auto}key"
-          keys={node.get(namespace) for node in ET.parse(ep).getroot().iter()}
+          path=root/"res/xml/emulation_preferences.xml"
+          tree=ET.parse(path)
+          ns="{http://schemas.android.com/apk/res-auto}"
+          android="{http://schemas.android.com/apk/res/android}"
+          categories=[node for node in tree.getroot()
+                      if node.tag=="PreferenceCategory" and
+                      node.get(android+"key")=="category_experimental"]
+          assert len(categories)==1, "Expected exactly one inline Experimental category"
+          category=categories[0]
+          keys=[node.get(ns+"key") for node in category if node.get(ns+"key")]
           native=(root/"java/org/stratoemu/strato/settings/NativeSettings.kt").read_text()
           cpp=(root/"cpp/skyline/common/android_settings.h").read_text()
           required={
@@ -66,14 +71,24 @@ jobs:
               "disable_subgroup_shuffle":"disableSubgroupShuffle",
           }
           for android_key,native_key in required.items():
-              assert android_key in keys, android_key
+              assert keys.count(android_key)==1, (android_key,keys)
               assert native_key in native and native_key in cpp, native_key
-          assert "EXTRA_EXPERIMENTAL_SETTINGS" in (root/"java/org/stratoemu/strato/settings/SettingsActivity.kt").read_text()
+          assert "open_experimental_settings" not in path.read_text()
+          assert not (root/"res/xml/experimental_preferences.xml").exists()
+          kotlin=root/"java/org/stratoemu/strato/settings"
+          assert "EXTRA_EXPERIMENTAL_SETTINGS" not in (kotlin/"SettingsActivity.kt").read_text()
+          helper=(kotlin/"InlineExperimentalOptions.kt").read_text()
+          assert "GpuDriverHelper.supportsForceMaxGpuClocks()" in helper
+          assert 'findPreference<TwoStatePreference>("use_direct_memory_import")' in helper
           assert "pref.useDirectMemoryImport && pref.gpuDriver == EmulationSettings.SYSTEM_GPU_DRIVER" in native
-          for fragment in ("GlobalSettingsFragment.kt", "GameSettingsFragment.kt"):
-              text=(root/"java/org/stratoemu/strato/settings"/fragment).read_text()
-              assert 'findPreference<TwoStatePreference>("force_max_gpu_clocks")!!' not in text, fragment
-          print("Validated:", len(required), "native-backed controls and no stale preference references")
+          for fragment in ("GlobalSettingsFragment.kt","GameSettingsFragment.kt"):
+              text=(kotlin/fragment).read_text()
+              assert "configureInlineExperimentalOptions" in text, fragment
+              assert "open_experimental_settings" not in text, fragment
+          game=(kotlin/"GameSettingsFragment.kt").read_text()
+          assert 'findPreference("category_experimental")' in game
+          assert "use_custom_settings" in game
+          print("PASS: 8 inline native-backed controls, no dead navigation, driver guards and per-game dependencies")
           PY
 
       - name: Setup Java 17
@@ -176,7 +191,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: skyline-strato-adreno-fw23-experimental-${{ github.run_number }}
+          name: skyline-strato-adreno-fw23-inline-${{ github.run_number }}
           path: app/build/outputs/apk/dev/debug/*.apk
           if-no-files-found: error
           retention-days: 30
