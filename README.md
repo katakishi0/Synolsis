@@ -31,6 +31,17 @@ If cloned without submodules:
 git submodule update --init --recursive
 ```
 
+### Firmware 22.0 experimental compatibility
+
+The HOS 22.0 key update is staged and covered by CI:
+
+- [`pr-2200.patch`](patches/pr-2200.patch): accommodate modern key index 0x15, validate array bounds and parse CRLF/last-line keyset entries.
+- [`pr-2201.patch`](patches/pr-2201.patch): avoid firmware detection crashes, report mismatched keys and validate key inputs.
+- [Firmware 22.0 scope and limitations](docs/FIRMWARE_22.md).
+- [Firmware 22.0 development issue](../../issues/4) and [ZBIC NSO compression follow-up](../../issues/5).
+
+The **Experimental Android APK** workflow defaults to building the `firmware-22` preset with both patches. **Patch checks passing is not a confirmation of firmware 22.0 operation in games.** HOS 22 uses a modified ZSTD/BIC NSO compression which still needs a decoder. No firmware or keys are provided.
+
 ### Candidate fixes
 
 We have extracted the original diffs from Strato pull requests:
