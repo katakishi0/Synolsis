@@ -210,6 +210,24 @@ jobs:
           assert "windowTransformApplied = false" in present
           assert "if (!windowTransformApplied || frame.transform != windowTransform)" in present
           assert "windowTransformApplied" in present_h
+          worker_entries=frame_xml.find("./string-array[@name='synolsis_shader_threads_entries']")
+          worker_values=frame_xml.find("./integer-array[@name='synolsis_shader_threads_values']")
+          assert worker_entries is not None and worker_values is not None
+          assert [int(v.text) for v in worker_values]==[0,1,2,4]
+          assert "shader_compile_threads" in integer_prefs
+          for field in ("shaderCompileThreads",):
+              assert field in settings_cpp and field in android_cpp
+              assert field in kotlin and field in kpref
+          assembler=(root/"cpp/skyline/gpu/graphics_pipeline_assembler.cpp").read_text()
+          assembler_h=(root/"cpp/skyline/gpu/graphics_pipeline_assembler.h").read_text()
+          assert "pipelineCompileThreads" in assembler_h and "pipelineCompileThreads" in assembler
+          assert "brokenMultithreadedPipelineCompilation ? 1U" in assembler
+          assert "MaxPipelineCacheBytes{256ULL * 1024 * 1024}" in assembler
+          assert "file_size(path, sizeError)" in assembler
+          assert 'path.string() + ".writing"' in assembler
+          assert "std::filesystem::rename(temporaryPath, path, replaceError)" in assembler
+          assert "std::min(pipelineCompileThreads, 4U)" in assembler
+          print("PASS: real async compiler thread selection, bounded and atomic Vulkan driver cache")
           print("PASS: bounded shader-cache header batching and ANativeWindow transform reuse")
           print("PASS: GPU profiler, frame-skipping with callbacks, Vulkan mode and native settings")
           print("PASS: separated settings and Vulkan physical-driver fingerprint identity")
