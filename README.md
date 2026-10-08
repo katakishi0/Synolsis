@@ -39,18 +39,22 @@ We have extracted the original diffs from Strato pull requests:
 |:--:|---|---:|---|
 | [#252](https://github.com/strato-emu/strato/pull/252) | Avoid firmware import crash when keys are outdated | 3 | Reviewed as candidate, untested on Android |
 | [#291](https://github.com/strato-emu/strato/pull/291) | Game detail dialog scroll/layout fix in landscape | 1 | Reviewed as candidate, untested on Android |
+| [#9001](patches/pr-9001.patch) | Guard missing Vulkan loader/entrypoint and emit useful error | 1 | Original Skyline-Strato-Android candidate; patch check passes on pinned base, Android runtime untested |
 
 Try without changing the emulator:
 
 ```powershell
 python tools/verify_patches.py --pr 252
 python tools/verify_patches.py --pr 291
+python tools/verify_patches.py --pr 9001
 ```
 
 Apply **only one at a time, after making a clean backup**:
 
 ```powershell
 python tools/verify_patches.py --pr 252 --write
+# For the Vulkan loader error-handling candidate, use a separate clean checkout:
+# python tools/verify_patches.py --pr 9001 --write
 ```
 
 This modifies your local `upstream/strato` worktree (a pinned submodule). It does **not** publish the fix, does **not** prove that the emulator builds, and does **not** automatically apply #291. For an independent patched branch with Git attribution, use `project.py apply --repo <separate Strato clone> --pr 252 --write`.
@@ -79,7 +83,7 @@ For PowerVR GPUs, favor the system Vulkan implementation. **Turnip and custom Ad
 ### Project structure
 
 - `upstream/strato/`: full, pinned Skyline/Strato emulator core (submodule).
-- `patches/`: source diffs for candidate fixes (GPL provenance documented above).
+- `patches/`: source diffs, authorship and file-specific licenses described in [patches/README.md](patches/README.md).
 - `tools/verify_patches.py`: strict local check and controlled apply.
 - `project.py`: independent clone and SHA-pinned PR staging tool.
 - `tools/gpu_report.py`: read-only Android GPU diagnostics.
