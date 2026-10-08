@@ -62,7 +62,9 @@ data class NativeSettings(
         pref.disableFrameThrottling,
         pref.executorSlotCountScale,
         pref.executorFlushThreshold,
-        pref.useDirectMemoryImport,
+        // The Direct Memory Import path is only supported with the system
+        // proprietary Adreno driver, never a custom Turnip Vulkan driver.
+        pref.useDirectMemoryImport && pref.gpuDriver == EmulationSettings.SYSTEM_GPU_DRIVER,
         pref.forceMaxGpuClocks,
         pref.freeGuestTextureMemory,
         pref.disableShaderCache,
