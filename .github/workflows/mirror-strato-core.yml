@@ -1,0 +1,116 @@
+name: Mirror full Strato core to independent branch
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/mirror-strato-core.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: strato-full-core-mirror
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    name: Import upstream core and vendor source dependencies
+    runs-on: ubuntu-22.04
+    timeout-minutes: 180
+    steps:
+      - name: Checkout our project and patches
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          submodules: false
+          persist-credentials: true
+
+      - name: Preserve project fixes and configure Git
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/core-patches"
+          cp patches/pr-2200.patch patches/pr-2201.patch patches/pr-2202.patch patches/pr-9001.patch "$RUNNER_TEMP/core-patches/"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+      - name: Fetch native Strato source with its history
+        run: |
+          set -euo pipefail
+          git remote add strato https://github.com/strato-emu/strato.git
+          git fetch strato master --no-tags
+          git switch --detach FETCH_HEAD
+          git switch -c strato-full-core
+          echo "Pinned upstream reference:"
+          git log -1 --oneline
+
+      - name: Create independent core branch before vendoring
+        run: |
+          set -euo pipefail
+          git push origin HEAD:refs/heads/strato-full-core
+
+      - name: Add compatibility fixes on Strato branch
+        run: |
+          set -euo pipefail
+          git apply --check "$RUNNER_TEMP/core-patches/pr-2200.patch" "$RUNNER_TEMP/core-patches/pr-2201.patch" "$RUNNER_TEMP/core-patches/pr-2202.patch" "$RUNNER_TEMP/core-patches/pr-9001.patch"
+          git apply "$RUNNER_TEMP/core-patches/pr-2200.patch" "$RUNNER_TEMP/core-patches/pr-2201.patch" "$RUNNER_TEMP/core-patches/pr-2202.patch" "$RUNNER_TEMP/core-patches/pr-9001.patch"
+          git add -u
+          git commit -m "Skyline-Strato: stage latest key generation, firmware import and Vulkan safety fixes" -m "Candidate patches from Skyline-Strato-Android; firmware compatibility still needs runtime tests."
+          git push origin HEAD:refs/heads/strato-full-core
+
+      - name: Materialize every nested source dependency
+        run: |
+          set -euo pipefail
+          git submodule sync --recursive
+          git -c protocol.version=2 submodule update --init --recursive --jobs 4
+          echo "Checkout sizes:"
+          du -sh app/libraries . || true
+
+      - name: Replace all Git submodule pointers by tracked files
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          # Read gitlinks from the outer Strato index; nested submodule sources
+          # are already present after recursive checkout.
+          raw = subprocess.check_output(["git", "ls-files", "--stage", "-z"])
+          gitlinks = []
+          for entry in raw.split(b"\0"):
+              if not entry:
+                  continue
+              metadata, path = entry.split(b"\t", 1)
+              if metadata.startswith(b"160000 "):
+                  gitlinks.append(path.decode("utf-8", "surrogateescape"))
+
+          # Remove only nested git admin files, not source. Avoid accidentally
+          # copying upstream metadata or embedding cross-repo pointers.
+          for item in Path(".").rglob(".git"):
+              if item.is_file():
+                  item.unlink()
+          for path in gitlinks:
+              subprocess.run(["git", "rm", "--cached", "--", path], check=True)
+              subprocess.run(["git", "add", "-f", "--", path], check=True)
+          for modules in Path(".").rglob(".gitmodules"):
+              if modules.is_file():
+                  modules.unlink()
+          subprocess.run(["git", "add", "-u"], check=True)
+          assert not any(line.startswith(b"160000 ") for line in subprocess.check_output(
+              ["git", "ls-files", "--stage", "-z"]).split(b"\0") if line)
+          print(f"Vendored source trees: {len(gitlinks)} root libraries plus nested dependencies")
+          PY
+          git status --short | tail -15 || true
+
+      - name: Commit and publish self-contained core branch
+        run: |
+          set -euo pipefail
+          git commit -m "Vendor recursive Strato source dependencies into independent core branch" -m "Keep third-party license files and upstream authorship; no external gitlinks remain."
+          git push origin HEAD:refs/heads/strato-full-core
+
+      - name: Verify no Git submodules remain
+        run: |
+          test -z "$(git ls-files -s | grep '^160000 ' || true)"
+          git status --porcelain
+          git log -3 --oneline
