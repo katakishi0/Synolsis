@@ -235,10 +235,23 @@ namespace skyline::gpu {
 
         try {
             presentQueue.Process([this](const PresentableFrame &frame) {
-                PresentFrame(frame);
-                frame.presentCallback(); // We're calling the callback here as it's outside of all the locks in PresentFrame
+                // Experimental HOST presentation frame skipping. It cannot
+                // skip game simulation or guest GPU rendering. Keeping fence
+                // waits and callbacks is necessary so Horizon buffer slots
+                // get released and the guest does not deadlock.
+                const u32 skippedFrames{std::min(*state.settings->presentationFrameSkip, 2U)};
+                const bool skipPresent{
+                    skippedFrames != 0 &&
+                    (++presentationFrameCounter % (static_cast<u64>(skippedFrames) + 1)) != 0
+                };
+                if (skipPresent) {
+                    frame.fence.Wait(state.soc->host1x);
+                } else {
+                    PresentFrame(frame);
+                }
+                frame.presentCallback(); // Must happen even if host output is skipped
                 skipSignal = true;
-                vsyncEvent->Signal();
+                vsyncEvent->Signal(); // Preserve the guest's VI synchronization
             }, [] {});
         } catch (const signal::SignalException &e) {
             LOGE("{}\nStack Trace:{}", e.what(), state.loader->GetStackTrace(e.frames));
