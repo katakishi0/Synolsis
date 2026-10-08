@@ -41,7 +41,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           # Source is checked out at the start of the run, then built from that snapshot.
-          ref: feature/synolsis-v4-ptbr-updates
+          ref: fix/synolsis-v4-localization-nsp
           submodules: false
 
       - name: Assert full source is checked in
@@ -350,6 +350,35 @@ jobs:
           assert not Path("app/src/main/java/org/stratoemu/strato/GameContentActivity.kt").exists()
           print(f"PASS: {total} resource declarations have no duplicate names per qualifier")
           print("PASS: pt-BR selectable; single validated NSP staging manager")
+          PY
+
+      - name: Validate V4 AAPT quote safety and translation completeness
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import re
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+          base=Path("app/src/main/res")
+          for lang in ("values","values-pt-rBR"):
+              seen={}
+              for path in sorted((base/lang).glob("*.xml")):
+                  root=ET.parse(path).getroot()
+                  for el in root:
+                      key=(el.tag,el.get("name"))
+                      if not key[1]: continue
+                      assert key not in seen, f"Duplicate resource {key} in {seen.get(key)} and {path}"
+                      seen[key]=str(path)
+          en=ET.parse(base/"values/strings.xml").getroot()
+          pt=ET.parse(base/"values-pt-rBR/strings.xml").getroot()
+          n_en={x.get("name") for x in en if x.tag=="string"}
+          n_pt={x.get("name") for x in pt if x.tag=="string"}
+          exempt={"app_name","username_default","a_button","b_button","x_button","y_button"}
+          assert not (n_en-n_pt-exempt), f"Untranslated core labels: {n_en-n_pt-exempt}"
+          msg=ET.parse(base/"values/synolsis_game_content_strings.xml").getroot()
+          confirm=next(x.text for x in msg if x.get("name")=="synolsis_clear_cache_confirm")
+          assert "&#39;" not in confirm and "game's" not in confirm, "AAPT-invalid apostrophe"
+          print("PASS: no duplicate values per locale; 298+ pt-BR labels and quote safety")
           PY
 
       - name: Setup Java 17
