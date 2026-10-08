@@ -133,6 +133,15 @@
             android:selectable="false"
             app:title="@string/experimental_warning_title"
             app:summary="@string/experimental_warning_summary" />
+        <!-- Memory profile sets actual libskyline executor/texture settings.
+             GPU frequency and experimental unsafe hacks remain opt-in. -->
+        <ListPreference
+            android:defaultValue="balanced"
+            android:entries="@array/synolsis_gpu_preset_entries"
+            android:entryValues="@array/synolsis_gpu_preset_values"
+            app:key="synolsis_gpu_preset"
+            app:title="@string/synolsis_gpu_preset"
+            app:summary="@string/synolsis_gpu_preset_description" />
         <SeekBarPreference
             android:defaultValue="6"
             android:min="1"
