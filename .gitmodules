@@ -1,0 +1,3 @@
+[submodule "upstream/strato"]
+	path = upstream/strato
+	url = https://github.com/strato-emu/strato.git
