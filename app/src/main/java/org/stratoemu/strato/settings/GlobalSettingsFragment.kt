@@ -87,5 +87,6 @@ class GlobalSettingsFragment : PreferenceFragmentCompat() {
 
         // The Experimental category now appears directly in this same screen.
         configureInlineExperimentalOptions(EmulationSettings.global.gpuDriver)
+        wireSynolsisGpuProfiles(EmulationSettings.global)
     }
 }
