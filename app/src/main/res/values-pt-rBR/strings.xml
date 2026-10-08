@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="experimental_settings_title">Experimental</string>
+    <string name="experimental_open_title">Configurações experimentais (Adreno / Vulkan)</string>
+    <string name="experimental_open_summary">Ajustes avançados da GPU. Estas opções já possuem implementação no núcleo Strato.</string>
+    <string name="experimental_warning_title">Altere uma opção de cada vez</string>
+    <string name="experimental_warning_summary">Estas funções podem causar artefatos, travamentos e aquecimento. Os valores padrão são mais seguros. Reinicie o jogo após alterar as opções.</string>
+    <string name="experimental_warning_custom">Este jogo está usando as configurações globais. Ative as configurações específicas do jogo para aplicar mudanças somente nele.</string>
+    <string name="experimental_performance_title">Desempenho e memória</string>
+    <string name="experimental_driver_title">Compatibilidade do driver</string>
+    <string name="experimental_gpu_hacks_title">Experimentos de precisão e leitura da GPU</string>
+    <string name="experimental_direct_import_warning">Funciona apenas no driver Adreno proprietário. Não é compatível com drivers Turnip personalizados.</string>
+    <string name="experimental_direct_import_turnip">Desativado: importação direta de memória não funciona com Turnip personalizado.</string>
+</resources>
