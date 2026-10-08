@@ -33,6 +33,7 @@ data class NativeSettings(
     var forceTripleBuffering : Boolean,
     var disableFrameThrottling : Boolean,
     var presentationFrameSkip : Int,
+    var vulkanPresentMode : Int,
     var executorSlotCountScale : Int,
     var executorFlushThreshold : Int,
     var useDirectMemoryImport : Boolean,
@@ -62,6 +63,7 @@ data class NativeSettings(
         pref.forceTripleBuffering,
         pref.disableFrameThrottling,
         pref.presentationFrameSkip.coerceIn(0, 2),
+        pref.vulkanPresentMode.coerceIn(0, 3),
         pref.executorSlotCountScale,
         pref.executorFlushThreshold,
         // The Direct Memory Import path is only supported with the system
