@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string-array name="synolsis_gpu_preset_entries">
-        <item>Conservador (6 GB de RAM)</item>
-        <item>Equilibrado</item>
-        <item>Experimental (maior consumo)</item>
+        <item>Conservative (6 GB RAM)</item>
+        <item>Balanced</item>
+        <item>Experimental (higher memory usage)</item>
         <item>FPS Hack (Adreno/Turnip; experimental)</item>
     </string-array>
     <string-array name="synolsis_gpu_preset_values">
@@ -13,9 +13,9 @@
         <item>fps_hack</item>
     </string-array>
     <string-array name="synolsis_readback_mode_entries">
-        <item>Preciso (compatibilidade)</item>
-        <item>Equilibrado (fast readback)</item>
-        <item>Rápido experimental (readback + writes)</item>
+        <item>Accurate (compatibility)</item>
+        <item>Balanced (fast readback)</item>
+        <item>Fast experimental (readback + writes)</item>
     </string-array>
     <string-array name="synolsis_readback_mode_values">
         <item>accurate</item>

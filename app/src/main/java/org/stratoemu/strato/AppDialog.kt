@@ -101,6 +101,15 @@ class AppDialog : BottomSheetDialogFragment() {
                 putExtras(requireArguments())
             })
         }
+        binding.manageGameContent.isEnabled =
+            item.titleId?.matches(Regex("[0-9A-Fa-f]{16}")) == true &&
+            item.loaderResult == LoaderResult.Success
+        binding.manageGameContent.setOnClickListener {
+            startActivity(Intent(requireActivity(), GameContentActivity::class.java).apply {
+                putExtra(GameContentActivity.EXTRA_TITLE_ID, item.titleId)
+                putExtra(GameContentActivity.EXTRA_TITLE, item.title)
+            })
+        }
 
         val shortcutManager = requireActivity().getSystemService(ShortcutManager::class.java)
         binding.gamePin.isEnabled = shortcutManager.isRequestPinShortcutSupported
