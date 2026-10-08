@@ -2,7 +2,7 @@
 
 ## Delivered source
 
-Branch: `feature/synolsis-v4-ptbr-updates`. Android package ID: `org.synolsis.emu`. Core: Strato/Skyline, unchanged licensing and upstream credits.
+Latest validation branch: `fix/synolsis-v4-localization-nsp` (based on `feature/synolsis-v4-ptbr-updates`). Android package ID: `org.synolsis.emu`. Core: Strato/Skyline, unchanged licensing and upstream credits.
 
 ### Language
 
@@ -15,7 +15,7 @@ Branch: `feature/synolsis-v4-ptbr-updates`. Android package ID: `org.synolsis.em
 
 - The game dialog has **Updates** and **DLCs** actions to open `GameContentManagerActivity` for a concrete 16-hex-digit title ID.
 - Android Storage Access Framework (`ACTION_OPEN_DOCUMENT`) imports user-selected `.nsp` files into the emulator's private storage `filesDir/synolsis-content/<TITLE_ID>/{updates,dlc}`.
-- `GameContentStore` validates PFS0 magic, header sizes, file table limits, individual file bounds, file names, and NCA presence before atomically renaming a completed copy. Invalid packages or insufficient storage are rejected; incomplete temporary files are cleaned.
+- `GameContentStore` validates PFS0 magic, header sizes, file-table limits, individual file bounds, NUL-terminated ASCII filenames, uniqueness of case-insensitive archive entry names, presence of an NCA and a standard `.cnmt.nca` metadata NCA before atomically renaming a completed copy. The encrypted CNMT is **not decrypted or matched against game TitleID** at this stage. Invalid packages or insufficient storage are rejected; incomplete temporary files are cleaned.
 - Imported files can be listed and deleted. No Nintendo game, firmware, key or copyrighted files are bundled.
 - **Crucial:** this stage **does not actually install or activate** an update/DLC inside Horizon OS. Its front-end explicitly reports **stored, not mounted**. It does not validate content meta type or TitleID against decrypted CNMT yet.
 
@@ -39,3 +39,11 @@ Tracked backend implementation: [Native update & DLC issue #15](../../issues/15)
 5. Clear the shader cache with the game stopped. Confirm other games and saves stay intact; test next launch rebuild.
 6. Compare default and pt-BR locales, tablet/landscape game dialog scrolling and the selected Turnip/Adreno Vulkan backend.
 7. Wait for **GitHub Actions ARM64 optimized** build to finish before distributing an APK. A green resource smoke test alone does not establish runtime correctness.
+
+## V4 AAPT build fix (2026-10-08)
+
+Earlier GitHub builds failed because locale-specific arrays/strings had duplicate XML names. After consolidation, another AAPT build failed on `synolsis_clear_cache_confirm` due to an unescaped possessive apostrophe (`&#39;`). This branch rewrites the phrase without the apostrophe and adds CI tests for *all* localized `values` resource key collisions and for the remaining six intentionally unchanged core strings (A/B/X/Y buttons, app name, player name). A green static test is **not** proof that Android packaging or DLC patching has succeeded. Wait for the full optimized APK artifact.
+
+### Real native content support not complete
+
+A standard CNMT NCA presence test is not enough to trust the content type or title identity. Full use of installed updates requires Patch/BKTR support in the native Strato loader; DLC must be mounted through FS and AOC services. See [issue #15](../../issues/15). Any UI copy **must** clearly label the NSP package as stored, not playable/installed.
