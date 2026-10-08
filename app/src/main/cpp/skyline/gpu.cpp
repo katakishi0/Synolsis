@@ -453,7 +453,7 @@ namespace skyline::gpu {
                 ? fmt::format("system_{:016x}", driverHash)
                 : fmt::format("custom_{:016x}", driverHash)
         };
-        graphicsPipelineAssembler.emplace(*this, state.os->publicAppFilesPath + "vk_graphics_pipeline_cache/" + driverCacheKey + "/" + titleId);
+        graphicsPipelineAssembler.emplace(*this, state.os->publicAppFilesPath + "vk_graphics_pipeline_cache/" + driverCacheKey + "/" + titleId, *state.settings->shaderCompileThreads);
         shader.emplace(state, *this,
                        state.os->publicAppFilesPath + "shader_replacements/" + titleId,
                        state.os->publicAppFilesPath + "shader_dumps/" + titleId);
