@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: strato-adreno-experimental-apk
+  group: synolsis-ui-package-graphics
   cancel-in-progress: true
 
 jobs:
@@ -31,8 +31,7 @@ jobs:
       - name: Checkout standalone Strato feature branch
         uses: actions/checkout@v4
         with:
-          # Pin source to the validated commit so later branch updates do not
-          # alter a running build unpredictably.
+          # Source is checked out at the start of the run, then built from that snapshot.
           ref: feature/synolsis-next-ui-and-graphics
           submodules: false
 
@@ -88,7 +87,7 @@ jobs:
           assert "@drawable/skyline_text" not in title
           theme=(root/"java/org/stratoemu/strato/settings/GlobalSettingsFragment.kt").read_text()
           assert '"synolsis_palette"' in theme
-          print("Pinned Synolsis source commit:", "04b8205ca788c696ddb106be3e28e15b8b894f37")
+          print("Synolsis frontend smoke test")
           # UX: actual bottom navigation and real settings, not inert mockups.
           menu=ET.parse(root/"res/menu/synolsis_bottom_navigation.xml")
           expected={"nav_games","nav_search","nav_settings"}
@@ -107,7 +106,17 @@ jobs:
           for fragment in ("GlobalSettingsFragment.kt","GameSettingsFragment.kt"):
               src=(root/"java/org/stratoemu/strato/settings"/fragment).read_text()
               assert "wireSynolsisGpuProfiles" in src
-          print("PASS: Synolsis UI, package ID, cache, themes, native-backed graphics presets")
+          hub=(root/"java/org/stratoemu/strato/SynolsisSettingsHubActivity.kt").read_text()
+          for feature in ("GpuDriverActivity","ControllerActivity","synolsis_target_preference","SettingsActivity"):
+              assert feature in hub, feature
+          manifest=(root/"AndroidManifest.xml").read_text()
+          assert 'android:name=".SynolsisSettingsHubActivity"' in manifest
+          assert "SynolsisSettingsHubActivity::class.java" in main
+          assert "synolsis_readback_precision" in (root/"res/xml/emulation_preferences.xml").read_text()
+          assert "wireSynolsisReadbackPrecision" in theme
+          assert "wireSynolsisReadbackPrecision" in (root/"java/org/stratoemu/strato/settings/GameSettingsFragment.kt").read_text()
+          assert "SynolsisGpuProfiles.apply" in profiles or "SynolsisGpuProfiles" in profiles
+          print("PASS: Synolsis package, navigation hub, native accuracy/memory presets, cache and themes")
           PY
 
       - name: Setup Java 17
