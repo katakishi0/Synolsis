@@ -63,47 +63,74 @@ namespace skyline::gpu {
 
     void PipelineCacheManager::MergeStaging() {
         std::ifstream stagingStream{stagingPath, std::ios::binary};
-        if (stagingStream.fail())
-            return; // If the staging file doesn't exist then there's nothing to merge
+        if (!stagingStream)
+            return;
 
         PipelineCacheFileHeader stagingHeader{};
-        stagingStream.read(reinterpret_cast<char *>(&stagingHeader), sizeof(PipelineCacheFileHeader));
-        if (stagingStream.gcount() != static_cast<std::streamsize>(sizeof(PipelineCacheFileHeader)) || !stagingHeader.IsValid()) {
-            LOGW("Discarding invalid pipeline cache staging file");
+        stagingStream.read(reinterpret_cast<char *>(&stagingHeader), sizeof(stagingHeader));
+        if (stagingStream.gcount() != static_cast<std::streamsize>(sizeof(stagingHeader)) || !stagingHeader.IsValid()) {
+            LOGW("Ignoring invalid staging pipeline cache");
             return;
         }
 
-        std::fstream mainStream{mainPath, std::ios::binary | std::ios::in | std::ios::out};
+        std::ifstream mainStream{mainPath, std::ios::binary};
         PipelineCacheFileHeader mainHeader{};
-        mainStream.seekg(0, std::ios_base::beg);
-        mainStream.read(reinterpret_cast<char *>(&mainHeader), sizeof(PipelineCacheFileHeader));
-        if (mainStream.gcount() != static_cast<std::streamsize>(sizeof(PipelineCacheFileHeader)) || !mainHeader.IsValid()) {
-            LOGW("Cannot merge staging data into an invalid pipeline cache");
+        mainStream.read(reinterpret_cast<char *>(&mainHeader), sizeof(mainHeader));
+        if (mainStream.gcount() != static_cast<std::streamsize>(sizeof(mainHeader)) || !mainHeader.IsValid()) {
+            LOGW("Skipping staging merge: invalid main cache header");
             return;
         }
 
-        // Update the main header with the new count
-        mainHeader.count += stagingHeader.count;
-        mainStream.seekp(0, std::ios_base::beg);
-        mainStream.write(reinterpret_cast<const char *>(&mainHeader), sizeof(PipelineCacheFileHeader));
-
-        mainStream.seekp(0, std::ios::end);
-        mainStream << stagingStream.rdbuf();
-        mainStream.flush();
-        if (!mainStream || stagingStream.bad()) {
-            LOGW("Pipeline cache staging merge failed; retaining staging for recovery");
+        // A failed append must NEVER publish the increased pipeline count.
+        // Compose a new cache file and atomically publish it only after the
+        // entire main + staging bodies are copied. Preserve the staging data
+        // until replacement succeeds, so process termination is recoverable.
+        if (stagingHeader.count == 0)
+            return;
+        if (stagingHeader.count > std::numeric_limits<u32>::max() - mainHeader.count) {
+            LOGW("Skipping pipeline cache merge: count overflow");
+            return;
+        }
+        const std::string temporaryPath{mainPath + ".merging"};
+        std::ofstream output{temporaryPath, std::ios::binary | std::ios::trunc};
+        if (!output) {
+            LOGW("Cannot open temporary pipeline cache for merge");
             return;
         }
 
-        // Important: the next launch must not append the same staging bundles
-        // again. A stale .staging file previously caused unbounded cache growth
-        // and progressively longer cache replays.
-        stagingStream.close();
+        const PipelineCacheFileHeader mergedHeader{
+            .magic = PipelineCacheFileHeader::Magic,
+            .version = PipelineCacheFileHeader::Version,
+            .count = mainHeader.count + stagingHeader.count
+        };
+        output.write(reinterpret_cast<const char *>(&mergedHeader), sizeof(mergedHeader));
+        output << mainStream.rdbuf();
+        const bool mainCopied{!mainStream.bad() && !output.fail()};
+        if (mainCopied)
+            output << stagingStream.rdbuf();
+        output.flush();
+        const bool allCopied{mainCopied && !stagingStream.bad() && output.good()};
+        output.close();
         mainStream.close();
-        std::error_code removeError;
-        std::filesystem::remove(stagingPath, removeError);
-        if (removeError)
-            LOGW("Could not remove merged pipeline cache staging file: {}", removeError.message());
+        stagingStream.close();
+        if (!allCopied) {
+            LOGW("Could not merge pipeline caches; retaining staging data");
+            std::error_code ec;
+            std::filesystem::remove(temporaryPath, ec);
+            return;
+        }
+
+        std::error_code ec;
+        std::filesystem::rename(temporaryPath, mainPath, ec);
+        if (ec) {
+            LOGW("Pipeline cache atomic replace failed: {}", ec.message());
+            std::filesystem::remove(temporaryPath, ec);
+            return;
+        }
+
+        std::filesystem::remove(stagingPath, ec);
+        if (ec)
+            LOGW("Merged pipeline staging data could not be removed: {}", ec.message());
     }
 
     PipelineCacheManager::PipelineCacheManager(const DeviceState &state, const std::string &path)
@@ -143,7 +170,7 @@ namespace skyline::gpu {
 
         PipelineCacheFileHeader header{};
         mainStream.read(reinterpret_cast<char *>(&header), sizeof(PipelineCacheFileHeader));
-        if (!header.IsValid())
+        if (mainStream.gcount() != static_cast<std::streamsize>(sizeof(header)) || !header.IsValid())
             throw exception("Pipeline cache main file corrupted at runtime!");
 
         return {std::move(mainStream), header.count};
