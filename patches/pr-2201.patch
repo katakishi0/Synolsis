@@ -1,0 +1,156 @@
+diff --git a/app/src/main/java/org/stratoemu/strato/preference/FirmwareImportPreference.kt b/app/src/main/java/org/stratoemu/strato/preference/FirmwareImportPreference.kt
+--- a/app/src/main/java/org/stratoemu/strato/preference/FirmwareImportPreference.kt
++++ b/app/src/main/java/org/stratoemu/strato/preference/FirmwareImportPreference.kt
+@@ -25,7 +25,8 @@
+ import java.io.IOException
+ 
+ class FirmwareImportPreference @JvmOverloads constructor(context : Context, attrs : AttributeSet? = null, defStyleAttr : Int = androidx.preference.R.attr.preferenceStyle) : Preference(context, attrs, defStyleAttr) {
+-    private class Firmware(val valid : Boolean, val version : String)
++    private enum class FirmwareStatus { VALID, INVALID, MISSING_KEYS }
++    private class Firmware(val status : FirmwareStatus, val version : String = "")
+ 
+     private val firmwarePath = File(context.getPublicFilesDir().canonicalPath + "/switch/nand/system/Contents/registered/")
+     private val keysPath = "${context.filesDir.canonicalPath}/keys/"
+@@ -49,17 +50,19 @@
+                     ZipUtils.unzip(inputZip, cacheFirmwareDir)
+ 
+                     val firmware = isFirmwareValid(cacheFirmwareDir)
+-                    messageToShow = if (!firmware.valid) {
+-                        R.string.import_firmware_invalid_contents
+-                    } else {
+-                        firmwarePath.deleteRecursively()
+-                        cacheFirmwareDir.copyRecursively(firmwarePath, true)
+-                        persistString(firmware.version)
+-                        extractFonts(firmwarePath.path, keysPath, fontsPath)
+-                        CoroutineScope(Dispatchers.Main).launch {
+-                            notifyChanged()
++                    messageToShow = when (firmware.status) {
++                        FirmwareStatus.INVALID -> R.string.import_firmware_invalid_contents
++                        FirmwareStatus.MISSING_KEYS -> R.string.import_firmware_missing_keys
++                        FirmwareStatus.VALID -> {
++                            firmwarePath.deleteRecursively()
++                            cacheFirmwareDir.copyRecursively(firmwarePath, true)
++                            persistString(firmware.version)
++                            extractFonts(firmwarePath.path, keysPath, fontsPath)
++                            CoroutineScope(Dispatchers.Main).launch {
++                                notifyChanged()
++                            }
++                            R.string.import_firmware_success
+                         }
+-                        R.string.import_firmware_success
+                     }
+                 } catch (e : IOException) {
+                     messageToShow = R.string.error
+@@ -104,8 +107,12 @@
+ 
+         return if (unfilteredNumOfFiles == filteredNumOfFiles) {
+             val version = fetchFirmwareVersion(cacheFirmwareDir.path, keysPath)
+-            Firmware(version.isNotEmpty(), version)
+-        } else Firmware(false, "")
++            when (version) {
++                "-1" -> Firmware(FirmwareStatus.MISSING_KEYS)
++                "" -> Firmware(FirmwareStatus.INVALID)
++                else -> Firmware(FirmwareStatus.VALID, version)
++            }
++        } else Firmware(FirmwareStatus.INVALID)
+     }
+ 
+     private external fun fetchFirmwareVersion(systemArchivesPath : String, keysPath : String) : String
+diff --git a/app/src/main/cpp/loader_jni.cpp b/app/src/main/cpp/loader_jni.cpp
+--- a/app/src/main/cpp/loader_jni.cpp
++++ b/app/src/main/cpp/loader_jni.cpp
+@@ -90,24 +90,39 @@
+ 
+     constexpr skyline::u64 systemVersionProgramId{0x0100000000000809};
+ 
+-    auto systemArchivesFileSystem{std::make_shared<skyline::vfs::OsFileSystem>(skyline::JniString(env, systemArchivesPathJstring))};
+-    auto systemArchives{systemArchivesFileSystem->OpenDirectory("")};
+-    auto keyStore{std::make_shared<skyline::crypto::KeyStore>(skyline::JniString(env, keysPathJstring))};
+-
+-    for (const auto &entry : systemArchives->Read()) {
+-        std::shared_ptr<skyline::vfs::Backing> backing{systemArchivesFileSystem->OpenFile(entry.name)};
+-        auto nca{skyline::vfs::NCA(backing, keyStore)};
++    // Version detection must not crash when an unrelated NCA uses missing keys.
++    try {
++        auto systemArchivesFileSystem{std::make_shared<skyline::vfs::OsFileSystem>(skyline::JniString(env, systemArchivesPathJstring))};
++        auto systemArchives{systemArchivesFileSystem->OpenDirectory("")};
++        auto keyStore{std::make_shared<skyline::crypto::KeyStore>(skyline::JniString(env, keysPathJstring))};
++        bool missingKeys{};
+ 
+-        if (nca.header.programId == systemVersionProgramId && nca.romFs != nullptr) {
+-            auto controlRomFs{std::make_shared<skyline::vfs::RomFileSystem>(nca.romFs)};
+-            auto file{controlRomFs->OpenFile("file")};
+-            SystemVersion systemVersion;
+-            file->Read<SystemVersion>(systemVersion);
+-            return env->NewStringUTF(reinterpret_cast<char *>(systemVersion.displayVersion));
++        for (const auto &entry : systemArchives->Read()) {
++            try {
++                std::shared_ptr<skyline::vfs::Backing> backing{systemArchivesFileSystem->OpenFile(entry.name)};
++                auto nca{skyline::vfs::NCA(backing, keyStore)};
++                if (nca.header.programId == systemVersionProgramId && nca.romFs != nullptr) {
++                    auto controlRomFs{std::make_shared<skyline::vfs::RomFileSystem>(nca.romFs)};
++                    auto file{controlRomFs->OpenFile("file")};
++                    SystemVersion systemVersion{};
++                    file->Read<SystemVersion>(systemVersion);
++                    systemVersion.displayVersion[sizeof(systemVersion.displayVersion) - 1] = 0;
++                    return env->NewStringUTF(reinterpret_cast<char *>(systemVersion.displayVersion));
++                }
++            } catch (const skyline::loader::loader_exception &e) {
++                if (e.error == skyline::loader::LoaderResult::MissingHeaderKey ||
++                    e.error == skyline::loader::LoaderResult::MissingTitleKey ||
++                    e.error == skyline::loader::LoaderResult::MissingTitleKek ||
++                    e.error == skyline::loader::LoaderResult::MissingKeyArea)
++                    missingKeys = true;
++            } catch (const std::exception &) {
++                // A malformed unrelated NCA must not stop the SystemVersion scan.
++            }
+         }
++        return env->NewStringUTF(missingKeys ? "-1" : "");
++    } catch (const std::exception &) {
++        return env->NewStringUTF("");
+     }
+-
+-    return env->NewStringUTF("");
+ }
+ 
+ std::vector<skyline::u8> decodeBfttfFont(const std::shared_ptr<skyline::vfs::Backing> bfttfFile){
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -53,6 +53,7 @@
+     <string name="import_firmware_failure">Firmware installation failed</string>
+     <string name="import_firmware_invalid_contents">The supplied firmware package does not contain a valid firmware</string>
+     <string name="firmware_keys_needed">Valid keys are required for firmware installation</string>
++    <string name="import_firmware_missing_keys">Cannot read this firmware with the imported keys. Import matching prod.keys from your own console first.</string>
+     <string name="firmware_not_installed">No firmware installed</string>
+     <!-- Settings - Appearance -->
+     <string name="appearance">Appearance</string>
+diff --git a/app/src/main/java/org/stratoemu/strato/KeyReader.kt b/app/src/main/java/org/stratoemu/strato/KeyReader.kt
+--- a/app/src/main/java/org/stratoemu/strato/KeyReader.kt
++++ b/app/src/main/java/org/stratoemu/strato/KeyReader.kt
+@@ -75,9 +75,9 @@
+                         val value = pair[1].trim()
+                         when (keyType) {
+                             KeyType.Title -> {
+-                                if (key.length != 32 && !isHexString(key))
++                                if (key.length != 32 || !isHexString(key))
+                                     return@useLines false
+-                                if (value.length != 32 && !isHexString(value))
++                                if (value.length != 32 || !isHexString(value))
+                                     return@useLines false
+                             }
+                             KeyType.Prod -> {
+@@ -85,6 +85,13 @@
+                                     return@useLines false
+                                 if (!isHexString(value))
+                                     return@useLines false
++                                if (key == "header_key" && value.length != 64)
++                                    return@useLines false
++                                if ((key.startsWith("titlekek_") ||
++                                     key.startsWith("key_area_key_application_") ||
++                                     key.startsWith("key_area_key_ocean_") ||
++                                     key.startsWith("key_area_key_system_")) && value.length != 32)
++                                    return@useLines false
+                             }
+                         }
+ 
