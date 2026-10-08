@@ -26,7 +26,26 @@ object GameContentStore {
         UPDATE("updates"), DLC("dlc")
     }
 
-    data class Entry(val file: File, val size: Long)
+    data class Entry(
+        val file: File,
+        val size: Long,
+        val displayName: String = file.name,
+        val ncaCount: Int = 0,
+        val cnmtCount: Int = 0
+    )
+
+    private fun metadataFile(file: File) = File(file.parentFile, file.nameWithoutExtension + ".json")
+
+    private fun loadEntry(file: File): Entry {
+        val metadata = runCatching { org.json.JSONObject(metadataFile(file).readText()) }.getOrNull()
+        return Entry(
+            file = file,
+            size = file.length(),
+            displayName = metadata?.optString("name")?.takeIf { it.isNotBlank() } ?: file.name,
+            ncaCount = metadata?.optInt("nca_count") ?: 0,
+            cnmtCount = metadata?.optInt("cnmt_count") ?: 0
+        )
+    }
 
     private val titlePattern = Regex("[0-9a-fA-F]{16}")
     private val safeName = Regex("[^a-zA-Z0-9._-]")
@@ -44,12 +63,16 @@ object GameContentStore {
             .listFiles()
             ?.filter { it.isFile && it.extension.equals("nsp", ignoreCase = true) }
             ?.sortedByDescending { it.lastModified() }
-            ?.map { Entry(it, it.length()) }
+            ?.map(::loadEntry)
             ?: emptyList()
 
     fun delete(context: Context, titleId: String, kind: Kind, filename: String): Boolean {
         if (filename != File(filename).name || !filename.endsWith(".nsp", true)) return false
-        return File(storageDir(context, titleId, kind), filename).delete()
+        val file = File(storageDir(context, titleId, kind), filename)
+        if (!file.isFile) return false
+        val removed = file.delete()
+        if (removed) metadataFile(file).delete()
+        return removed
     }
 
     fun importNsp(context: Context, titleId: String, kind: Kind, source: Uri): Entry {
