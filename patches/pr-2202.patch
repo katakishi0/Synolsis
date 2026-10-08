@@ -1,0 +1,71 @@
+diff --git a/app/src/main/cpp/loader_jni.cpp b/app/src/main/cpp/loader_jni.cpp
+--- a/app/src/main/cpp/loader_jni.cpp
++++ b/app/src/main/cpp/loader_jni.cpp
+@@ -114,6 +114,8 @@
+     constexpr skyline::u32 fontKey{0x06186249};
+     constexpr skyline::u32 BFTTFMagic{0x18029a7f};
+ 
++    if (!bfttfFile || bfttfFile->size < 8 || (bfttfFile->size - 8) % 4 != 0)
++        return {};
+     auto firstBytes{bfttfFile->Read<skyline::u32>()};
+     auto firstBytesXor{firstBytes ^ fontKey};
+ 
+@@ -162,29 +164,36 @@
+     auto keyStore{std::make_shared<skyline::crypto::KeyStore>(skyline::JniString(env, keysPathJstring))};
+ 
+     for (const auto &entry : systemArchives->Read()) {
+-        std::shared_ptr<skyline::vfs::Backing> backing{systemArchivesFileSystem->OpenFile(entry.name)};
+-        auto nca{skyline::vfs::NCA(backing, keyStore)};
+-
+-        if (nca.header.programId >= firstFontProgramId && nca.header.programId <= lastFontProgramId && nca.romFs != nullptr) {
+-            auto controlRomFs{std::make_shared<skyline::vfs::RomFileSystem>(nca.romFs)};
+-
+-            for (auto fileEntry = controlRomFs->fileMap.begin(); fileEntry != controlRomFs->fileMap.end(); fileEntry++) {
+-                auto fileName{fileEntry->first};
+-                auto bfttfFile{controlRomFs->OpenFile(fileName)};
+-
+-                auto decodedFont{decodeBfttfFont(bfttfFile)};
+-                if (decodedFont.empty())
+-                    continue;
+-
+-                auto ttfFileName{sharedFontFilenameDictionary.at(fileName) + ".ttf"};
+-                if (fontsFileSystem->FileExists(ttfFileName))
+-                    fontsFileSystem->DeleteFile(ttfFileName);
+-
+-                fontsFileSystem->CreateFile(ttfFileName, decodedFont.size());
+-                std::shared_ptr<skyline::vfs::Backing> ttfFile{fontsFileSystem->OpenFile(ttfFileName, {true, true, false})};
+-
+-                ttfFile->Write(decodedFont);
++        try {
++            std::shared_ptr<skyline::vfs::Backing> backing{systemArchivesFileSystem->OpenFile(entry.name)};
++            auto nca{skyline::vfs::NCA(backing, keyStore)};
++    
++            if (nca.header.programId >= firstFontProgramId && nca.header.programId <= lastFontProgramId && nca.romFs != nullptr) {
++                auto controlRomFs{std::make_shared<skyline::vfs::RomFileSystem>(nca.romFs)};
++    
++                for (auto fileEntry = controlRomFs->fileMap.begin(); fileEntry != controlRomFs->fileMap.end(); fileEntry++) {
++                    auto fileName{fileEntry->first};
++                    auto bfttfFile{controlRomFs->OpenFile(fileName)};
++    
++                    auto decodedFont{decodeBfttfFont(bfttfFile)};
++                    if (decodedFont.empty())
++                        continue;
++    
++                    const auto fontIt{sharedFontFilenameDictionary.find(fileName)};
++                    if (fontIt == sharedFontFilenameDictionary.end())
++                        continue; // Firmware may contain additional font names.
++                    auto ttfFileName{fontIt->second + ".ttf"};
++                    if (fontsFileSystem->FileExists(ttfFileName))
++                        fontsFileSystem->DeleteFile(ttfFileName);
++    
++                    fontsFileSystem->CreateFile(ttfFileName, decodedFont.size());
++                    std::shared_ptr<skyline::vfs::Backing> ttfFile{fontsFileSystem->OpenFile(ttfFileName, {true, true, false})};
++    
++                    ttfFile->Write(decodedFont);
++                }
+             }
++        } catch (const std::exception &) {
++            // A single unreadable/unrecognized NCA must not crash firmware import.
+         }
+     }
+ }
