@@ -104,6 +104,8 @@ namespace skyline::vfs {
         u8 keyGeneration{GetKeyGeneration()};
 
         auto titleKey{keyStore->GetTitleKey(header.rightsId)};
+        if (keyGeneration >= keyStore->titleKek.size())
+            throw loader_exception(LoaderResult::MissingTitleKek);
         auto &titleKek{keyStore->titleKek[keyGeneration]};
 
         if (!titleKey)
@@ -120,6 +122,8 @@ namespace skyline::vfs {
         auto keyArea{[this, &type](crypto::KeyStore::IndexedKeys128 &keys) {
             u8 keyGeneration{GetKeyGeneration()};
 
+            if (keyGeneration >= keys.size())
+                throw loader_exception(LoaderResult::MissingKeyArea);
             auto &keyArea{keys[keyGeneration]};
 
             if (!keyArea)

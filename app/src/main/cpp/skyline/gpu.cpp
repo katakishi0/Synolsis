@@ -384,7 +384,22 @@ namespace skyline::gpu {
                 libvulkanHandle = dlopen("libvulkan.so", RTLD_NOW);
         }
 
-        return reinterpret_cast<PFN_vkGetInstanceProcAddr>(dlsym(libvulkanHandle, "vkGetInstanceProcAddr"));
+        // A missing system Vulkan loader must be reported before creating a
+        // Vulkan-Hpp context. Never forward an invalid function pointer.
+        if (!libvulkanHandle) {
+            const char *error{dlerror()};
+            LOGE("Failed to load system Vulkan driver: {}", error ? error : "unknown error");
+            throw exception("Failed to load system Vulkan driver");
+        }
+
+        dlerror(); // Clear any stale linker error before looking up the entrypoint
+        auto getInstanceProcAddr{reinterpret_cast<PFN_vkGetInstanceProcAddr>(dlsym(libvulkanHandle, "vkGetInstanceProcAddr"))};
+        if (!getInstanceProcAddr) {
+            const char *error{dlerror()};
+            LOGE("Vulkan driver missing vkGetInstanceProcAddr: {}", error ? error : "unknown error");
+            throw exception("Vulkan driver missing vkGetInstanceProcAddr");
+        }
+        return getInstanceProcAddr;
     }
 
     GPU::GPU(const DeviceState &state)

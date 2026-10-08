@@ -75,15 +75,22 @@ object KeyReader {
                         val value = pair[1].trim()
                         when (keyType) {
                             KeyType.Title -> {
-                                if (key.length != 32 && !isHexString(key))
+                                if (key.length != 32 || !isHexString(key))
                                     return@useLines false
-                                if (value.length != 32 && !isHexString(value))
+                                if (value.length != 32 || !isHexString(value))
                                     return@useLines false
                             }
                             KeyType.Prod -> {
                                 if (!key.contains("_"))
                                     return@useLines false
                                 if (!isHexString(value))
+                                    return@useLines false
+                                if (key == "header_key" && value.length != 64)
+                                    return@useLines false
+                                if ((key.startsWith("titlekek_") ||
+                                     key.startsWith("key_area_key_application_") ||
+                                     key.startsWith("key_area_key_ocean_") ||
+                                     key.startsWith("key_area_key_system_")) && value.length != 32)
                                     return@useLines false
                             }
                         }

@@ -2,6 +2,8 @@
 // Copyright © 2020 Skyline Team and Contributors (https://github.com/skyline-emu/)
 
 #include <vfs/os_filesystem.h>
+#include <charconv>
+#include <cctype>
 #include "key_store.h"
 
 namespace skyline::crypto {
@@ -15,20 +17,41 @@ namespace skyline::crypto {
 
     void KeyStore::ReadPairs(const std::shared_ptr<vfs::Backing> &backing, ReadPairsCallback callback) {
         std::vector<char> fileContent(backing->size);
+        if (fileContent.empty())
+            return;
         backing->Read(span(fileContent));
 
-        auto lineStart{fileContent.begin()};
-        std::vector<char>::iterator lineEnd;
-        while ((lineEnd = std::find(lineStart, fileContent.end(), '\n')) != fileContent.end()) {
-            auto keyEnd{std::find(lineStart, lineEnd, '=')};
-            if (keyEnd == lineEnd)
-                throw exception("Invalid key file");
-
-            std::string_view key(&*lineStart, static_cast<size_t>(keyEnd - lineStart));
-            std::string_view value(&*(keyEnd + 1), static_cast<size_t>(lineEnd - keyEnd - 1));
-            (this->*callback)(key, value);
-
-            lineStart = lineEnd + 1;
+        // Accept LF/CRLF, whitespace, comments and keys without a final newline.
+        const auto trim{[](std::string_view &token) {
+            while (!token.empty() && std::isspace(static_cast<unsigned char>(token.front())))
+                token.remove_prefix(1);
+            while (!token.empty() && std::isspace(static_cast<unsigned char>(token.back())))
+                token.remove_suffix(1);
+        }};
+        std::string_view content{fileContent.data(), fileContent.size()};
+        size_t start{};
+        while (start < content.size()) {
+            const auto end{content.find('\n', start)};
+            const auto length{end == std::string_view::npos ? content.size() - start : end - start};
+            auto line{content.substr(start, length)};
+            trim(line);
+            if (!line.empty() && line.front() != ';' && line.front() != '#') {
+                const auto delimiter{line.find('=')};
+                if (delimiter == std::string_view::npos)
+                    throw exception("Invalid key file");
+                auto key{line.substr(0, delimiter)};
+                auto value{line.substr(delimiter + 1)};
+                if (const auto comment{value.find(';')}; comment != std::string_view::npos)
+                    value = value.substr(0, comment);
+                trim(key);
+                trim(value);
+                if (key.empty() || value.empty())
+                    throw exception("Invalid key file");
+                (this->*callback)(key, value);
+            }
+            if (end == std::string_view::npos)
+                break;
+            start = end + 1;
         }
     }
 
@@ -55,7 +78,12 @@ namespace skyline::crypto {
         if (keyName.size() > 2) {
             auto it{indexedKey128Names.find(keyName.substr(0, keyName.size() - 2))};
             if (it != indexedKey128Names.end()) {
-                size_t index{std::stoul(std::string(keyName.substr(it->first.size())), nullptr, 16)};
+                // Do not index outside the reserved key generations.
+                const auto suffix{keyName.substr(it->first.size())};
+                unsigned int index{};
+                const auto parsed{std::from_chars(suffix.data(), suffix.data() + suffix.size(), index, 16)};
+                if (parsed.ec != std::errc{} || parsed.ptr != suffix.data() + suffix.size() || index >= it->second.size())
+                    return;
                 it->second[index] = util::HexStringToArray<16>(value);
             }
         }
