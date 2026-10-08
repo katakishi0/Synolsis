@@ -171,7 +171,7 @@ class MainActivity : AppCompatActivity() {
                     true
                 }
                 R.id.nav_settings -> {
-                    settingsCallback.launch(Intent(this, SettingsActivity::class.java))
+                    startActivity(Intent(this, SynolsisSettingsHubActivity::class.java))
                     // Keep Games/Search selected until the user returns.
                     false
                 }
