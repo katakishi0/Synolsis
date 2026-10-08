@@ -178,8 +178,12 @@ namespace skyline::gpu {
     }
 
     void PipelineCacheManager::QueueWrite(std::unique_ptr<interconnect::PipelineStateBundle> bundle) {
-        std::scoped_lock lock{writeMutex};
-        writeQueue.emplace(std::move(bundle));
+        {
+            std::scoped_lock lock{writeMutex};
+            writeQueue.emplace(std::move(bundle));
+        }
+        // Do not wake the writer while still holding the queue mutex.
+        // Shader compilation producers should never wait for the wake-up.
         writeCondition.notify_one();
     }
 
