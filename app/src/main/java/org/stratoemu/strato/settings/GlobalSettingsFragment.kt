@@ -48,8 +48,11 @@ class GlobalSettingsFragment : PreferenceFragmentCompat() {
         findPreference<Preference>("synolsis_palette")?.setOnPreferenceChangeListener { _, _ ->
             val host = requireActivity()
             host.window.decorView.post {
-                host.finishAffinity()
-                startActivity(Intent(host, MainActivity::class.java))
+                // Relaunch only after IntegerListPreference has persisted its value.
+                val restart = Intent(host, MainActivity::class.java).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                }
+                host.startActivity(restart)
             }
             true
         }
