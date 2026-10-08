@@ -341,6 +341,10 @@ class EmulationActivity : AppCompatActivity(), SurfaceHolder.Callback, View.OnTo
             binding.perfStats.apply {
                 postDelayed(object : Runnable {
                     override fun run() {
+                        // Do not retain an Activity or poll /proc forever after
+                        // the emulation view is closed and another game opens.
+                        if (this@EmulationActivity.isFinishing || this@EmulationActivity.isDestroyed)
+                            return
                         updatePerformanceStatistics()
                         // We read the `VmRSS` value from the kernel
                         ramUsage = File("/proc/self/statm").readLines()[0].split(' ')[1].toLong() * 4096 / 1000000
@@ -356,9 +360,9 @@ class EmulationActivity : AppCompatActivity(), SurfaceHolder.Callback, View.OnTo
                         } else {
                             "$fps FPS • $ramUsage MB"
                         }
-                        postDelayed(this, 250)
+                        postDelayed(this, 500)
                     }
-                }, 250)
+                }, 500)
             }
         }
 
