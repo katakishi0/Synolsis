@@ -242,7 +242,7 @@ namespace skyline::gpu {
                 const u32 skippedFrames{std::min(*state.settings->presentationFrameSkip, 2U)};
                 const bool skipPresent{
                     skippedFrames != 0 &&
-                    (++presentationFrameCounter % (static_cast<u64>(skippedFrames) + 1)) != 0
+                    (presentationFrameCounter++ % (static_cast<u64>(skippedFrames) + 1)) != 0
                 };
                 if (skipPresent) {
                     frame.fence.Wait(state.soc->host1x);
