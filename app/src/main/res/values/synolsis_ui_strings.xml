@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="synolsis_tab_games">Jogos</string>
+    <string name="synolsis_tab_search">Pesquisar</string>
+    <string name="synolsis_tab_settings">Configurações</string>
+    <string name="synolsis_game_library">Biblioteca de jogos</string>
+    <string name="synolsis_gpu_preset">Perfil de GPU e memória</string>
+    <string name="synolsis_gpu_preset_description">Perfil conservador para 6 GB, equilibrado ou experimental. Ajusta opções reais do Strato.</string>
+    <string name="synolsis_preset_conservative">Conservador (6 GB)</string>
+    <string name="synolsis_preset_balanced">Equilibrado</string>
+    <string name="synolsis_preset_experimental">Experimental (mais RAM)</string>
+    <string name="synolsis_preset_apply_notice">Reinicie o jogo após selecionar um perfil. Teste um perfil de cada vez.</string>
+</resources>
