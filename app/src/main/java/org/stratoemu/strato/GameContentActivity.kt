@@ -76,6 +76,7 @@ class GameContentActivity : AppCompatActivity() {
             return
         }
         titleId = id
+        contentType = savedInstanceState?.getString("content_type") ?: TYPE_UPDATE
         catalog = File(getExternalFilesDir(null) ?: filesDir, "switch/synolsis-content/$titleId")
 
         val scroll = ScrollView(this)
@@ -86,6 +87,11 @@ class GameContentActivity : AppCompatActivity() {
         scroll.addView(listing)
         setContentView(scroll)
         refresh()
+    }
+
+    override fun onSaveInstanceState(outState : Bundle) {
+        outState.putString("content_type", contentType)
+        super.onSaveInstanceState(outState)
     }
 
     private fun button(text : String, click : () -> Unit) : MaterialButton =
@@ -183,7 +189,7 @@ class GameContentActivity : AppCompatActivity() {
                 }
             val count = le32(4)
             val strings = le32(8)
-            return count in 1..MAX_NSP_ENTRIES.toLong() &&
+            return count >= 1L && count <= MAX_NSP_ENTRIES.toLong() &&
                 strings <= MAX_NSP_STRING_TABLE_BYTES &&
                 16L + count * 0x18L + strings <= file.length()
         }
