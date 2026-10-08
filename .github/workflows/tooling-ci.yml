@@ -28,7 +28,7 @@ jobs:
           python - <<'PY'
           import pathlib
           from tools.verify_patches import changed_files
-          for pr in (252, 291, 9001):
+          for pr in (252, 291, 9001, 2200, 2201):
               data = pathlib.Path(f"patches/pr-{pr}.patch").read_bytes()
               print(f"PR #{pr}: {changed_files(data)}")
           PY
@@ -52,3 +52,9 @@ jobs:
         run: python tools/verify_patches.py --pr 291
       - name: Check Vulkan driver loader safeguard #9001 (no modifications)
         run: python tools/verify_patches.py --pr 9001
+      - name: Check modern key generation patch #2200 (no modifications)
+        run: python tools/verify_patches.py --pr 2200
+      - name: Check firmware import patch #2201 (no modifications)
+        run: python tools/verify_patches.py --pr 2201
+      - name: Check 22.0 patches can be staged together
+        run: git -C upstream/strato apply --check ../../patches/pr-2200.patch ../../patches/pr-2201.patch
