@@ -25,6 +25,11 @@ import org.stratoemu.strato.data.AppItemTag
 import org.stratoemu.strato.databinding.AppDialogBinding
 import org.stratoemu.strato.loader.LoaderResult
 import org.stratoemu.strato.settings.SettingsActivity
+import org.stratoemu.strato.utils.GameShaderCacheUtils
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.stratoemu.strato.utils.SaveManagementUtils
 import org.stratoemu.strato.utils.serializable
 
@@ -116,6 +121,35 @@ class AppDialog : BottomSheetDialogFragment() {
         }
         binding.gameInstallUpdate.setOnClickListener { openGameContent("updates") }
         binding.gameInstallDlc.setOnClickListener { openGameContent("dlc") }
+        binding.synolsisClearGameCache.isEnabled = validContentTitle
+        binding.synolsisClearGameCache.setOnClickListener {
+            AlertDialog.Builder(requireContext())
+                .setTitle(R.string.synolsis_clear_cache_title)
+                .setMessage(R.string.synolsis_clear_cache_confirm)
+                .setNegativeButton(R.string.no, null)
+                .setPositiveButton(R.string.yes) { _, _ ->
+                    val context = requireContext().applicationContext
+                    viewLifecycleOwner.lifecycleScope.launch {
+                        val result = withContext(Dispatchers.IO) {
+                            runCatching { GameShaderCacheUtils.clear(context, item.titleId) }
+                        }
+                        if (!isAdded) return@launch
+                        result.fold(
+                            onSuccess = {
+                                Snackbar.make(
+                                    binding.root,
+                                    getString(R.string.synolsis_clear_cache_result, it.filesDeleted, it.bytesFreed / (1024L * 1024L)),
+                                    Snackbar.LENGTH_LONG
+                                ).show()
+                            },
+                            onFailure = {
+                                Snackbar.make(binding.root, R.string.synolsis_content_error, Snackbar.LENGTH_LONG).show()
+                            }
+                        )
+                    }
+                }.show()
+        }
+
 
         val shortcutManager = requireActivity().getSystemService(ShortcutManager::class.java)
         binding.gamePin.isEnabled = shortcutManager.isRequestPinShortcutSupported
