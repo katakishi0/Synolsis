@@ -58,7 +58,7 @@ namespace skyline::gpu {
         stream.read(reinterpret_cast<char *>(&header), sizeof(PipelineCacheFileHeader));
         // A truncated file may leave the default-initialised magic/version intact.
         // Accept the header only if the entire on-disk structure was read.
-        return stream.gcount() == sizeof(PipelineCacheFileHeader) && header.IsValid();
+        return stream.gcount() == static_cast<std::streamsize>(sizeof(PipelineCacheFileHeader)) && header.IsValid();
     }
 
     void PipelineCacheManager::MergeStaging() {
@@ -68,7 +68,7 @@ namespace skyline::gpu {
 
         PipelineCacheFileHeader stagingHeader{};
         stagingStream.read(reinterpret_cast<char *>(&stagingHeader), sizeof(PipelineCacheFileHeader));
-        if (stagingStream.gcount() != sizeof(PipelineCacheFileHeader) || !stagingHeader.IsValid()) {
+        if (stagingStream.gcount() != static_cast<std::streamsize>(sizeof(PipelineCacheFileHeader)) || !stagingHeader.IsValid()) {
             LOGW("Discarding invalid pipeline cache staging file");
             return;
         }
@@ -77,7 +77,7 @@ namespace skyline::gpu {
         PipelineCacheFileHeader mainHeader{};
         mainStream.seekg(0, std::ios_base::beg);
         mainStream.read(reinterpret_cast<char *>(&mainHeader), sizeof(PipelineCacheFileHeader));
-        if (mainStream.gcount() != sizeof(PipelineCacheFileHeader) || !mainHeader.IsValid()) {
+        if (mainStream.gcount() != static_cast<std::streamsize>(sizeof(PipelineCacheFileHeader)) || !mainHeader.IsValid()) {
             LOGW("Cannot merge staging data into an invalid pipeline cache");
             return;
         }
