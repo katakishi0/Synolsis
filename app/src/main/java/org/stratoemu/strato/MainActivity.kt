@@ -157,17 +157,17 @@ class MainActivity : AppCompatActivity() {
         binding.bottomNavigation.setOnItemSelectedListener { item ->
             when (item.itemId) {
                 R.id.nav_games -> {
-                    binding.searchBar.setText("")
-                    binding.searchBar.clearFocus()
+                    binding.searchBar.text = ""
+                    binding.searchBar.clearInputFocus()
                     (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager)
                         .hideSoftInputFromWindow(binding.searchBar.windowToken, 0)
                     true
                 }
                 R.id.nav_search -> {
                     binding.appBarLayout.setExpanded(true, true)
-                    binding.searchBar.requestFocus()
+                    binding.searchBar.focusInput()
                     (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager)
-                        .showSoftInput(binding.searchBar, InputMethodManager.SHOW_IMPLICIT)
+                        .showSoftInput(binding.searchBar.inputView, InputMethodManager.SHOW_IMPLICIT)
                     true
                 }
                 R.id.nav_settings -> {
