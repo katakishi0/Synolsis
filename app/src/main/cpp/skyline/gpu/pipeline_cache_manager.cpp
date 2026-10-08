@@ -143,8 +143,22 @@ namespace skyline::gpu {
 
         PipelineCacheFileHeader header{};
         mainStream.read(reinterpret_cast<char *>(&header), sizeof(PipelineCacheFileHeader));
-        if (!header.IsValid())
+        if (mainStream.gcount() != static_cast<std::streamsize>(sizeof(PipelineCacheFileHeader)) || !header.IsValid())
             throw exception("Pipeline cache main file corrupted at runtime!");
+
+        // Never trust a malformed count from disk: replaying an excessive
+        // number of entries can turn a corrupt cache into a lengthy startup
+        // stall or an out-of-bounds stream read. Every serialized bundle
+        // occupies at least one byte after the fixed header.
+        mainStream.seekg(0, std::ios::end);
+        const auto endOffset{mainStream.tellg()};
+        if (endOffset < static_cast<std::streamoff>(sizeof(PipelineCacheFileHeader)) ||
+            header.count > static_cast<u64>(endOffset - static_cast<std::streamoff>(sizeof(PipelineCacheFileHeader))))
+            throw exception("Pipeline cache has an impossible pipeline count!");
+
+        mainStream.seekg(sizeof(PipelineCacheFileHeader), std::ios::beg);
+        if (!mainStream)
+            throw exception("Failed to seek pipeline cache payload!");
 
         return {std::move(mainStream), header.count};
     }
