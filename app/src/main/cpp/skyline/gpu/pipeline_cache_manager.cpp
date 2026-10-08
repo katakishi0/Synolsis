@@ -56,7 +56,9 @@ namespace skyline::gpu {
 
         PipelineCacheFileHeader header{};
         stream.read(reinterpret_cast<char *>(&header), sizeof(PipelineCacheFileHeader));
-        return header.IsValid();
+        // A truncated file may leave the default-initialised magic/version intact.
+        // Accept the header only if the entire on-disk structure was read.
+        return stream.gcount() == sizeof(PipelineCacheFileHeader) && header.IsValid();
     }
 
     void PipelineCacheManager::MergeStaging() {
@@ -66,7 +68,7 @@ namespace skyline::gpu {
 
         PipelineCacheFileHeader stagingHeader{};
         stagingStream.read(reinterpret_cast<char *>(&stagingHeader), sizeof(PipelineCacheFileHeader));
-        if (!stagingHeader.IsValid()) {
+        if (stagingStream.gcount() != sizeof(PipelineCacheFileHeader) || !stagingHeader.IsValid()) {
             LOGW("Discarding invalid pipeline cache staging file");
             return;
         }
@@ -75,6 +77,10 @@ namespace skyline::gpu {
         PipelineCacheFileHeader mainHeader{};
         mainStream.seekg(0, std::ios_base::beg);
         mainStream.read(reinterpret_cast<char *>(&mainHeader), sizeof(PipelineCacheFileHeader));
+        if (mainStream.gcount() != sizeof(PipelineCacheFileHeader) || !mainHeader.IsValid()) {
+            LOGW("Cannot merge staging data into an invalid pipeline cache");
+            return;
+        }
 
         // Update the main header with the new count
         mainHeader.count += stagingHeader.count;
@@ -83,6 +89,18 @@ namespace skyline::gpu {
 
         mainStream.seekp(0, std::ios::end);
         mainStream << stagingStream.rdbuf();
+        mainStream.flush();
+        if (!mainStream || stagingStream.bad()) {
+            LOGW("Pipeline cache staging merge failed; retaining staging for recovery");
+            return;
+        }
+
+        // Important: the next launch must not append the same staging bundles
+        // again. A stale .staging file previously caused unbounded cache growth
+        // and progressively longer cache replays.
+        stagingStream.close();
+        mainStream.close();
+        std::filesystem::remove(stagingPath);
     }
 
     PipelineCacheManager::PipelineCacheManager(const DeviceState &state, const std::string &path)
