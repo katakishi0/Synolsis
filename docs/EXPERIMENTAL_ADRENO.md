@@ -13,7 +13,7 @@ All references are for feature evaluation, not direct copying of incompatible Ed
 
 ## Implemented now: actual Experimental screen
 
-Android's `SettingsActivity` opens a dedicated `ExperimentalSettingsFragment` through a navigation entry from global **and per-game** settings. The fragment loads `experimental_preferences.xml` with localized English and Brazilian Portuguese warnings. Settings persist via the existing `EmulationSettings`/AndroidX preference system, and reach libskyline through `NativeSettings` and `AndroidSettings`.
+The Android `emulation_preferences.xml` now contains a single **Experimental** category with the eight controls visible inline; the separate `ExperimentalSettingsFragment`, its XML and the dead navigation item were removed. Global and per-game fragments use a shared driver-capability helper. Settings persist through `EmulationSettings`/AndroidX preferences and reach libskyline through `NativeSettings` and `AndroidSettings`.
 
 | Option | Backing engine value | Risk |
 |---|---|---|
