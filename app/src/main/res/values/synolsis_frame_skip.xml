@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="synolsis_frame_skip_title">Frame skipping (apresentação)</string>
+    <string name="synolsis_frame_skip_summary">Pula somente quadros exibidos, sem acelerar a CPU/GPU do jogo. Pode causar engasgos ou tremores; desativado por padrão.</string>
+    <string-array name="synolsis_frame_skip_entries">
+        <item>Desligado (recomendado)</item>
+        <item>Pular 1 de 2 quadros</item>
+        <item>Pular 2 de 3 quadros</item>
+    </string-array>
+    <string-array name="synolsis_frame_skip_values">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+    </string-array>
+</resources>
