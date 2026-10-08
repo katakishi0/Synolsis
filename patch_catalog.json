@@ -1,0 +1,78 @@
+{
+  "upstream": "https://github.com/strato-emu/strato.git",
+  "branch": "master",
+  "upstream_snapshot_sha": "ae1566a48285816a87e81d4aeb40bd2f4e56e60b",
+  "license": "GPL-3.0-or-later",
+  "patches": [
+    {
+      "id": 252,
+      "name": "firmware_outdated_keys_crash",
+      "title": "Evitar crash ao importar firmware com keys antigas",
+      "head_sha": "bad297b824c266b46bac0c1e04e313aaa8010d98",
+      "risk": "low",
+      "author": "PabloG02",
+      "status": "candidate",
+      "url": "https://github.com/strato-emu/strato/pull/252"
+    },
+    {
+      "id": 291,
+      "name": "landscape_game_dialog",
+      "title": "Consertar diálogo de jogo em landscape",
+      "head_sha": "8c2a6384fa8f9d523c867d2abded3182332a272f",
+      "risk": "low",
+      "author": "Ishan09811",
+      "status": "candidate",
+      "url": "https://github.com/strato-emu/strato/pull/291"
+    },
+    {
+      "id": 290,
+      "name": "save_export",
+      "title": "Exportação de saves",
+      "head_sha": "6fdd1d68c823cebc89c2590989f5712171d5dcfd",
+      "risk": "medium",
+      "author": "Ishan09811",
+      "status": "candidate",
+      "url": "https://github.com/strato-emu/strato/pull/290"
+    },
+    {
+      "id": 284,
+      "name": "theme_change",
+      "title": "Troca de temas em tempo de execução",
+      "head_sha": "8c5dc83fc4fa1b752a184a773386dd6910225d22",
+      "risk": "medium",
+      "author": "Ishan09811",
+      "status": "candidate",
+      "url": "https://github.com/strato-emu/strato/pull/284"
+    },
+    {
+      "id": 287,
+      "name": "gpu_driver_import",
+      "title": "Importação de drivers GPU (priorizar Adreno)",
+      "head_sha": "8f38dfc92eea807a782b8c87c85d1d528459f71b",
+      "risk": "high",
+      "author": "Ishan09811",
+      "status": "candidate",
+      "url": "https://github.com/strato-emu/strato/pull/287"
+    },
+    {
+      "id": 298,
+      "name": "nvdec",
+      "title": "Decodificação NVDEC experimental",
+      "head_sha": "b4ba134c0cf4ad8904fa1406ddcce079bff76406",
+      "risk": "experimental",
+      "author": "godpow",
+      "status": "research_only",
+      "url": "https://github.com/strato-emu/strato/pull/298"
+    },
+    {
+      "id": 160,
+      "name": "vfs_updates_dlc",
+      "title": "VFS com atualização e DLC",
+      "head_sha": "ae21cf1b5a1e9e191ccc3fd4c5b263e3edf7cbce",
+      "risk": "high",
+      "author": "dima-xd",
+      "status": "research_only",
+      "url": "https://github.com/strato-emu/strato/pull/160"
+    }
+  ]
+}
