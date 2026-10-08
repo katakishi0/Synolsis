@@ -8,6 +8,7 @@ import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
 import java.io.File
+import java.io.FileOutputStream
 import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -95,7 +96,10 @@ object GameContentStore {
         try {
             var written = 0L
             context.contentResolver.openInputStream(source)?.use { input ->
-                staging.outputStream().buffered().use { output ->
+                FileOutputStream(staging).use { raw ->
+                    // Stream large NSP archives using a fixed-size buffer to
+                    // avoid filling the 6 GB Android device's Java heap.
+                    val output = raw.buffered()
                     val buffer = ByteArray(128 * 1024)
                     while (true) {
                         val count = input.read(buffer)
@@ -107,6 +111,8 @@ object GameContentStore {
                         }
                         output.write(buffer, 0, count)
                     }
+                    output.flush()
+                    raw.fd.sync()
                 }
             } ?: error("Cannot read selected content")
             check(written >= 16L) { "NSP file is empty or incomplete" }
