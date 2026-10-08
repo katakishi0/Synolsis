@@ -41,7 +41,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           # Source is checked out at the start of the run, then built from that snapshot.
-          ref: feature/synolsis-v5-english-cache-optimizations
+          # Pin the tested revision, including safe V4 locale migration.
+          ref: b54b92efd0eb9129c3243da755daaa0e446fa909
           submodules: false
 
       - name: Assert full source is checked in
@@ -321,6 +322,8 @@ jobs:
           lang_pref=(root/"java/org/stratoemu/strato/preference/LanguagePreference.kt").read_text()
           assert 'LocaleListCompat.forLanguageTags("en")' in locale
           assert 'KEY_INITIALIZED' in locale and 'getBoolean(KEY_INITIALIZED, false)' in locale
+          assert 'val existingInstall = preferenceDirectory.listFiles()' in locale
+          assert 'if (!existingInstall && appCompatSelection.isEmpty' in locale
           assert 'getApplicationLocales()' in locale
           assert 'systemSelection.isEmpty' in locale
           assert 'SynolsisLocaleBootstrap.initialize(this)' in application
