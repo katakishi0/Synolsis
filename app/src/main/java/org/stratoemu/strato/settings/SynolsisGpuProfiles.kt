@@ -4,6 +4,11 @@
  */
 package org.stratoemu.strato.settings
 
+import androidx.preference.ListPreference
+import androidx.preference.PreferenceFragmentCompat
+import androidx.preference.SeekBarPreference
+import androidx.preference.TwoStatePreference
+
 /**
  * Actual native-backed performance/memory presets.
  * These don't simulate extra VRAM or replace the Switch's GPU API.
@@ -37,5 +42,24 @@ object SynolsisGpuProfiles {
         // enabling dangerous clock/driver hacks on the 6GB Adreno test phone.
         settings.disableShaderCache = false
         return true
+    }
+}
+
+/** Updates native settings and the visible preference values together. */
+internal fun PreferenceFragmentCompat.wireSynolsisGpuProfiles(settings : EmulationSettings) {
+    findPreference<ListPreference>("synolsis_gpu_preset")?.setOnPreferenceChangeListener { _, newValue ->
+        if (!SynolsisGpuProfiles.apply(settings, newValue as? String ?: "")) {
+            false
+        } else {
+            findPreference<SeekBarPreference>("executor_slot_count_scale")?.value =
+                settings.executorSlotCountScale
+            findPreference<SeekBarPreference>("executor_flush_threshold")?.value =
+                settings.executorFlushThreshold
+            findPreference<TwoStatePreference>("free_guest_texture_memory")?.isChecked =
+                settings.freeGuestTextureMemory
+            findPreference<TwoStatePreference>("disable_shader_cache")?.isChecked =
+                settings.disableShaderCache
+            true
+        }
     }
 }
