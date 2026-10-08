@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="synolsis_content_title">Game content (Updates / DLC)</string>
+    <string name="synolsis_content_updates">Updates</string>
+    <string name="synolsis_content_dlc">DLCs</string>
+    <string name="synolsis_content_import">Import NSP package</string>
+    <string name="synolsis_content_importing">Importing and checking NSP…</string>
+    <string name="synolsis_content_empty">No imported NSP packages for this game.</string>
+    <string name="synolsis_content_delete">Delete</string>
+    <string name="synolsis_content_delete_confirm">Delete this imported package?</string>
+    <string name="synolsis_content_error">Could not import or remove this content</string>
+    <string name="synolsis_content_staged_success">NSP verified and stored. Not yet activated in the emulated game.</string>
+    <string name="synolsis_content_invalid_title">This game has no valid title ID.</string>
+    <string name="synolsis_content_not_active">Experimental package manager: NSP files are copied, checked and stored privately for this title. They are NOT installed in the emulated Switch yet. Game updates require CNMT/BKTR patch loading; DLC needs AOC mounting. These features are still under development. Do not expect this content to affect gameplay yet.</string>
+</resources>

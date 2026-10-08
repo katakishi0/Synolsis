@@ -41,7 +41,7 @@
         </activity>
 
         <activity
-            android:name=".GameContentActivity"
+            android:name=".GameContentManagerActivity"
             android:exported="false"
             android:label="@string/synolsis_content_title"
             android:parentActivityName=".MainActivity" />

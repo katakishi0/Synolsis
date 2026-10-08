@@ -101,15 +101,21 @@ class AppDialog : BottomSheetDialogFragment() {
                 putExtras(requireArguments())
             })
         }
-        binding.manageGameContent.isEnabled =
-            item.titleId?.matches(Regex("[0-9A-Fa-f]{16}")) == true &&
-            item.loaderResult == LoaderResult.Success
-        binding.manageGameContent.setOnClickListener {
-            startActivity(Intent(requireActivity(), GameContentActivity::class.java).apply {
-                putExtra(GameContentActivity.EXTRA_TITLE_ID, item.titleId)
-                putExtra(GameContentActivity.EXTRA_TITLE, item.title)
+
+        // Import is a real checked NSP copy, but does not activate the
+        // installed data until native CNMT/BKTR/DLC mounting is available.
+        val validContentTitle = item.titleId.matches(Regex("[0-9a-fA-F]{16}"))
+        binding.gameInstallUpdate.isEnabled = validContentTitle
+        binding.gameInstallDlc.isEnabled = validContentTitle
+        fun openGameContent(category: String) {
+            startActivity(Intent(requireContext(), GameContentManagerActivity::class.java).apply {
+                putExtra(GameContentManagerActivity.EXTRA_TITLE_ID, item.titleId)
+                putExtra(GameContentManagerActivity.EXTRA_GAME_TITLE, item.title)
+                putExtra(GameContentManagerActivity.EXTRA_CATEGORY, category)
             })
         }
+        binding.gameInstallUpdate.setOnClickListener { openGameContent("updates") }
+        binding.gameInstallDlc.setOnClickListener { openGameContent("dlc") }
 
         val shortcutManager = requireActivity().getSystemService(ShortcutManager::class.java)
         binding.gamePin.isEnabled = shortcutManager.isRequestPinShortcutSupported
