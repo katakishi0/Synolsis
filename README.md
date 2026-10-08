@@ -2,8 +2,21 @@
 
 **A Skyline/Strato-based Nintendo Switch emulator research and improvement project for ARM64 Android.**
 
-> Current status **v0.2 — source link + patch candidates + CI preparation**.
-> The complete upstream core is linked as a pinned Git submodule. Patches are **not merged** into the core by default. No APK has been verified yet.
+> **Active experimental build: Synolsis Emu** — standalone Strato/Skyline code, local firmware 22/23 and Adreno/Vulkan experiments.
+> The `main` branch holds the toolkit/workflows and a pinned upstream reference; self-contained native source lives in `strato-full-core` and feature branches. APK build artifacts are created by GitHub Actions after passing compilation; each new feature build requires separate confirmation.
+
+## Synolsis Emu (new experimental app branding)
+
+Source branch: **[feature/synolsis-themes-cache](../../tree/feature/synolsis-themes-cache)** — Android name/header and icon updated to **Synolsis Emu** (application ID unchanged to preserve installed-app compatibility), five additional Material 3 themes (Midnight, Purple, Emerald, AMOLED Red, Amber), and actual Strato Vulkan/pipeline cache fixes:
+
+- Merge `.staging` pipeline cache data only once, refuse truncated headers.
+- Separate pipelines for Turnip/custom and stock Adreno driver selection.
+- Fallback to FIFO when MAILBOX Vulkan present mode is unavailable; clamp triple-buffer requests when needed.
+- Existing Adreno Experimental controls and firmware 22/23 ZBIC work remain in the branch.
+
+See [technical research and benchmarks](../../blob/feature/synolsis-themes-cache/docs/SYNOLSIS_ADRENO_CACHE_RESEARCH.md), [FPS tracking #8](../../issues/8), and the [Synolsis APK CI](../../actions/workflows/synolsis-themes-cache-ci.yml).
+
+**No speedup is guaranteed.** Builds must finish successfully and run on the Snapdragon 778G/Adreno 642L before any FPS comparison.
 
 ## Cached builds (Gradle + native ccache)
 
