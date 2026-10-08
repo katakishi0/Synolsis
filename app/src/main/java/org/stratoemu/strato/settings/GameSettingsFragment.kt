@@ -15,7 +15,6 @@ import org.stratoemu.strato.R
 import org.stratoemu.strato.data.AppItem
 import org.stratoemu.strato.data.AppItemTag
 import org.stratoemu.strato.preference.GpuDriverPreference
-import org.stratoemu.strato.utils.GpuDriverHelper
 import org.stratoemu.strato.utils.WindowInsetsHelper
 import org.stratoemu.strato.utils.serializable
 
@@ -72,12 +71,8 @@ class GameSettingsFragment : PreferenceFragmentCompat() {
         if (BuildConfig.BUILD_TYPE != "release")
             findPreference<Preference>("validation_layer")?.isVisible = true
 
-        if (!GpuDriverHelper.supportsForceMaxGpuClocks()) {
-            val forceMaxGpuClocksPref = findPreference<TwoStatePreference>("force_max_gpu_clocks")!!
-            forceMaxGpuClocksPref.isSelectable = false
-            forceMaxGpuClocksPref.isChecked = false
-            forceMaxGpuClocksPref.summary = context!!.getString(R.string.force_max_gpu_clocks_desc_unsupported)
-        }
+        // Maximum GPU clocks moved to ExperimentalSettingsFragment.
+        // That screen checks support before enabling the preference.
 
         findPreference<GpuDriverPreference>("gpu_driver")?.item = item
 
