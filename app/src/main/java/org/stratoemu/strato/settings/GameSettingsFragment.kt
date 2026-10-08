@@ -66,6 +66,7 @@ class GameSettingsFragment : PreferenceFragmentCompat() {
         // These switches are displayed inline and obey the per-game
         // "Use Custom Settings" dependency above.
         configureInlineExperimentalOptions(EmulationSettings.forTitleId(item.titleId ?: item.key()).gpuDriver)
+        wireSynolsisGpuProfiles(EmulationSettings.forTitleId(item.titleId ?: item.key()))
 
         findPreference<GpuDriverPreference>("gpu_driver")?.item = item
 
