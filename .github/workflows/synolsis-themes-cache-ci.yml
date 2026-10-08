@@ -71,6 +71,14 @@ jobs:
           assert "custom_{:016x}" in driver and "driverCacheKey" in driver
           assert "std::filesystem::remove(stagingPath, removeError)" in cache
           assert "stream.gcount() == sizeof(PipelineCacheFileHeader)" in cache
+          present=(root/"cpp/skyline/gpu/presentation_engine.cpp").read_text()
+          assert 'falling back to FIFO' in present
+          assert 'Clamping requested swapchain images' in present
+          appxml=ET.parse(root/"AndroidManifest.xml")
+          assert any(a.endswith("}icon") and v=="@drawable/synolsis_logo"
+                     for el in appxml.iter() for a,v in el.attrib.items())
+          ui=(root/"res/xml/app_preferences.xml").read_text()
+          assert 'android:entryValues="@array/synolsis_palette_values"' in ui
           print("PASS: Synolsis branding, 6 palettes, inline experiments, driver cache isolation and staging cleanup")
           PY
 
