@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="synolsis_gpu_preset_entries">
+        <item>Conservador (6 GB de RAM)</item>
+        <item>Equilibrado</item>
+        <item>Experimental (maior consumo)</item>
+    </string-array>
+    <string-array name="synolsis_gpu_preset_values">
+        <item>conservative</item>
+        <item>balanced</item>
+        <item>experimental</item>
+    </string-array>
+</resources>
