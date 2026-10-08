@@ -32,6 +32,11 @@ class GlobalSettingsFragment : PreferenceFragmentCompat() {
         super.onViewCreated(view, savedInstanceState)
         val recyclerView = view.findViewById<View>(androidx.preference.R.id.recycler_view)
         WindowInsetsHelper.setPadding(recyclerView, bottom = true)
+        // The settings hub deep-links directly to the existing preference;
+        // it does not duplicate any settings dialogs or data stores.
+        activity?.intent?.getStringExtra("synolsis_target_preference")?.let { target ->
+            view.post { scrollToPreference(target) }
+        }
     }
 
     /**
