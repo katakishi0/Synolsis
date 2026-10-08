@@ -5,6 +5,12 @@
 > Current status **v0.2 — source link + patch candidates + CI preparation**.
 > The complete upstream core is linked as a pinned Git submodule. Patches are **not merged** into the core by default. No APK has been verified yet.
 
+## Cached builds (Gradle + native ccache)
+
+Run the [cached ARM64 APK build](../../actions/workflows/cache-build-test.yml) to build from the **self-contained** `strato-full-core` or experimental `strato-fw23-zbic` branch. GitHub caches Gradle downloads and C/C++ compile objects; the build includes a cache-hit report and keeps APK artifacts for 30 days.
+
+**The dependency-cache retention is a separate GitHub repository setting** (normally 7 days). See [how to enable 30-day cache retention](docs/CI_CACHE.md); the workflow itself cannot change that setting.
+
 ## Independent full Strato core branch
 
 **[Browse `strato-full-core`](../../tree/strato-full-core)** — all native emulator sources, our experimental 22.x/23.x key generation and firmware patches, and *recursive third-party source dependencies* are committed directly into this repository. The branch has **no Git submodule pointers**. This preserves the build's source materials even if original upstream repositories disappear.
