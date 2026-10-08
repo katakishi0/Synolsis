@@ -32,8 +32,10 @@ import kotlin.math.roundToInt
 class SynolsisSettingsHubActivity : AppCompatActivity() {
     private fun dp(value : Int) = (resources.displayMetrics.density * value).roundToInt()
 
-    private fun openSettings(key : String? = null) {
+    /** Each hub card opens only its own settings category, not every option. */
+    private fun openSettings(section : String, key : String? = null) {
         startActivity(Intent(this, SettingsActivity::class.java).apply {
+            putExtra("synolsis_settings_section", section)
             key?.let { putExtra("synolsis_target_preference", it) }
         })
     }
@@ -109,7 +111,7 @@ class SynolsisSettingsHubActivity : AppCompatActivity() {
         }
 
         addCard(R.string.synolsis_hub_advanced, R.string.synolsis_hub_advanced_desc, R.drawable.ic_settings) {
-            openSettings()
+            openSettings("advanced")
         }
         addCard(R.string.synolsis_hub_gpu, R.string.synolsis_hub_gpu_desc, R.drawable.ic_settings) {
             startActivity(Intent(this, GpuDriverActivity::class.java))
@@ -118,13 +120,13 @@ class SynolsisSettingsHubActivity : AppCompatActivity() {
             startActivity(Intent(this, ControllerActivity::class.java).putExtra("index", 0))
         }
         addCard(R.string.synolsis_hub_theme, R.string.synolsis_hub_theme_desc, R.drawable.ic_settings) {
-            openSettings("synolsis_palette")
+            openSettings("appearance", "synolsis_palette")
         }
         addCard(R.string.synolsis_hub_firmware, R.string.synolsis_hub_firmware_desc, R.drawable.ic_play) {
-            openSettings("firmware")
+            openSettings("content", "firmware")
         }
         addCard(R.string.synolsis_hub_data, R.string.synolsis_hub_data_desc, R.drawable.ic_search) {
-            openSettings("document_provider")
+            openSettings("content", "document_provider")
         }
         // QLauncher will be shown here only after the native system-applet
         // bootstrap and missing-service handling are implemented and tested.
