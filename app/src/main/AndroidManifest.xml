@@ -41,6 +41,12 @@
         </activity>
 
         <activity
+            android:name=".SynolsisSettingsHubActivity"
+            android:exported="false"
+            android:label="@string/synolsis_tab_settings"
+            android:parentActivityName=".MainActivity" />
+
+        <activity
             android:name=".settings.SettingsActivity"
             android:exported="true"
             android:label="@string/settings"
