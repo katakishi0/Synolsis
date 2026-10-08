@@ -37,6 +37,15 @@ import org.stratoemu.strato.utils.WindowInsetsHelper
 private const val PREFERENCE_DIALOG_FRAGMENT_TAG = "androidx.preference.PreferenceFragment.DIALOG"
 
 class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPreferenceDisplayDialogCallback {
+    companion object {
+        const val EXTRA_SYNOLSIS_SECTION = "synolsis_settings_section"
+        const val SECTION_ADVANCED = "advanced"
+        const val SECTION_APPEARANCE = "appearance"
+        const val SECTION_CONTENT = "content"
+        const val SECTION_CONTROLS = "controls"
+        const val SECTION_ABOUT = "about"
+    }
+
     val binding by lazy { SettingsActivityBinding.inflate(layoutInflater) }
     val hiddenCategoriesFromSearch = if (BuildConfig.BUILD_TYPE == "release") {
         arrayOf("category_debug", "category_credits", "category_licenses")
@@ -67,6 +76,16 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
 
         setSupportActionBar(binding.titlebar.toolbar)
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
+
+        if (!intent.hasExtra(AppItemTag)) {
+            supportActionBar?.title = when (intent.getStringExtra(EXTRA_SYNOLSIS_SECTION)) {
+                SECTION_APPEARANCE -> getString(R.string.synolsis_hub_theme)
+                SECTION_CONTENT -> getString(R.string.synolsis_hub_data)
+                SECTION_CONTROLS -> getString(R.string.synolsis_hub_controls)
+                SECTION_ABOUT -> getString(R.string.synolsis_hub_about)
+                else -> getString(R.string.synolsis_hub_advanced)
+            }
+        }
 
         var layoutDone = false // Tracks if the layout is complete to avoid retrieving invalid attributes
         binding.coordinatorLayout.viewTreeObserver.addOnTouchModeChangeListener { isTouchMode ->
