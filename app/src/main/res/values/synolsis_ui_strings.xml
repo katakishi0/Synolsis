@@ -10,4 +10,6 @@
     <string name="synolsis_preset_balanced">Equilibrado</string>
     <string name="synolsis_preset_experimental">Experimental (mais RAM)</string>
     <string name="synolsis_preset_apply_notice">Reinicie o jogo após selecionar um perfil. Teste um perfil de cada vez.</string>
+    <string name="synolsis_readback_precision">Nível de precisão: releitura de GPU</string>
+    <string name="synolsis_readback_precision_desc">Alterna o modo de releitura da GPU. Modos rápidos podem causar defeitos gráficos; não afetam precisão geral da CPU ou shader.</string>
 </resources>
