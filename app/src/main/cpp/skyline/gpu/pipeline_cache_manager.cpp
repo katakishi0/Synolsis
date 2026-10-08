@@ -102,7 +102,7 @@ namespace skyline::gpu {
             LOGW("Pipeline cache append failed; restoring previous length");
             mainStream.close();
             std::error_code rollbackError;
-            std::filesystem::resize_file(mainPath, static_cast<u64>(originalEnd), rollbackError);
+            std::filesystem::resize_file(mainPath, static_cast<u64>(static_cast<std::streamoff>(originalEnd)), rollbackError);
             if (rollbackError)
                 LOGW("Pipeline cache rollback failed: {}", rollbackError.message());
             return;
