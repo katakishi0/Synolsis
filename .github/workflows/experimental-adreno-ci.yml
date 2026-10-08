@@ -1,0 +1,146 @@
+name: Experimental Adreno Settings APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/experimental-adreno-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: strato-adreno-experimental-apk
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Adreno/Turnip experimental settings (arm64)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 150
+    env:
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_MAXSIZE: 1G
+      CCACHE_COMPRESS: 'true'
+      CCACHE_BASEDIR: ${{ github.workspace }}
+      CCACHE_NOHASHDIR: 'true'
+      CMAKE_C_COMPILER_LAUNCHER: ccache
+      CMAKE_CXX_COMPILER_LAUNCHER: ccache
+    steps:
+      - name: Checkout standalone Strato feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/experimental-adreno-settings
+          submodules: false
+
+      - name: Assert full source is checked in
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e .gitmodules
+          test -z "$(git ls-files -s | grep '^160000 ' || true)"
+          git log -1 --oneline
+
+      - name: Verify Experimental controls target actual native options
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from xml.etree import ElementTree as ET
+          root=Path("app/src/main")
+          ep=root/"res/xml/experimental_preferences.xml"
+          general=root/"res/xml/emulation_preferences.xml"
+          ET.parse(ep); ET.parse(general)
+          namespace="{http://schemas.android.com/apk/res-auto}key"
+          keys={node.get(namespace) for node in ET.parse(ep).getroot().iter()}
+          native=(root/"java/org/stratoemu/strato/settings/NativeSettings.kt").read_text()
+          cpp=(root/"cpp/skyline/common/android_settings.h").read_text()
+          required={
+              "executor_slot_count_scale":"executorSlotCountScale",
+              "executor_flush_threshold":"executorFlushThreshold",
+              "free_guest_texture_memory":"freeGuestTextureMemory",
+              "force_max_gpu_clocks":"forceMaxGpuClocks",
+              "use_direct_memory_import":"useDirectMemoryImport",
+              "enable_fast_gpu_readback_hack":"enableFastGpuReadbackHack",
+              "enable_fast_readback_writes":"enableFastReadbackWrites",
+              "disable_subgroup_shuffle":"disableSubgroupShuffle",
+          }
+          for android_key,native_key in required.items():
+              assert android_key in keys, android_key
+              assert native_key in native and native_key in cpp, native_key
+          assert "EXTRA_EXPERIMENTAL_SETTINGS" in (root/"java/org/stratoemu/strato/settings/SettingsActivity.kt").read_text()
+          assert "pref.useDirectMemoryImport && pref.gpuDriver == EmulationSettings.SYSTEM_GPU_DRIVER" in native
+          print("Validated:", len(required), "real native-backed Experimental controls")
+          PY
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Exclude only known unused Oboe sample wrapper
+        shell: bash
+        run: |
+          set -euo pipefail
+          unused=app/libraries/oboe/apps/OboeTester/gradle/wrapper/gradle-wrapper.jar
+          if [ -f "$unused" ]; then
+            printf '%s  %s\n' 'e2b82129ab64751fd40437007bd2f7f2afb3c6e41a9198e628650b22d5824a14' "$unused" | sha256sum --check --status
+            rm -- "$unused"
+          fi
+
+      - name: Setup Gradle with caching and wrapper validation
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
+
+      - name: Install required Android SDK/NDK components
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v ccache >/dev/null || ! command -v ninja >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq ccache ninja-build
+          fi
+          mkdir -p "$CCACHE_DIR"
+          SDKMGR="$(command -v sdkmanager || true)"
+          if [ -z "$SDKMGR" ]; then
+            SDKMGR="$(find "$ANDROID_HOME/cmdline-tools" -type f -path '*/bin/sdkmanager' | sort -V | tail -1)"
+          fi
+          packages=()
+          test -d "$ANDROID_HOME/platforms/android-34" || packages+=("platforms;android-34")
+          test -d "$ANDROID_HOME/build-tools/34.0.0" || packages+=("build-tools;34.0.0")
+          test -d "$ANDROID_HOME/ndk/26.1.10909125" || packages+=("ndk;26.1.10909125")
+          test -d "$ANDROID_HOME/cmake/3.22.1" || packages+=("cmake;3.22.1")
+          if (("${#packages[@]}" > 0)); then
+            "$SDKMGR" --install "${packages[@]}"
+          fi
+
+      - name: Restore compiler cache
+        uses: actions/cache@v4
+        with:
+          path: .ccache
+          key: adreno-experimental-ccache-v1-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: |
+            adreno-experimental-ccache-v1-${{ runner.os }}-
+            strato-ccache-v1-${{ runner.os }}-
+
+      - name: Build experimental Strato APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x ./gradlew
+          ./gradlew :app:assembleDevDebug --no-daemon --stacktrace --build-cache
+
+      - name: Report compiler cache stats
+        if: always()
+        run: command -v ccache >/dev/null && ccache --show-stats || true
+
+      - name: Upload experimental APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: skyline-strato-adreno-experimental-${{ github.run_number }}
+          path: app/build/outputs/apk/dev/debug/*.apk
+          if-no-files-found: error
+          retention-days: 30
