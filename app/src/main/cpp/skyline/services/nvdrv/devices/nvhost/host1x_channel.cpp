@@ -88,8 +88,11 @@ namespace skyline::service::nvdrv::device::nvhost {
             return PosixResult::InvalidArgument;
 
         u32 id{core::SyncpointManager::ChannelSyncpoints[static_cast<u32>(channelType)]};
-        if (!id)
-            throw exception("Requested syncpoint for a channel with none specified!");
+        if (!id || id >= soc::host1x::SyncpointCount) {
+            // Never hand an invalid syncpoint back to the guest; downstream
+            // host1x code indexes a fixed-size array with this ID.
+            return PosixResult::InvalidArgument;
+        }
 
         LOGD("syncpointId: {}", id);
         syncpointId = id;
