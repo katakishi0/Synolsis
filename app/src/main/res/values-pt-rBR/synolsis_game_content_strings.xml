@@ -15,4 +15,9 @@
     <string name="synolsis_clear_cache_confirm">Excluir os pipelines gráficos armazenados deste jogo para todos os drivers GPU? O jogo deve estar fechado. Pode haver engasgos até o cache ser recompilado.</string>
     <string name="synolsis_clear_cache_result">%1$d arquivos de cache removidos (%2$d MiB)</string>
     <string name="synolsis_content_package_summary">%1$s\n%2$.1f MiB • %3$d NCA • %4$d CNMT (não montado)</string>
+    <string name="synolsis_content_verify">Verificar</string>
+    <string name="synolsis_content_checksum_label">SHA-256: %1$s…</string>
+    <string name="synolsis_content_checksum_ok">O checksum do NSP confere. Isso não valida o ID do jogo.</string>
+    <string name="synolsis_content_checksum_failed">Falha de integridade: o NSP armazenado foi modificado ou está danificado.</string>
+    <string name="synolsis_content_duplicate">Este NSP já foi importado para este jogo.</string>
 </resources>
