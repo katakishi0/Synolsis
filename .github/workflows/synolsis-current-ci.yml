@@ -25,7 +25,7 @@ concurrency:
 
 jobs:
   build:
-    name: V35 Horizon SVC Zero-Handle Wait and Vulkan Diagnostics ARM64
+    name: V36 Sampled GPU Debug Logs and Horizon SVC Diagnostics ARM64
     runs-on: ubuntu-22.04
     timeout-minutes: 150
     env:
@@ -44,7 +44,7 @@ jobs:
         with:
           # Source is checked out at the start of the run, then built from that snapshot.
           # Pin the tested revision, including safe V4 locale migration.
-          ref: 8364fd830c35d07b735fa5b9e315e8d3b036cb4f
+          ref: 1acad24c6f3bb1df1839c218f4567c4c1de6f365
           submodules: false
 
       - name: Assert full source is checked in
@@ -1137,6 +1137,29 @@ jobs:
           print("PASS: compiled SVC 0x18 limits test; empty waiter reaches cancellable scheduler and cannot index empty handle array")
           PY
 
+      - name: Test V36 GPU debug log sampling and Vulkan result visibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          c++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic tests/debug_log_sample_test.cpp -o /tmp/synolsis-v36-log-test
+          /tmp/synolsis-v36-log-test
+          python3 - <<'PY'
+          from pathlib import Path
+          gpfifo=Path("app/src/main/cpp/skyline/soc/gm20b/gpfifo.cpp").read_text()
+          engine=Path("app/src/main/cpp/skyline/soc/gm20b/engines/gpfifo.cpp").read_text()
+          present=Path("app/src/main/cpp/skyline/gpu/presentation_engine.cpp").read_text()
+          assert gpfifo.count("skyline::diagnostics::ShouldSample(n)") == 2
+          assert engine.count("skyline::diagnostics::ShouldSample(n)") == 1
+          assert "AsyncLogger::CheckLogLevel(AsyncLogger::LogLevel::Debug)" in engine
+          assert "AsyncLogger::CheckLogLevel(AsyncLogger::LogLevel::Debug)" in gpfifo
+          assert 'presentResult != vk::Result::eSuboptimalKHR))' in present
+          assert 'Synolsis present begin:' in present
+          assert 'Synolsis present result:' in present
+          assert 'vkQueuePresentKHR failed:' in present
+          assert 'WaitSynchronizationEmpty' in Path("app/src/main/cpp/skyline/kernel/svc.cpp").read_text()
+          print("PASS: sampled high-volume GPU debug logs and retained critical Vulkan/Horizon diagnostics")
+          PY
+
       - name: Compile Android Kotlin frontend before expensive native build
         shell: bash
         run: |
@@ -1215,16 +1238,16 @@ jobs:
             echo "::error::Gradle did not produce an APK"
             exit 1
           fi
-          tag="synolsis-v35-svc-wait-${GITHUB_RUN_NUMBER}"
+          tag="synolsis-v36-gpu-log-${GITHUB_RUN_NUMBER}"
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             # Rerunning a build must not fail just because its release exists.
             gh release upload "$tag" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
           else
             gh release create "$tag" "${files[@]}" \
               --repo "$GITHUB_REPOSITORY" \
-              --target "8364fd830c35d07b735fa5b9e315e8d3b036cb4f" \
-              --title "Synolsis V35 SVC 0x18 Wait + Black Screen Diagnostics ${GITHUB_RUN_NUMBER}" \
-              --notes "Experimental Synolsis V35 ARM64: correct Horizon SVC 0x18 WaitSynchronization so zero handles perform a cancellable/timed wait rather than returning 0xEE01, protect empty tracing and test 0..64 handle counts. Retains V34 Vulkan present/fence diagnostics. This is a compatibility experiment; no verified fix yet for black-screen NieR/Nine Sols, NVDEC/VIC, QLauncher, or internal resolution. See docs/SYNOLSIS_V35_SVC_0X18_EDEN_CITRON_COMPARISON.md." \
+              --target "1acad24c6f3bb1df1839c218f4567c4c1de6f365" \
+              --title "Synolsis V36 GPU Debug Flood and Core Stability ${GITHUB_RUN_NUMBER}" \
+              --notes "Experimental Synolsis V36 ARM64: preserves V35 Horizon SVC empty-wait fix and V34 Vulkan present/fence diagnostics; samples excessive GPFIFO method/pushbuffer debug logs and VK_SUBOPTIMAL_KHR info logs to reduce debug capture overhead. User-observed flicker/black output and full NVDEC/VIC/QLauncher/internal resolution support are NOT yet fixed or verified. See docs/SYNOLSIS_V36_GPU_LOGGING_EXPERIMENT.md." \
               --prerelease
           fi
           {
