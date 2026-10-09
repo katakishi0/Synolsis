@@ -109,7 +109,9 @@ class SynolsisSettingsHubActivity : AppCompatActivity() {
                     R.string.synolsis_qlauncher_not_found, Toast.LENGTH_LONG).show()
                 // Manual selection remains an explicit fallback for unusual
                 // firmware layouts; it is no longer the normal boot path.
-                qlauncherPicker.launch(arrayOf("*/*"))
+                // Avoid automatically opening a manual document picker:
+                // installed firmware should be the normal path. Keep manual
+                // recovery available only by long-pressing the QLauncher card.
                 return@launch
             }
             runCatching {
@@ -141,15 +143,15 @@ class SynolsisSettingsHubActivity : AppCompatActivity() {
         }
         val column = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(8), dp(20), dp(8), dp(32))
+            setPadding(dp(8), dp(8), dp(8), dp(20))
         }
         scroll.addView(column)
         setContentView(scroll)
 
         val header = TextView(this).apply {
             text = getString(R.string.synolsis_hub_title)
-            textSize = 30f
-            setPadding(dp(24), dp(20), dp(20), dp(22))
+            textSize = 24f
+            setPadding(dp(16), dp(12), dp(16), dp(12))
             setOnClickListener { finish() }
             isClickable = true
             contentDescription = getString(R.string.synolsis_hub_back)
@@ -158,7 +160,7 @@ class SynolsisSettingsHubActivity : AppCompatActivity() {
 
         fun addCard(titleRes : Int, descRes : Int, iconRes : Int, click : () -> Unit) {
             val card = MaterialCardView(this).apply {
-                radius = dp(18).toFloat()
+                radius = dp(12).toFloat()
                 cardElevation = dp(1).toFloat()
                 isClickable = true
                 isFocusable = true
@@ -166,18 +168,18 @@ class SynolsisSettingsHubActivity : AppCompatActivity() {
                 layoutParams = LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.WRAP_CONTENT
-                ).apply { setMargins(dp(12), dp(7), dp(12), dp(7)) }
+                ).apply { setMargins(dp(8), dp(4), dp(8), dp(4)) }
             }
             val inner = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
-                setPadding(dp(16), dp(18), dp(16), dp(18))
+                setPadding(dp(12), dp(10), dp(12), dp(10))
             }
             val icon = ImageView(this).apply {
                 setImageResource(iconRes)
                 imageTintList = ContextCompat.getColorStateList(this@SynolsisSettingsHubActivity, android.R.color.white)
-                layoutParams = LinearLayout.LayoutParams(dp(36), dp(36)).apply {
-                    marginEnd = dp(18)
+                layoutParams = LinearLayout.LayoutParams(dp(28), dp(28)).apply {
+                    marginEnd = dp(12)
                 }
                 contentDescription = null // The whole card has title+description.
             }
@@ -189,17 +191,18 @@ class SynolsisSettingsHubActivity : AppCompatActivity() {
             }
             labels.addView(TextView(this).apply {
                 text = getString(titleRes)
-                textSize = 18f
+                textSize = 16f
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
             })
             labels.addView(TextView(this).apply {
                 text = getString(descRes)
-                textSize = 14f
-                setPadding(0, dp(5), 0, 0)
+                textSize = 12f
+                setPadding(0, dp(2), 0, 0)
             })
             inner.addView(labels, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
             card.addView(inner)
             column.addView(card)
+            return card
         }
 
         addCard(R.string.synolsis_hub_advanced, R.string.synolsis_hub_advanced_desc, R.drawable.ic_settings) {
@@ -228,9 +231,13 @@ class SynolsisSettingsHubActivity : AppCompatActivity() {
         // Automatically find the Program NCA in the installed firmware.
         // Only use the SAF picker as fallback; Horizon services may still
         // prevent the real home menu from starting.
-        addCard(R.string.synolsis_qlauncher_title,
+        val qlauncherCard = addCard(R.string.synolsis_qlauncher_title,
                 R.string.synolsis_qlauncher_desc, R.drawable.ic_play) {
             launchInstalledQLauncher()
+        }
+        qlauncherCard.setOnLongClickListener {
+            qlauncherPicker.launch(arrayOf("*/*"))
+            true
         }
     }
 }

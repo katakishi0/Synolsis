@@ -401,12 +401,17 @@ Java_org_stratoemu_strato_SynolsisSettingsHubActivity_findInstalledQLauncherNca(
                 continue;
             try {
                 auto backing{systemArchives->OpenFile(entry.name)};
-                skyline::vfs::NCA nca{backing, keyStore};
-                if (nca.header.programId != QLauncherProgramId ||
-                    nca.contentType != skyline::vfs::NcaContentType::Program ||
-                    !nca.exeFs || !nca.exeFs->FileExists("rtld") ||
-                    !nca.exeFs->FileExists("main") ||
-                    !nca.exeFs->FileExists("main.npdm"))
+                // Firmware 22/23 dumps may contain many system NCAs with
+                // encryption keys we cannot decode. Inspect the NCA header
+                // first: only the matching Program needs ExeFS decryption.
+                skyline::vfs::NCA header{backing, keyStore, false, true};
+                if (header.header.programId != QLauncherProgramId ||
+                    header.contentType != skyline::vfs::NcaContentType::Program)
+                    continue;
+                skyline::vfs::NCA program{backing, keyStore};
+                if (!program.exeFs || !program.exeFs->FileExists("rtld") ||
+                    !program.exeFs->FileExists("main") ||
+                    !program.exeFs->FileExists("main.npdm"))
                     continue;
                 return env->NewStringUTF(entry.name.c_str());
             } catch (const std::exception &) {

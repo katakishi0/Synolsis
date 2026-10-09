@@ -405,9 +405,9 @@ namespace skyline::gpu {
     void Texture::CopyFromStagingBuffer(const vk::raii::CommandBuffer &commandBuffer, const std::shared_ptr<memory::StagingBuffer> &stagingBuffer) {
         auto image{GetBacking()};
         if (layout == vk::ImageLayout::eUndefined)
-            commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eHost, vk::PipelineStageFlagBits::eTransfer, {}, {}, {}, vk::ImageMemoryBarrier{
+            commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer, {}, {}, {}, vk::ImageMemoryBarrier{
                 .image = image,
-                .srcAccessMask = vk::AccessFlagBits::eMemoryRead,
+                .srcAccessMask = vk::AccessFlagBits::eNoneKHR,
                 .dstAccessMask = vk::AccessFlagBits::eTransferWrite,
                 .oldLayout = std::exchange(layout, vk::ImageLayout::eGeneral),
                 .newLayout = vk::ImageLayout::eGeneral,
@@ -426,7 +426,9 @@ namespace skyline::gpu {
 
     void Texture::CopyIntoStagingBuffer(const vk::raii::CommandBuffer &commandBuffer, const std::shared_ptr<memory::StagingBuffer> &stagingBuffer) {
         auto image{GetBacking()};
-        commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eBottomOfPipe, vk::PipelineStageFlagBits::eTransfer, {}, {}, {}, vk::ImageMemoryBarrier{
+        // BOTTOM_OF_PIPE cannot make prior shader/attachment writes available
+        // to a subsequent transfer read. Use a real producer stage mask.
+        commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eAllCommands, vk::PipelineStageFlagBits::eTransfer, {}, {}, {}, vk::ImageMemoryBarrier{
             .image = image,
             .srcAccessMask = vk::AccessFlagBits::eMemoryWrite,
             .dstAccessMask = vk::AccessFlagBits::eTransferRead,
@@ -705,10 +707,13 @@ namespace skyline::gpu {
 
         if (layout != pLayout) {
             auto lCycle{gpu.scheduler.Submit([&](vk::raii::CommandBuffer &commandBuffer) {
-                commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eBottomOfPipe, {}, {}, {}, vk::ImageMemoryBarrier{
+                // Layout changes must order actual producer writes and subsequent
+                // consumers, including when the backing is recycled on Turnip.
+                const bool discarded{layout == vk::ImageLayout::eUndefined};
+                commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eAllCommands, vk::PipelineStageFlagBits::eAllCommands, {}, {}, {}, vk::ImageMemoryBarrier{
                     .image = GetBacking(),
-                    .srcAccessMask = vk::AccessFlagBits::eNoneKHR,
-                    .dstAccessMask = vk::AccessFlagBits::eNoneKHR,
+                    .srcAccessMask = discarded ? vk::AccessFlags{} : vk::AccessFlags{vk::AccessFlagBits::eMemoryWrite},
+                    .dstAccessMask = vk::AccessFlagBits::eMemoryRead | vk::AccessFlagBits::eMemoryWrite,
                     .oldLayout = std::exchange(layout, pLayout),
                     .newLayout = pLayout,
                     .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
@@ -959,7 +964,7 @@ namespace skyline::gpu {
                 if (layout != vk::ImageLayout::eTransferDstOptimal) {
                     commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eAllCommands, vk::PipelineStageFlagBits::eAllCommands, {}, {}, {}, vk::ImageMemoryBarrier{
                         .image = destinationBacking,
-                        .srcAccessMask = vk::AccessFlagBits::eMemoryRead,
+                        .srcAccessMask = vk::AccessFlagBits::eMemoryRead | vk::AccessFlagBits::eMemoryWrite,
                         .dstAccessMask = vk::AccessFlagBits::eTransferWrite,
                         .oldLayout = layout,
                         .newLayout = vk::ImageLayout::eTransferDstOptimal,
