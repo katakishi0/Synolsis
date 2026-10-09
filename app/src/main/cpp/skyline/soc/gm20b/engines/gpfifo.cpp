@@ -7,6 +7,7 @@
 #include <soc/gm20b/channel.h>
 #include "gpfifo.h"
 #include <atomic>
+#include <common/debug_log_sample.h>
 
 namespace skyline::soc::gm20b::engine {
     GPFIFO::GPFIFO(host1x::SyncpointSet &syncpoints, ChannelContext &channelCtx) : syncpoints(syncpoints), channelCtx(channelCtx) {}
@@ -18,7 +19,7 @@ namespace skyline::soc::gm20b::engine {
         if (AsyncLogger::CheckLogLevel(AsyncLogger::LogLevel::Debug)) {
             static std::atomic<u64> methodLogCount{};
             const auto n{methodLogCount.fetch_add(1, std::memory_order_relaxed) + 1};
-            if (n <= 8 || (n & (n - 1)) == 0)
+            if (skyline::diagnostics::ShouldSample(n))
                 LOGD("Called method in GPFIFO: 0x{:X} args: 0x{:X} (sample #{})",
                      method, argument, n);
         }
