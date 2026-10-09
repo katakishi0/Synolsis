@@ -25,7 +25,7 @@ concurrency:
 
 jobs:
   build:
-    name: V36 Sampled GPU Debug Logs and Horizon SVC Diagnostics ARM64
+    name: V37 Vulkan Image Copy Coherency and Guest GPU Stability ARM64
     runs-on: ubuntu-22.04
     timeout-minutes: 150
     env:
@@ -44,7 +44,7 @@ jobs:
         with:
           # Source is checked out at the start of the run, then built from that snapshot.
           # Pin the tested revision, including safe V4 locale migration.
-          ref: 1acad24c6f3bb1df1839c218f4567c4c1de6f365
+          ref: ef79f4e1551e92b130548014ecb131d1967e3b9f
           submodules: false
 
       - name: Assert full source is checked in
@@ -1160,6 +1160,31 @@ jobs:
           print("PASS: sampled high-volume GPU debug logs and retained critical Vulkan/Horizon diagnostics")
           PY
 
+      - name: Validate Vulkan mip copy geometry and transfer-destination ordering
+        shell: bash
+        run: |
+          set -euo pipefail
+          c++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic tests/vulkan_image_copy_region_policy_test.cpp -o /tmp/synolsis-v37-copy-test
+          /tmp/synolsis-v37-copy-test
+          python3 - <<'PY'
+          from pathlib import Path
+          tex=Path("app/src/main/cpp/skyline/gpu/texture/texture.cpp").read_text()
+          segment=tex.split("void Texture::CopyFrom(std::shared_ptr<Texture> source",1)[1].split("bool Texture::ValidateRenderPassUsage",1)[0]
+          assert 'copy_region_policy::ValidRange(availableMipLevels' in segment
+          assert 'copy_region_policy::ValidRange(availableLayers' in segment
+          assert 'copy_region_policy::RangeEnd(availableMipLevels' in segment
+          assert 'copy_region_policy::RangeCount(availableLayers' in segment
+          assert segment.count('copy_region_policy::MipExtent(') == 2
+          assert 'const bool needsBlit{srcFormat != format || dimensionsDiffer};' in segment
+          assert 'if (needsBlit) {' in segment
+          assert 'srcAccessMask = oldDstLayout == vk::ImageLayout::eUndefined' in segment
+          assert '.dstAccessMask = vk::AccessFlagBits::eTransferWrite' in segment
+          assert 'oldDstLayout == vk::ImageLayout::eUndefined' in segment
+          assert 'srcExtent.depth' in segment and 'dstExtent.depth' in segment
+          assert '.extent = vk::Extent3D{dstExtent.width, dstExtent.height, dstExtent.depth}' in segment
+          print("PASS: image-copy range/geometry, transfer-dst WAW barrier, format conversion blit guard")
+          PY
+
       - name: Compile Android Kotlin frontend before expensive native build
         shell: bash
         run: |
@@ -1238,16 +1263,16 @@ jobs:
             echo "::error::Gradle did not produce an APK"
             exit 1
           fi
-          tag="synolsis-v36-gpu-log-${GITHUB_RUN_NUMBER}"
+          tag="synolsis-v37-vulkan-copy-${GITHUB_RUN_NUMBER}"
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             # Rerunning a build must not fail just because its release exists.
             gh release upload "$tag" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
           else
             gh release create "$tag" "${files[@]}" \
               --repo "$GITHUB_REPOSITORY" \
-              --target "1acad24c6f3bb1df1839c218f4567c4c1de6f365" \
-              --title "Synolsis V36 GPU Debug Flood and Core Stability ${GITHUB_RUN_NUMBER}" \
-              --notes "Experimental Synolsis V36 ARM64: preserves V35 Horizon SVC empty-wait fix and V34 Vulkan present/fence diagnostics; samples excessive GPFIFO method/pushbuffer debug logs and VK_SUBOPTIMAL_KHR info logs to reduce debug capture overhead. User-observed flicker/black output and full NVDEC/VIC/QLauncher/internal resolution support are NOT yet fixed or verified. See docs/SYNOLSIS_V36_GPU_LOGGING_EXPERIMENT.md." \
+              --target "ef79f4e1551e92b130548014ecb131d1967e3b9f" \
+              --title "Synolsis V37 Vulkan Texture Copy and GPU Coherency ${GITHUB_RUN_NUMBER}" \
+              --notes "Experimental Synolsis V37 ARM64: retains V35 SVC fix/V36 debug log sampling; repairs missing Vulkan transfer destination ordering, per-mip copy/blit geometry and range checks; validates blit support even for format conversion. These are real Vulkan correctness changes, NOT a confirmed fix for NieR/Nine Sols corruption on phone. Full guest storage images, NVDEC/VIC, QLauncher and internal resolution remain incomplete. See docs/SYNOLSIS_V37_EDEN_VULKAN_COPY_COMPARISON.md." \
               --prerelease
           fi
           {
