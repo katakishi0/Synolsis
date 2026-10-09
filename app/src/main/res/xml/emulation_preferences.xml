@@ -180,6 +180,16 @@
             app:key="synolsis_gpu_preset"
             app:title="@string/synolsis_gpu_preset"
             app:summary="@string/synolsis_gpu_preset_description" />
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            app:key="synolsis_auto_low_end"
+            app:title="@string/synolsis_auto_low_end_title"
+            app:summary="@string/synolsis_auto_low_end_summary" />
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            app:key="synolsis_memory_guard"
+            app:title="@string/synolsis_memory_guard_title"
+            app:summary="@string/synolsis_memory_guard_summary" />
         <SeekBarPreference
             android:defaultValue="6"
             android:min="1"
