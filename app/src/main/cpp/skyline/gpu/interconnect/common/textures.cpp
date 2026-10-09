@@ -326,7 +326,7 @@ namespace skyline::gpu::interconnect {
             .aspectMask = vk::ImageAspectFlagBits::eColor,
             .levelCount = 1,
             .layerCount = layers,
-        }, backingFormat, vk::ComponentMapping{})};
+        }, {}, vk::ComponentMapping{})};
         return nullStorageViews.emplace(key, std::move(view)).first->second.get();
     }
 
