@@ -400,11 +400,18 @@ Java_org_stratoemu_strato_SynolsisSettingsHubActivity_findInstalledQLauncherNca(
                 entry.name == "." || entry.name == "..")
                 continue;
             try {
-                auto backing{systemArchives->OpenFile(entry.name)};
-                skyline::vfs::NCA nca{backing, keyStore};
-                if (nca.header.programId != QLauncherProgramId ||
-                    nca.contentType != skyline::vfs::NcaContentType::Program ||
-                    !nca.exeFs || !nca.exeFs->FileExists("rtld") ||
+                // Check the encrypted NCA header before decrypting ExeFS.
+                // Unrelated firmware titles should not require their content keys.
+                auto headerBacking{systemArchives->OpenFile(entry.name)};
+                skyline::vfs::NCA headerNca{headerBacking, keyStore, false, true};
+                if (headerNca.header.programId != QLauncherProgramId ||
+                    headerNca.contentType != skyline::vfs::NcaContentType::Program)
+                    continue;
+
+                // Only the actual QLauncher candidate needs full ExeFS parsing.
+                auto candidateBacking{systemArchives->OpenFile(entry.name)};
+                skyline::vfs::NCA nca{candidateBacking, keyStore};
+                if (!nca.exeFs || !nca.exeFs->FileExists("rtld") ||
                     !nca.exeFs->FileExists("main") ||
                     !nca.exeFs->FileExists("main.npdm"))
                     continue;
