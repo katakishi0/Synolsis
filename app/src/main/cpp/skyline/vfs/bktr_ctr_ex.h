@@ -13,28 +13,9 @@
 #include <crypto/key_store.h>
 #include "backing.h"
 #include "bktr_relocation.h"
+#include "bktr_ctr_counter.h"
 
 namespace skyline::vfs::bktr {
-    // Switch BKTR: subsection CTR value occupies IV[4..7] (big endian);
-    // absolute NCA physical block number occupies IV[8..15] (big endian).
-    // IV[0..3] retains the NCA's section secure value. AES-CTR is symmetric.
-    constexpr std::array<std::uint8_t, 16> Counter(
-        std::array<std::uint8_t, 16> iv,
-        std::uint32_t subsectionCtr, std::uint64_t absoluteByteOffset) {
-        for (int i = 7; i >= 4; --i) {
-            iv[static_cast<std::size_t>(i)] =
-                static_cast<std::uint8_t>(subsectionCtr & 0xff);
-            subsectionCtr >>= 8;
-        }
-        auto block = absoluteByteOffset >> 4;
-        for (int i = 15; i >= 8; --i) {
-            iv[static_cast<std::size_t>(i)] =
-                static_cast<std::uint8_t>(block & 0xff);
-            block >>= 8;
-        }
-        return iv;
-    }
-
     // On-demand *physical* CTR-Ex decryption. The caller must separately
     // overlay the base RomFS using RelocationTable. Never expose this as a
     // complete patched RomFS or count it as an installed update by itself.
