@@ -929,7 +929,7 @@ namespace skyline::gpu {
     }
 
     std::shared_ptr<TextureView> Texture::GetView(vk::ImageViewType type, vk::ImageSubresourceRange range, texture::Format pFormat, vk::ComponentMapping mapping) {
-        if (!pFormat || pFormat == guest->format)
+        if (!pFormat || (guest && pFormat == guest->format))
             pFormat = format; // We want to use the texture's format if it isn't supplied or if the requested format matches the guest format then we want to use the host format just in case it is host incompatible and the host format differs from the guest format
 
         auto viewFormat{pFormat->vkFormat}, textureFormat{format->vkFormat};
