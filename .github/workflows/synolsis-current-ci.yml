@@ -44,7 +44,7 @@ jobs:
         with:
           # Source is checked out at the start of the run, then built from that snapshot.
           # Pin the tested revision, including safe V4 locale migration.
-          ref: 90840aaa7bd5904ef358fd2b593ed8be263ea7ce
+          ref: 94712a79ad9ff30e27ee589515408c7db4180681
           submodules: false
 
       - name: Assert full source is checked in
@@ -1350,7 +1350,7 @@ jobs:
           else
             gh release create "$tag" "${files[@]}" \
               --repo "$GITHUB_REPOSITORY" \
-              --target "90840aaa7bd5904ef358fd2b593ed8be263ea7ce" \
+              --target "94712a79ad9ff30e27ee589515408c7db4180681" \
               --title "Synolsis V40 Low-End Shader Modes and QLauncher NCA ${GITHUB_RUN_NUMBER}" \
               --notes "Synolsis V40 ARM64: keeps the V39 Maxwell/Kepler storage image compatibility (confirmed by user on NieR with optional GPU fence accuracy OFF), V35 SVC zero-handle boot repair and V37 Vulkan copy fixes. Renames optional GPU fence synchronization and leaves OFF by default. Removes hardcoded 6 GB label; adds low-memory handheld preset and real Vulkan SPIR-V standard/compatibility modes. Repairs NCA ExeFS PFS0 section bounds and differentiates QLauncher missing keys vs invalid ExeFS. HOME menu applet services, GLSL/GLASM backends, full NVDEC/VIC, alternate ASTC decoders and true internal resolution remain incomplete. See docs/SYNOLSIS_V40_LOW_END_SHADER_QLAUNCHER.md." \
               --prerelease
