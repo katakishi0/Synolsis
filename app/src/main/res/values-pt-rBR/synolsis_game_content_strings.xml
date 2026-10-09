@@ -20,4 +20,7 @@
     <string name="synolsis_content_checksum_ok">O checksum do NSP confere. Isso não valida o ID do jogo.</string>
     <string name="synolsis_content_checksum_failed">Falha de integridade: o NSP armazenado foi modificado ou está danificado.</string>
     <string name="synolsis_content_duplicate">Este NSP já foi importado para este jogo.</string>
+    <string name="synolsis_content_cnmt_matched">CNMT corresponde a este jogo (não instalado)</string>
+    <string name="synolsis_content_wrong_title">Este NSP contém conteúdo de outro jogo. Importe no jogo correspondente.</string>
+    <string name="synolsis_content_wrong_kind">O CNMT indica outro tipo de conteúdo. Selecione uma atualização em Atualizações ou um complemento em DLCs.</string>
 </resources>
