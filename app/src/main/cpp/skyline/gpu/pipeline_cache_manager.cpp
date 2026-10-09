@@ -33,12 +33,8 @@ namespace skyline::gpu {
         // Shader creation can enqueue hundreds of bundles at once. Avoid
         // seeking to offset zero and rewriting the header for every shader,
         // which causes avoidable flash I/O and queue contention on Adreno.
-        // Cache I/O is off the render thread, but flash flushes still
-        // contend with the shader pipeline workers on 6 GB Android devices.
-        // Commit after 32 bundles or whenever the queue becomes idle.
-        // A process kill during a sustained burst can discard at most the
-        // last 31 cache records; they are regenerated on next launch.
-        constexpr u32 HeaderBatchSize{32};
+        // Bound the uncommitted staging tail to at most 15 bundles.
+        constexpr u32 HeaderBatchSize{16};
         u32 pendingHeaderUpdates{};
 
         const auto flushHeader{[&]() {
@@ -178,12 +174,8 @@ namespace skyline::gpu {
     }
 
     void PipelineCacheManager::QueueWrite(std::unique_ptr<interconnect::PipelineStateBundle> bundle) {
-        {
-            std::scoped_lock lock{writeMutex};
-            writeQueue.emplace(std::move(bundle));
-        }
-        // Do not wake the writer while still holding the queue mutex.
-        // Shader compilation producers should never wait for the wake-up.
+        std::scoped_lock lock{writeMutex};
+        writeQueue.emplace(std::move(bundle));
         writeCondition.notify_one();
     }
 
