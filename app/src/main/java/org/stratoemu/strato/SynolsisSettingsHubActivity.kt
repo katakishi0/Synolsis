@@ -109,7 +109,7 @@ class SynolsisSettingsHubActivity : AppCompatActivity() {
                     R.string.synolsis_qlauncher_not_found, Toast.LENGTH_LONG).show()
                 // Manual selection remains an explicit fallback for unusual
                 // firmware layouts; it is no longer the normal boot path.
-                launchInstalledQLauncher()
+                qlauncherPicker.launch(arrayOf("*/*"))
                 return@launch
             }
             runCatching {
@@ -230,7 +230,7 @@ class SynolsisSettingsHubActivity : AppCompatActivity() {
         // prevent the real home menu from starting.
         addCard(R.string.synolsis_qlauncher_title,
                 R.string.synolsis_qlauncher_desc, R.drawable.ic_play) {
-            qlauncherPicker.launch(arrayOf("*/*"))
+            launchInstalledQLauncher()
         }
     }
 }
