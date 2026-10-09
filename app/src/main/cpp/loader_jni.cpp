@@ -379,6 +379,7 @@ Java_org_stratoemu_strato_SynolsisSettingsHubActivity_findInstalledQLauncherNca(
     constexpr const char *UnreadableFirmware{"@qlauncher:unreadable"};
     constexpr const char *MissingProgram{"@qlauncher:absent"};
     constexpr const char *InvalidProgram{"@qlauncher:program"};
+    constexpr const char *MissingProgramKeys{"@qlauncher:keys"};
     try {
         auto systemArchives{std::make_shared<skyline::vfs::OsFileSystem>(
             skyline::JniString(env, firmwarePath))};
@@ -393,6 +394,7 @@ Java_org_stratoemu_strato_SynolsisSettingsHubActivity_findInstalledQLauncherNca(
         size_t readableHeaders{};
         size_t archiveCount{};
         bool programFound{};
+        bool programKeyMissing{};
 
         // Deterministic order if a firmware dump contains multiple revisions.
         std::sort(entries.begin(), entries.end(), [](const auto &a, const auto &b) {
@@ -407,6 +409,7 @@ Java_org_stratoemu_strato_SynolsisSettingsHubActivity_findInstalledQLauncherNca(
                 entry.name == "." || entry.name == "..")
                 continue;
             ++archiveCount;
+            bool qlauncherCandidate{};
             try {
                 auto backing{systemArchives->OpenFile(entry.name)};
                 // Firmware 22/23 dumps may contain many system NCAs with
@@ -418,20 +421,37 @@ Java_org_stratoemu_strato_SynolsisSettingsHubActivity_findInstalledQLauncherNca(
                     header.contentType != skyline::vfs::NcaContentType::Program)
                     continue;
                 programFound = true;
+                qlauncherCandidate = true;
                 skyline::vfs::NCA program{backing, keyStore};
                 if (!program.exeFs || !program.exeFs->FileExists("rtld") ||
                     !program.exeFs->FileExists("main") ||
                     !program.exeFs->FileExists("main.npdm"))
                     continue;
                 return env->NewStringUTF(entry.name.c_str());
+            } catch (const skyline::loader::loader_exception &error) {
+                // A matching HOME Menu program may need a newer titlekek or
+                // key-area generation than the user installed. Never silently
+                // conflate missing keys with a damaged executable NCA.
+                if (qlauncherCandidate) {
+                    switch (error.error) {
+                        case skyline::loader::LoaderResult::MissingHeaderKey:
+                        case skyline::loader::LoaderResult::MissingTitleKey:
+                        case skyline::loader::LoaderResult::MissingTitleKek:
+                        case skyline::loader::LoaderResult::MissingKeyArea:
+                            programKeyMissing = true;
+                            break;
+                        default:
+                            break;
+                    }
+                }
             } catch (const std::exception &) {
-                // A missing key, bad NCA or unrelated firmware content must
-                // not prevent checking the other firmware NCAs.
+                // A bad NCA must not abort discovery of another candidate.
             }
         }
-        // Distinguish a missing HOME Menu title from missing keys or an
-        // unreadable matching NCA. An installed firmware version alone does
-        // not prove that the QLauncher Program NCA was present in that ZIP.
+        // A firmware version can be valid even when the HOME Menu Program
+        // NCA is absent, damaged, or encrypted with unavailable keys.
+        if (programKeyMissing)
+            return env->NewStringUTF(MissingProgramKeys);
         return env->NewStringUTF(programFound ? InvalidProgram :
             (archiveCount && !readableHeaders ? UnreadableFirmware : MissingProgram));
     } catch (const std::exception &) {
