@@ -90,7 +90,7 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           svc=Path("app/src/main/cpp/skyline/kernel/svc.cpp").read_text()
-          assert "if (!numHandles || numHandles > MaxSyncHandles)" in svc
+          assert "wait_synchronization_policy::ValidCount(numHandles)" in svc
           assert "out > state.process->npdm.meta.systemResourceSize" in svc
           host=Path("app/src/main/cpp/skyline/services/nvdrv/devices/nvhost/host1x_channel.cpp").read_text()
           assert "handleDesc->size - cmdBuf.offset" in host
