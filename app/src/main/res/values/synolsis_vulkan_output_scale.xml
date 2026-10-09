@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="synolsis_vulkan_output_scale">Vulkan presentation resolution</string>
-    <string name="synolsis_vulkan_output_scale_desc">Resizes only the final Vulkan swapchain, not the game’s internal render targets. Native 100% is safest. This is not FSR.</string>
+    <string name="synolsis_vulkan_output_scale">Vulkan output scale</string>
+    <string name="synolsis_vulkan_output_scale_desc">V25 uses 100% only. Not internal resolution.</string>
     <string-array name="synolsis_vulkan_output_scale_entries">
-        <item>100% — native (default)</item>
-        <item>75% — reduced presentation</item>
-        <item>50% — reduced presentation</item>
+        <item>100% (active)</item>
+        <item>75% (inactive in V25)</item>
+        <item>50% (inactive in V25)</item>
     </string-array>
     <string-array name="synolsis_vulkan_output_scale_values">
         <item>100</item>
