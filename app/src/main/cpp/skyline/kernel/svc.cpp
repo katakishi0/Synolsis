@@ -689,18 +689,21 @@ namespace skyline::kernel::svc {
         constexpr u8 MaxSyncHandles{0x40}; // The total amount of handles that can be passed to WaitSynchronization
 
         u32 numHandles{ctx.w2};
-        if (!numHandles || numHandles > MaxSyncHandles) {
-            // A zero-handle wait would later read waitHandles[0] when
-            // creating the trace event. Reject it with a guest result.
+        if (numHandles > MaxSyncHandles) {
+            // Horizon accepts an empty set of objects for a timed or
+            // cancellable wait. OutOfRange applies only above 0x40.
             ctx.w0 = result::OutOfRange;
             return;
         }
-        if (!ctx.x1) {
+        if (numHandles && !ctx.x1) {
             ctx.w0 = result::InvalidAddress;
             return;
         }
 
-        span waitHandles(reinterpret_cast<KHandle *>(ctx.x1), numHandles);
+        // The zero-element range must not rely on a null guest pointer.
+        KHandle emptyHandle{};
+        span waitHandles(numHandles ? reinterpret_cast<KHandle *>(ctx.x1)
+                                   : &emptyHandle, numHandles);
         std::vector<std::shared_ptr<type::KSyncObject>> objectTable;
         objectTable.reserve(numHandles);
 
@@ -733,16 +736,25 @@ namespace skyline::kernel::svc {
         }
 
         i64 timeout{static_cast<i64>(ctx.x3)};
-        if (waitHandles.size() == 1) {
-            LOGD("Waiting on 0x{:X} for {}ns", waitHandles[0], timeout);
-        } else if (AsyncLogger::CheckLogLevel(AsyncLogger::LogLevel::Debug)) {
-            std::string handleString;
-            for (const auto &handle : waitHandles)
-                handleString += fmt::format("* 0x{:X}\n", handle);
-            LOGD("Waiting on handles:\n{}Timeout: {}ns", handleString, timeout);
+        if (waitHandles.empty()) {
+            static std::atomic<u64> emptyWaitCalls{};
+            auto call{emptyWaitCalls.fetch_add(1, std::memory_order_relaxed) + 1};
+            if (call <= 4 || !(call & (call - 1)))
+                LOGD("WaitSynchronization empty handles: count={}, timeout={}ns", call, timeout);
+            TRACE_EVENT("kernel", "WaitSynchronizationEmpty");
+        } else {
+            if (waitHandles.size() == 1) {
+                LOGD("Waiting on 0x{:X} for {}ns", waitHandles[0], timeout);
+            } else if (AsyncLogger::CheckLogLevel(AsyncLogger::LogLevel::Debug)) {
+                std::string handleString;
+                for (const auto &handle : waitHandles)
+                    handleString += fmt::format("* 0x{:X}\n", handle);
+                LOGD("Waiting on handles:\n{}Timeout: {}ns", handleString, timeout);
+            }
+            TRACE_EVENT_FMT("kernel",
+                fmt::runtime(waitHandles.size() == 1 ? "WaitSynchronization 0x{:X}" : "WaitSynchronizationMultiple 0x{:X}"),
+                waitHandles[0]);
         }
-
-        TRACE_EVENT_FMT("kernel", fmt::runtime(waitHandles.size() == 1 ? "WaitSynchronization 0x{:X}" : "WaitSynchronizationMultiple 0x{:X}"), waitHandles[0]);
 
         std::unique_lock lock(type::KSyncObject::syncObjectMutex);
         if (state.thread->cancelSync) {
