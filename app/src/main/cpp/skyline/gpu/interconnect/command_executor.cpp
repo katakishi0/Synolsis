@@ -11,6 +11,7 @@
 #include <gpu.h>
 #include <dlfcn.h>
 #include "command_executor.h"
+#include "gpu_fence_callback_policy.h"
 #include <nce.h>
 
 namespace skyline::gpu::interconnect {
@@ -671,11 +672,22 @@ namespace skyline::gpu::interconnect {
 
         executionTag = AllocateTag();
 
-        // Ensure all pushed callbacks wait for the submission to have finished GPU execution
+        // Eden anti-flicker analogy: guest fence/semaphore callbacks must not
+        // claim completion before Vulkan finishes the commands they guard.
+        // The original non-DMI path ran these callbacks immediately after
+        // SubmitInternal(), when GPU execution could still be in flight.
+        // Keep fast mode as the default and let affected games opt into
+        // accurate callbacks without enabling unsafe direct memory import.
+        const bool delayedGpuCallbacks{fence_policy::DelayCallbacks(
+            *state.settings->useDirectMemoryImport,
+            *state.settings->gpuFenceAntiFlicker)};
+
+        // Enqueue the cycle ahead of its guest completion callbacks, so the
+        // worker waits on the Vulkan fence before publishing syncpoints.
         if (!slot->nodes.empty())
             waiterThread.Queue(cycle, {});
 
-        if (*state.settings->useDirectMemoryImport) {
+        if (delayedGpuCallbacks) {
             // When DMI is in use, callbacks and deferred actions should be executed in sequence with the host GPU
             for (auto &actionCb : pendingDeferredActions)
                 waiterThread.Queue(nullptr, std::move(actionCb));
@@ -692,8 +704,8 @@ namespace skyline::gpu::interconnect {
             submissionNumber++;
         }
 
-        if (!*state.settings->useDirectMemoryImport) {
-            // When DMI is not in use, execute callbacks immediately after submission
+        if (!delayedGpuCallbacks) {
+            // Fast mode: callbacks run on submission, not GPU completion.
             for (auto &actionCb : pendingDeferredActions)
                 actionCb();
 
