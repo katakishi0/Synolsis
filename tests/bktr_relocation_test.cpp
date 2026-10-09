@@ -39,6 +39,22 @@ int main() {
     assert(patch && patch->fromPatch && patch->sourceOffset == 0x700);
     assert(!parsed->Resolve(0x4000, 0x3000, 0x4000));
     assert(!parsed->Resolve(0x1100, 0x3000, 0x650));
+    {
+        // The virtual image crosses the boundary between base/patch
+        // backing at 0x1000. The merge must choose the correct source
+        // without a whole-RomFS allocation.
+        std::vector<std::uint8_t> baseBytes(0x3000, 0x42);
+        std::vector<std::uint8_t> patchBytes(0x4000, 0x77);
+        std::vector<std::uint8_t> output(0x60);
+        assert(parsed->ReadDecrypted(baseBytes, patchBytes, output, 0xFE0));
+        for (std::size_t i{}; i < 0x20; ++i)
+            assert(output[i] == 0x42);
+        for (std::size_t i{0x20}; i < output.size(); ++i)
+            assert(output[i] == 0x77);
+        assert(!parsed->ReadDecrypted(baseBytes, patchBytes, output, 0x3FE0));
+        assert(!parsed->ReadDecrypted(baseBytes, patchBytes,
+                                      std::span<std::uint8_t>(output), 0x5000));
+    }
     const auto clip = parsed->Resolve(0x3FFC, 0x3000, 0x4000);
     assert(clip && clip->size == 4);
     for (std::size_t len{}; len < 0x4000*2; len += 73)
