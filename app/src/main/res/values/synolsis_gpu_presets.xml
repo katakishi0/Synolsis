@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string-array name="synolsis_gpu_preset_entries">
+        <item>Ultra low-end (minimum memory, slower)</item>
         <item>Low-end (save RAM, handheld)</item>
         <item>Conservative (less RAM)</item>
         <item>Balanced</item>
@@ -8,6 +9,7 @@
         <item>FPS Hack (Adreno/Turnip; experimental)</item>
     </string-array>
     <string-array name="synolsis_gpu_preset_values">
+        <item>ultra_low_end</item>
         <item>low_end</item>
         <item>conservative</item>
         <item>balanced</item>
