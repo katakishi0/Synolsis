@@ -119,17 +119,11 @@ namespace skyline::gpu {
         // This is *presentation* scaling only. The emulated GPU still renders
         // all game attachments at their original size, and this setting must
         // never be described as an internal resolution or FSR implementation.
-        const auto percent{*state.settings->vulkanPresentationScalePercent};
-        const auto srcFeatures{gpu.vkPhysicalDevice.getFormatProperties(*texture->format).optimalTilingFeatures};
-        const auto dstFeatures{gpu.vkPhysicalDevice.getFormatProperties(
-            format::R8G8B8A8Unorm.vkFormat).optimalTilingFeatures};
-        const auto nativeDstFeatures{gpu.vkPhysicalDevice.getFormatProperties(
-            *frame.textureView->format).optimalTilingFeatures};
-        const bool canBlit{
-            bool(srcFeatures & vk::FormatFeatureFlagBits::eBlitSrc) &&
-            bool(dstFeatures & vk::FormatFeatureFlagBits::eBlitDst) &&
-            bool(nativeDstFeatures & vk::FormatFeatureFlagBits::eBlitDst)
-        };
+        // V25 flicker diagnostic: keep native 100% final swapchain size.
+        // The old 50/75% option only affected host presentation, not
+        // guest render targets, and was unreliable on some Turnip paths.
+        constexpr u32 percent{100U};
+        constexpr bool canBlit{false}; // A/B test: no scaled-image blit on Turnip.
         const auto desired{presentation_scale::ChooseExtent(
             {texture->dimensions.width, texture->dimensions.height},
             percent,
@@ -299,13 +293,15 @@ namespace skyline::gpu {
                 // skip game simulation or guest GPU rendering. Keeping fence
                 // waits and callbacks is necessary so Horizon buffer slots
                 // get released and the guest does not deadlock.
-                const u32 skippedFrames{std::min(*state.settings->presentationFrameSkip, 2U)};
-                const bool skipPresent{
-                    skippedFrames != 0 &&
-                    (presentationFrameCounter++ % (static_cast<u64>(skippedFrames) + 1)) != 0
-                };
-                if (skipPresent) {
+                const bool shouldPresent{skipPolicy.ShouldPresent(
+                    *state.settings->presentationFrameSkip)};
+                if (!shouldPresent) {
+                    // The guest fence and release callback are still required:
+                    // skipping these can recycle incomplete guest buffers.
                     frame.fence.Wait(state.soc->host1x);
+                    // Temporal history must not span a dropped display frame.
+                    // Do not advertise a generated frame without snapshots.
+                    frameHistory.Reset();
                 } else {
                     PresentFrame(frame);
                 }
@@ -449,6 +445,7 @@ namespace skyline::gpu {
 
         vkSwapchain.reset();
         frameHistory.Reset(); // Surface recreation invalidates old frame identity and size.
+        skipPolicy.Reset(); // Do not carry display-skip phase between surfaces.
         windowTransformApplied = false; // New native window needs fresh transform
 
         if (jSurface) {
