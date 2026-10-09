@@ -25,7 +25,7 @@ concurrency:
 
 jobs:
   build:
-    name: V32 Vulkan WSI + Host1x FIFO + SignalEvent Stability ARM64
+    name: V33 Vulkan Acquire + NVDEC/VIC + Horizon SVC Stability ARM64
     runs-on: ubuntu-22.04
     timeout-minutes: 150
     env:
@@ -44,7 +44,7 @@ jobs:
         with:
           # Source is checked out at the start of the run, then built from that snapshot.
           # Pin the tested revision, including safe V4 locale migration.
-          ref: 436112f656252a58a2b75920e7d7939d0f980d22
+          ref: 9082f96ccec50692f330eacc7f7fdb8d0199badd
           submodules: false
 
       - name: Assert full source is checked in
@@ -1041,6 +1041,25 @@ jobs:
           echo "## V5 rollback APK with warm native cache" >> "$GITHUB_STEP_SUMMARY"
           echo "Source code pinned to the same rollback; CCache is build-only." >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Check V33 Vulkan acquire/swapchain and VIC safety
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          gpu=Path("app/src/main/cpp/skyline/gpu/presentation_engine.cpp").read_text()
+          vic=Path("app/src/main/cpp/skyline/soc/host1x/classes/vic.cpp").read_text()
+          nvhost=Path("app/src/main/cpp/skyline/services/nvdrv/devices/nvhost/host1x_channel.cpp").read_text()
+          assert "while (nextImage = vkSwapchain->acquireNextImage" not in gpu
+          assert "nextImage.first != vk::Result::eSuboptimalKHR" in gpu
+          assert "gpu.vkDevice.waitIdle()" in gpu
+          assert "supportsFormat(format::R8G8B8A8Unorm.vkFormat)" in gpu
+          assert "supportsFormat(format::B8G8R8A8Unorm.vkFormat)" in gpu
+          assert "unhandledMethodCount.fetch_add" in vic
+          assert "if (!id || id >= soc::host1x::SyncpointCount)" in nvhost
+          print("PASS: Vulkan acquire protocol and bounded VIC/NVHOST diagnostics")
+          PY
+
       - name: Test V32 host1x packet bounds and SVC SignalEvent wiring
         shell: bash
         run: |
@@ -1147,16 +1166,16 @@ jobs:
             echo "::error::Gradle did not produce an APK"
             exit 1
           fi
-          tag="synolsis-v32-host1x-svc-${GITHUB_RUN_NUMBER}"
+          tag="synolsis-v33-vulkan-acquire-${GITHUB_RUN_NUMBER}"
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             # Rerunning a build must not fail just because its release exists.
             gh release upload "$tag" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
           else
             gh release create "$tag" "${files[@]}" \
               --repo "$GITHUB_REPOSITORY" \
-              --target "436112f656252a58a2b75920e7d7939d0f980d22" \
-              --title "Synolsis V32 Host1x/SVC + Vulkan WSI Compatibility test ${GITHUB_RUN_NUMBER}" \
-              --notes "Synolsis V32 experimental ARM64: V31 capability-checked Android Vulkan WSI, original Strato baseline compatibility, V30 Maxwell scissor and portable default, plus real Horizon SVC 0x11 SignalEvent, event-handle validation and bounded host1x/VIC/NVDEC method parsing and syncpoint IDs. Full guest NVDEC/VIC playback, graphics bugs for Nine Sols/NieR, other Horizon SVCs, QLauncher and internal resolution are NOT yet proven fixed. See docs/SYNOLSIS_V32_HOST1X_SVC_TEST_PLAN.md." \
+              --target "9082f96ccec50692f330eacc7f7fdb8d0199badd" \
+              --title "Synolsis V33 Vulkan Acquire + NVDEC/VIC Compatibility test ${GITHUB_RUN_NUMBER}" \
+              --notes "Experimental Synolsis V33 ARM64: V32 Horizon SVC SignalEvent and Host1x bounds guards; V31 surface format compile repair; treat VK_SUBOPTIMAL_KHR as a valid acquired image, retire old Vulkan swapchain images after idle, rate-limit VIC log spam and reject invalid NVHOST syncpoints. Full guest NVDEC, Nine Sols/NieR graphics fixes, QLauncher HOME, all SVCs and true internal resolution are NOT complete; compare using the same game/driver as V29/V30." \
               --prerelease
           fi
           {
