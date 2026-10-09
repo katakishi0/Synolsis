@@ -118,7 +118,12 @@ jobs:
           assert "capabilities.supportedCompositeAlpha" in cpp
           assert "capabilities.supportedTransforms" in cpp
           assert "supportsFormat(*format)" in cpp
-          assert "supportsFormat(*format::B8G8R8A8Unorm)" in cpp
+          # FormatBase is a value type, not a pointer. The prior test
+          # accidentally required the invalid C++ expression responsible
+          # for the failed V31/V32 NDK compilations.
+          assert "supportsFormat(format::R8G8B8A8Unorm.vkFormat)" in cpp
+          assert "supportsFormat(format::B8G8R8A8Unorm.vkFormat)" in cpp
+          assert "supportsFormat(*format::" not in cpp
           assert ".preTransform = preTransform" in cpp
           assert ".compositeAlpha = compositeAlpha" in cpp
           print("PASS: WSI alpha/transform format guard integrated into production Vulkan swapchain creation")
