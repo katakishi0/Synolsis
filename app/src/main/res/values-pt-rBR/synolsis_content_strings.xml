@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="synolsis_content_title">Atualizações e DLCs do jogo</string>
+    <string name="synolsis_content_title">Atualizações e DLC</string>
     <string name="synolsis_content_open">Atualizações / DLCs</string>
-    <string name="synolsis_content_not_mounted">Biblioteca experimental de arquivos NSP. Os arquivos importados são salvos no aparelho, mas ainda NÃO são instalados nem aplicados ao jogo pelo núcleo Strato. Updates e DLCs só funcionarão após a implementação nativa.</string>
+    <string name="synolsis_content_not_mounted">Os pacotes são salvos, mas ainda não funcionam no jogo.</string>
     <string name="synolsis_import_update">Importar atualização NSP</string>
     <string name="synolsis_import_dlc">Importar DLC NSP</string>
     <string name="synolsis_imported_count">Pacotes armazenados: %1$d</string>
     <string name="synolsis_content_remove">Remover pacote</string>
     <string name="synolsis_content_remove_confirm">Excluir esta cópia local do pacote? O arquivo original não será alterado.</string>
     <string name="synolsis_import_saved">Pacote salvo</string>
-    <string name="synolsis_import_saved_description">NSP validado e armazenado no catálogo do jogo. O núcleo Strato ainda não monta esse conteúdo.</string>
+    <string name="synolsis_import_saved_description">NSP salvo. Conteúdo ainda não ativado.</string>
     <string name="synolsis_import_failed">Falha na importação</string>
     <string name="synolsis_nsp_only">Selecione um arquivo NSP descompactado. Este importador não suporta NSZ ou XCI.</string>
     <string name="synolsis_nsp_invalid">Este arquivo não é um contêiner NSP (PFS0) válido ou está incompleto.</string>
