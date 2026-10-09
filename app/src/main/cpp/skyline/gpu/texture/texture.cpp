@@ -7,6 +7,7 @@
 #include <common/trace.h>
 #include <common/settings.h>
 #include "texture.h"
+#include "copy_region_policy.h"
 #include "layout.h"
 #include "adreno_aliasing.h"
 #include "bc_decoder.h"
@@ -955,8 +956,20 @@ namespace skyline::gpu {
             throw exception("Scaled blits require equal depth and exactly one mip level");
 
         const bool dimensionsDiffer{source->dimensions != dimensions};
+        const bool needsBlit{srcFormat != format || dimensionsDiffer};
+        const auto availableMipLevels{std::min(levelCount, source->levelCount)};
+        const auto availableLayers{std::min(layerCount, source->layerCount)};
+        if (!copy_region_policy::ValidRange(availableMipLevels, subresource.baseMipLevel,
+                                           subresource.levelCount) ||
+            !copy_region_policy::ValidRange(availableLayers, subresource.baseArrayLayer,
+                                           subresource.layerCount)) {
+            throw exception("Image copy subresource range is outside source/destination mip or layer bounds");
+        }
+
+        // The target needs the same advertised blit support for a format
+        // conversion even when dimensions are identical.
         auto selectedFilter{vk::Filter::eLinear};
-        if (dimensionsDiffer) {
+        if (needsBlit) {
             const auto srcFeatures{gpu.vkPhysicalDevice.getFormatProperties(*source->format).optimalTilingFeatures};
             const auto dstFeatures{gpu.vkPhysicalDevice.getFormatProperties(*format).optimalTilingFeatures};
             if (!(srcFeatures & vk::FormatFeatureFlagBits::eBlitSrc) ||
@@ -997,51 +1010,80 @@ namespace skyline::gpu {
                 }
 
                 auto destinationBacking{GetBacking()};
-                if (layout != vk::ImageLayout::eTransferDstOptimal) {
-                    commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eAllCommands, vk::PipelineStageFlagBits::eAllCommands, {}, {}, {}, vk::ImageMemoryBarrier{
+                // Synchronize WAW/WAR hazards even if the previous frame
+                // already left this image in TRANSFER_DST_OPTIMAL. Skipping
+                // the barrier for identical layouts can reuse stale tiles
+                // or reorder the new copy with prior destination readers.
+                // The first use of an undefined image has no source accesses.
+                const auto oldDstLayout{layout};
+                commandBuffer.pipelineBarrier(
+                    oldDstLayout == vk::ImageLayout::eUndefined
+                        ? vk::PipelineStageFlags{vk::PipelineStageFlagBits::eTopOfPipe}
+                        : vk::PipelineStageFlags{vk::PipelineStageFlagBits::eAllCommands},
+                    vk::PipelineStageFlagBits::eTransfer, {}, {}, {},
+                    vk::ImageMemoryBarrier{
                         .image = destinationBacking,
-                        .srcAccessMask = vk::AccessFlagBits::eMemoryRead | vk::AccessFlagBits::eMemoryWrite,
+                        .srcAccessMask = oldDstLayout == vk::ImageLayout::eUndefined
+                            ? vk::AccessFlags{}
+                            : vk::AccessFlags{vk::AccessFlagBits::eMemoryRead |
+                                              vk::AccessFlagBits::eMemoryWrite},
                         .dstAccessMask = vk::AccessFlagBits::eTransferWrite,
-                        .oldLayout = layout,
+                        .oldLayout = oldDstLayout,
                         .newLayout = vk::ImageLayout::eTransferDstOptimal,
                         .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
                         .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
                         .subresourceRange = subresource,
-                        });
-
-                    if (layout == vk::ImageLayout::eUndefined)
-                        layout = vk::ImageLayout::eTransferDstOptimal;
-                }
+                    });
+                if (oldDstLayout == vk::ImageLayout::eUndefined)
+                    layout = vk::ImageLayout::eTransferDstOptimal;
 
                 vk::ImageSubresourceLayers subresourceLayers{
                     .aspectMask = subresource.aspectMask,
                     .mipLevel = subresource.baseMipLevel,
                     .baseArrayLayer = subresource.baseArrayLayer,
-                    .layerCount = subresource.layerCount == VK_REMAINING_ARRAY_LAYERS ? layerCount - subresource.baseArrayLayer : subresource.layerCount,
+                    .layerCount = copy_region_policy::RangeCount(availableLayers,
+                                                                 subresource.baseArrayLayer,
+                                                                 subresource.layerCount),
                     };
-                for (; subresourceLayers.mipLevel < (subresource.levelCount == VK_REMAINING_MIP_LEVELS ? levelCount - subresource.baseMipLevel : subresource.levelCount); subresourceLayers.mipLevel++) {
-                    if (srcFormat != format || dimensionsDiffer) {
-                        commandBuffer.blitImage(sourceBacking, vk::ImageLayout::eTransferSrcOptimal, destinationBacking, vk::ImageLayout::eTransferDstOptimal, vk::ImageBlit{
-                                .srcSubresource = subresourceLayers,
-                                .srcOffsets = std::array<vk::Offset3D, 2>{
-                                    vk::Offset3D{0, 0, 0},
-                                    vk::Offset3D{static_cast<i32>(source->dimensions.width),
-                                                 static_cast<i32>(source->dimensions.height),
-                                                 static_cast<i32>(subresourceLayers.layerCount)}
-                                },
-                                .dstSubresource = subresourceLayers,
-                                .dstOffsets = std::array<vk::Offset3D, 2>{
-                                    vk::Offset3D{0, 0, 0},
-                                    vk::Offset3D{static_cast<i32>(dimensions.width),
-                                                 static_cast<i32>(dimensions.height),
-                                                 static_cast<i32>(subresourceLayers.layerCount)}
-                                }
-                            }, selectedFilter);
+                const auto mipEnd{copy_region_policy::RangeEnd(availableMipLevels,
+                                                               subresource.baseMipLevel,
+                                                               subresource.levelCount)};
+                for (; subresourceLayers.mipLevel < mipEnd; ++subresourceLayers.mipLevel) {
+                    // Copy the selected mip dimensions, not the full-sized
+                    // base texture. Vulkan blit z offsets refer to image depth,
+                    // NOT the array-layer count (layers are separate fields).
+                    const auto srcExtent{copy_region_policy::MipExtent(
+                        {source->dimensions.width, source->dimensions.height,
+                         source->dimensions.depth}, subresourceLayers.mipLevel)};
+                    const auto dstExtent{copy_region_policy::MipExtent(
+                        {dimensions.width, dimensions.height, dimensions.depth},
+                        subresourceLayers.mipLevel)};
+                    if (needsBlit) {
+                        commandBuffer.blitImage(sourceBacking, vk::ImageLayout::eTransferSrcOptimal,
+                                                destinationBacking, vk::ImageLayout::eTransferDstOptimal,
+                                                vk::ImageBlit{
+                            .srcSubresource = subresourceLayers,
+                            .srcOffsets = std::array<vk::Offset3D, 2>{
+                                vk::Offset3D{0, 0, 0},
+                                vk::Offset3D{static_cast<i32>(srcExtent.width),
+                                             static_cast<i32>(srcExtent.height),
+                                             static_cast<i32>(srcExtent.depth)},
+                            },
+                            .dstSubresource = subresourceLayers,
+                            .dstOffsets = std::array<vk::Offset3D, 2>{
+                                vk::Offset3D{0, 0, 0},
+                                vk::Offset3D{static_cast<i32>(dstExtent.width),
+                                             static_cast<i32>(dstExtent.height),
+                                             static_cast<i32>(dstExtent.depth)},
+                            },
+                        }, selectedFilter);
                     } else {
-                        commandBuffer.copyImage(sourceBacking, vk::ImageLayout::eTransferSrcOptimal, destinationBacking, vk::ImageLayout::eTransferDstOptimal, vk::ImageCopy{
+                        commandBuffer.copyImage(sourceBacking, vk::ImageLayout::eTransferSrcOptimal,
+                                                destinationBacking, vk::ImageLayout::eTransferDstOptimal,
+                                                vk::ImageCopy{
                             .srcSubresource = subresourceLayers,
                             .dstSubresource = subresourceLayers,
-                            .extent = dimensions,
+                            .extent = vk::Extent3D{dstExtent.width, dstExtent.height, dstExtent.depth},
                         });
                     }
                 }
