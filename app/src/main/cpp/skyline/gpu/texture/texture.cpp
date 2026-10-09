@@ -938,7 +938,10 @@ namespace skyline::gpu {
             return gpu.scheduler.Submit([&](vk::raii::CommandBuffer &commandBuffer) {
                 auto sourceBacking{source->GetBacking()};
                 if (source->layout != vk::ImageLayout::eTransferSrcOptimal) {
-                    commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer, {}, {}, {}, vk::ImageMemoryBarrier{
+                    // TOP_OF_PIPE does not make previous shader/attachment
+                    // writes visible to a transfer read. Turnip may then
+                    // expose stale or partially written presentation tiles.
+                    commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eAllCommands, vk::PipelineStageFlagBits::eTransfer, {}, {}, {}, vk::ImageMemoryBarrier{
                         .image = sourceBacking,
                         .srcAccessMask = vk::AccessFlagBits::eMemoryWrite,
                         .dstAccessMask = vk::AccessFlagBits::eTransferRead,
