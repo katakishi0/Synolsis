@@ -401,10 +401,16 @@ Java_org_stratoemu_strato_SynolsisSettingsHubActivity_findInstalledQLauncherNca(
                 continue;
             try {
                 auto backing{systemArchives->OpenFile(entry.name)};
+                // First inspect only the NCA header. Most firmware NCAs are
+                // unrelated titles and must not require full section decoding.
+                skyline::vfs::NCA candidate{backing, keyStore, false, true};
+                if (candidate.header.programId != QLauncherProgramId ||
+                    candidate.contentType != skyline::vfs::NcaContentType::Program)
+                    continue;
+
+                // Decode ExeFS only for the matching Program NCA.
                 skyline::vfs::NCA nca{backing, keyStore};
-                if (nca.header.programId != QLauncherProgramId ||
-                    nca.contentType != skyline::vfs::NcaContentType::Program ||
-                    !nca.exeFs || !nca.exeFs->FileExists("rtld") ||
+                if (!nca.exeFs || !nca.exeFs->FileExists("rtld") ||
                     !nca.exeFs->FileExists("main") ||
                     !nca.exeFs->FileExists("main.npdm"))
                     continue;
