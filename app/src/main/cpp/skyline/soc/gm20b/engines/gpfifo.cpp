@@ -6,12 +6,22 @@
 #include <soc/gm20b/gmmu.h>
 #include <soc/gm20b/channel.h>
 #include "gpfifo.h"
+#include <atomic>
 
 namespace skyline::soc::gm20b::engine {
     GPFIFO::GPFIFO(host1x::SyncpointSet &syncpoints, ChannelContext &channelCtx) : syncpoints(syncpoints), channelCtx(channelCtx) {}
 
     void GPFIFO::CallMethod(u32 method, u32 argument) {
-        LOGD("Called method in GPFIFO: 0x{:X} args: 0x{:X}", method, argument);
+        // Debug tracing every command created >300k log lines in one
+        // 90-second gameplay sample. Keep a bounded logarithmic sample while
+        // leaving all GPFIFO commands and syncpoint operations unchanged.
+        if (AsyncLogger::CheckLogLevel(AsyncLogger::LogLevel::Debug)) {
+            static std::atomic<u64> methodLogCount{};
+            const auto n{methodLogCount.fetch_add(1, std::memory_order_relaxed) + 1};
+            if (n <= 8 || (n & (n - 1)) == 0)
+                LOGD("Called method in GPFIFO: 0x{:X} args: 0x{:X} (sample #{})",
+                     method, argument, n);
+        }
 
         registers.raw[method] = argument;
 
