@@ -106,21 +106,40 @@ namespace skyline::service::fssrv {
 
         auto systemArchivesFileSystem{std::make_shared<vfs::OsFileSystem>(state.os->publicAppFilesPath + "/switch/nand/system/Contents/registered/")};
         auto systemArchives{systemArchivesFileSystem->OpenDirectory("")};
-        auto keyStore{std::make_shared<skyline::crypto::KeyStore>(state.os->privateAppFilesPath + "keys")};
 
-        for (const auto &entry : systemArchives->Read()) {
-            std::shared_ptr<vfs::Backing> backing{systemArchivesFileSystem->OpenFile(entry.name)};
-            auto nca{vfs::NCA(backing, keyStore)};
-
-            if (nca.header.programId == dataId && nca.romFs != nullptr) {
-                manager.RegisterService(std::make_shared<IStorage>(nca.romFs, state, manager), session, response);
-                return {};
+        // Firmware imports may contain extra directories, incomplete NCAs, or
+        // archives encrypted with keys not yet available. A single unrelated
+        // bad entry must not crash every request for a system RomFS archive.
+        // Only create a KeyStore if there is a candidate file to inspect.
+        if (systemArchives) {
+            std::shared_ptr<skyline::crypto::KeyStore> keyStore;
+            for (const auto &entry : systemArchives->Read()) {
+                if (entry.type != vfs::Directory::EntryType::File ||
+                    !entry.name.ends_with(".nca"))
+                    continue;
+                try {
+                    if (!keyStore)
+                        keyStore = std::make_shared<skyline::crypto::KeyStore>(state.os->privateAppFilesPath + "keys");
+                    auto backing{systemArchivesFileSystem->OpenFile(entry.name)};
+                    auto nca{vfs::NCA(backing, keyStore)};
+                    if (nca.header.programId == dataId && nca.romFs) {
+                        manager.RegisterService(std::make_shared<IStorage>(nca.romFs, state, manager), session, response);
+                        return {};
+                    }
+                } catch (const std::exception &e) {
+                    LOGW("Skipping unreadable firmware archive '{}': {}", entry.name, e.what());
+                }
             }
         }
 
-        auto romFs{std::make_shared<IStorage>(state.os->assetFileSystem->OpenFile(fmt::format("romfs/{:016X}", dataId)), state, manager)};
+        // Missing system data is normal with partial firmware. Do not hand an
+        // empty shared_ptr to IStorage: it would crash on the first GetSize/Read.
+        const auto path{fmt::format("romfs/{:016X}", dataId)};
+        auto backing{state.os->assetFileSystem->OpenFileUnchecked(path)};
+        if (!backing)
+            return result::EntityNotFound;
 
-        manager.RegisterService(romFs, session, response);
+        manager.RegisterService(std::make_shared<IStorage>(std::move(backing), state, manager), session, response);
         return {};
     }
 
