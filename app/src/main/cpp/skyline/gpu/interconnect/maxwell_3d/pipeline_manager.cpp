@@ -366,9 +366,13 @@ namespace skyline::gpu::interconnect::maxwell3d {
             }, needsIndividualTextureBindingWrites);
             pushBindings(vk::DescriptorType::eStorageImage, stage.info.image_descriptors,
                          stageDescInfo.storageImageDescTotalCount, stageDescInfo.storageImageDescs,
-                         [](const auto &, u16) {
-                LOGW("Image descriptors are not supported");
-            });
+                         [&](const Shader::ImageDescriptor &desc, u16 descIdx) {
+                auto &usage{stageDescInfo.cbufUsages[desc.cbuf_index]};
+                usage.storageImages.push_back({bindingIndex, descIdx, descriptorInfo.totalStorageImageCount});
+                usage.totalImageDescCount += desc.count;
+                usage.writeDescCount++;
+                descriptorInfo.totalStorageImageCount += desc.count;
+            }, needsIndividualTextureBindingWrites);
             descriptorInfo.totalImageDescCount += stageDescInfo.combinedImageSamplerDescTotalCount + stageDescInfo.storageImageDescTotalCount;
         }
         return descriptorInfo;
@@ -835,7 +839,16 @@ namespace skyline::gpu::interconnect::maxwell3d {
                                 return binding.first;
                             }, ctx.gpu.traits.quirks.needsIndividualTextureBindingWrites);
 
-            bindingIdx += stage.storageImageDescs.size();
+            // Storage-image descriptors are real guest writes/reads, not
+            // merely layout placeholders. Use the same binding order as the
+            // shader's SPIR-V descriptors, with native identity swizzle.
+            writeImageDescs(vk::DescriptorType::eStorageImage, stage.storageImageDescs,
+                            stage.storageImageDescTotalCount,
+                            [&](const DescriptorInfo::StageDescriptorInfo::StorageImageDesc &desc, size_t arrayIdx) {
+                                BindlessHandle handle{ReadBindlessHandle(ctx, constantBuffers[i], desc, arrayIdx)};
+                                return GetStorageImageBinding(ctx, desc, textures, handle,
+                                                              stage.stage, srcStageMask, dstStageMask);
+                            }, ctx.gpu.traits.quirks.needsIndividualTextureBindingWrites);
         }
 
         return ctx.executor.allocator->EmplaceUntracked<DescriptorUpdateInfo>(DescriptorUpdateInfo{
@@ -928,7 +941,17 @@ namespace skyline::gpu::interconnect::maxwell3d {
                                                return binding.first;
                                            });
 
-        // Since we don't implement all descriptor types the number of writes might not match what's expected
+        writeDescs.operator()<true, false>(vk::DescriptorType::eStorageImage,
+                                           cbufUsageInfo.storageImages,
+                                           stageDescInfo.storageImageDescs,
+                                           [&](auto usage, const DescriptorInfo::StageDescriptorInfo::StorageImageDesc &desc, size_t arrayIdx) {
+                                               BindlessHandle handle{ReadBindlessHandle(ctx, stageConstantBuffers, desc, arrayIdx)};
+                                               return GetStorageImageBinding(ctx, desc, textures, handle,
+                                                                             stageDescInfo.stage,
+                                                                             srcStageMask, dstStageMask);
+                                           });
+
+        // Unsupported texel-buffer descriptors may still be omitted.
         if (!writeIdx)
             return nullptr;
 
