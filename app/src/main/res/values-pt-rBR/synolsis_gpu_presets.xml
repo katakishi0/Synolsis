@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="synolsis_gpu_preset_entries">
+        <item>Low-end (economizar RAM, portátil)</item>
+        <item>Conservador (menos RAM)</item>
+        <item>Equilibrado</item>
+        <item>Experimental (maior uso de memória)</item>
+        <item>Hack de FPS (Adreno/Turnip; experimental)</item>
+    </string-array>
+    <string-array name="synolsis_readback_mode_entries">
+        <item>Preciso (compatibilidade)</item>
+        <item>Equilibrado (leitura acelerada)</item>
+        <item>Experimental (leitura e escrita rápidas)</item>
+    </string-array>
+</resources>
