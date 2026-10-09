@@ -3,6 +3,7 @@
 
 #include <kernel/types/KProcess.h>
 #include <vfs/ticket.h>
+#include <unordered_set>
 #include "nca.h"
 #include "nsp.h"
 
@@ -26,7 +27,13 @@ namespace skyline::loader {
         ExtractTickets(nsp, keyStore);
 
         auto root{nsp->OpenDirectory("", {false, true})};
-        for (const auto &entry : root->Read()) {
+        const auto files{root->Read()};
+        std::unordered_set<std::string> ncaFileNames;
+        for (const auto &entry : files) {
+            if (entry.name.ends_with(".nca"))
+                ncaFileNames.insert(entry.name);
+        }
+        for (const auto &entry : files) {
             if (entry.name.substr(entry.name.find_last_of('.') + 1) != "nca")
                 continue;
 
@@ -54,20 +61,39 @@ namespace skyline::loader {
                             continue;
                         std::vector<u8> bytes(backing->size);
                         backing->Read(span(bytes));
-                        const auto info{vfs::content_meta::Parse(
+                        const auto manifest{vfs::content_meta::ParseManifest(
                             std::span<const u8>(bytes.data(), bytes.size()))};
-                        if (!info)
+                        if (!manifest) {
+                            LOGW("Skipping invalid CNMT manifest '{}'", metaFile.name);
                             continue;
-                        contentMetadata.push_back(*info);
+                        }
+                        contentMetadata.push_back(manifest->summary);
+                        contentManifests.push_back(*manifest);
+                        const auto &info{manifest->summary};
                         LOGD("NSP CNMT: title=0x{:016X}, app=0x{:016X}, version={}, type=0x{:02X}, entries={} (not mounted)",
-                             info->titleId, info->applicationId, info->titleVersion,
-                             static_cast<u32>(info->type), info->contentCount);
+                             info.titleId, info.applicationId, info.titleVersion,
+                             static_cast<u32>(info.type), info.contentCount);
                     }
                 }
             } catch (const loader_exception &e) {
                 throw loader_exception(e.error);
             } catch (const std::exception &e) {
                 continue;
+            }
+        }
+
+        // Cross-check references against the outer PFS0 file index without
+        // decrypting/hashing large NCAs. Filename presence alone is NOT
+        // proof of cryptographic authenticity or valid BKTR patch data.
+        // Keep mismatches diagnostic so existing base-game boot is unchanged.
+        for (const auto &manifest : contentManifests) {
+            size_t found{};
+            for (const auto &record : manifest.contents)
+                if (ncaFileNames.contains(record.NcaFilename()))
+                    ++found;
+            if (found != manifest.contents.size()) {
+                LOGW("NSP title 0x{:016X}: {}/{} CNMT-listed content NCAs present (not mounted)",
+                     manifest.summary.titleId, found, manifest.contents.size());
             }
         }
 
