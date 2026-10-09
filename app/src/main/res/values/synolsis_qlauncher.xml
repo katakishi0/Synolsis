@@ -7,5 +7,6 @@
   <string name="synolsis_qlauncher_open_failed">Could not open QLauncher from the installed firmware.</string>
   <string name="synolsis_qlauncher_firmware_missing">Install firmware first.</string>
   <string name="synolsis_qlauncher_unreadable">Cannot read firmware NCAs. Check your keys.</string>
-  <string name="synolsis_qlauncher_program_invalid">QLauncher NCA cannot be decrypted or opened.</string>
+  <string name="synolsis_qlauncher_program_invalid">QLauncher Program NCA found, but its ExeFS is incomplete or unreadable. Try reinstalling firmware.</string>
+  <string name="synolsis_qlauncher_program_keys_missing">QLauncher found, but the keys required to decrypt this firmware version are missing. Import matching prod.keys from your console.</string>
 </resources>
