@@ -44,7 +44,7 @@ jobs:
         with:
           # Source is checked out at the start of the run, then built from that snapshot.
           # Pin the tested revision, including safe V4 locale migration.
-          ref: b6794b9f8367293a27a286a417c983e742002642
+          ref: 4bb0d4525ef39df09300a3a698ba85c22169277d
           submodules: false
 
       - name: Assert full source is checked in
@@ -384,6 +384,7 @@ jobs:
           assert fileproviders[0].get(ns+'exported') == 'false'
           assert fileproviders[0].get(ns+'grantUriPermissions') == 'true'
           assert set(p.get(ns+'path') for p in paths) == {'switch/nand/system/Contents/registered/'}
+          assert all(p.get(ns+'name') for p in paths)
           for locale in ['values','values-pt-rBR']:
               strings=ET.parse(app/f'res/{locale}/synolsis_qlauncher.xml').getroot()
               keys={e.get('name') for e in strings if e.tag == 'string'}
@@ -1015,7 +1016,7 @@ jobs:
           else
             gh release create "$tag" "${files[@]}" \
               --repo "$GITHUB_REPOSITORY" \
-              --target "b6794b9f8367293a27a286a417c983e742002642" \
+              --target "4bb0d4525ef39df09300a3a698ba85c22169277d" \
               --title "Synolsis V24 QLauncher firmware auto-discovery ${GITHUB_RUN_NUMBER}" \
               --notes "ARM64 APK with QLauncher automatically located from user-installed firmware registered NCAs, exact program ID/ExeFS validation and secure scoped FileProvider; manual SAF remains fallback. Real Horizon menu services, FSR rendering, true internal resolution and NVDEC guest integration remain incomplete." \
               --prerelease
