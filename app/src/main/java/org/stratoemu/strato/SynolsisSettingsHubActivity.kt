@@ -29,6 +29,8 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.FileProvider
+import java.io.File
 import androidx.core.content.ContextCompat
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.color.MaterialColors
@@ -43,6 +45,7 @@ import kotlin.math.roundToInt
  */
 class SynolsisSettingsHubActivity : AppCompatActivity() {
     private external fun validateQLauncherNca(fd: Int, keysPath: String): Boolean
+    private external fun findInstalledQLauncherNca(firmwarePath: String, keysPath: String): String?
 
     private val qlauncherPicker = registerForActivityResult(
         ActivityResultContracts.OpenDocument()) { uri: Uri? ->
@@ -67,17 +70,56 @@ class SynolsisSettingsHubActivity : AppCompatActivity() {
                     uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
 
-            val app = AppItem(AppEntry(
-                getString(R.string.synolsis_qlauncher_title),
-                null, "0100000000001000", "Nintendo", null,
-                RomFormat.NCA, uri, LoaderResult.Success))
-            startActivity(Intent(this@SynolsisSettingsHubActivity, EmulationActivity::class.java).apply {
-                data = uri
-                clipData = ClipData.newRawUri("QLauncher firmware NCA", uri)
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                putExtra(AppItemTag, app)
-                putExtra(EmulationActivity.ReturnToMainTag, true)
-            })
+            startQLauncher(uri)
+        }
+    }
+
+
+    private fun startQLauncher(uri: Uri) {
+        val app = AppItem(AppEntry(
+            getString(R.string.synolsis_qlauncher_title),
+            null, "0100000000001000", "Nintendo", null,
+            RomFormat.NCA, uri, LoaderResult.Success))
+        startActivity(Intent(this, EmulationActivity::class.java).apply {
+            data = uri
+            clipData = ClipData.newRawUri("QLauncher installed firmware NCA", uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            putExtra(AppItemTag, app)
+            putExtra(EmulationActivity.ReturnToMainTag, true)
+        })
+    }
+
+    private fun launchInstalledQLauncher() {
+        lifecycleScope.launch {
+            val archiveDir = File(getPublicFilesDir(),
+                "switch/nand/system/Contents/registered")
+            val target = withContext(Dispatchers.IO) {
+                runCatching {
+                    if (!archiveDir.isDirectory) return@runCatching null
+                    val name = findInstalledQLauncherNca(
+                        archiveDir.canonicalPath, "${filesDir.canonicalPath}/keys/")
+                        ?: return@runCatching null
+                    val safeFile = File(archiveDir, name).canonicalFile
+                    if (safeFile.parentFile == archiveDir.canonicalFile && safeFile.isFile)
+                        safeFile else null
+                }.getOrNull()
+            }
+            if (target == null) {
+                Toast.makeText(this@SynolsisSettingsHubActivity,
+                    R.string.synolsis_qlauncher_not_found, Toast.LENGTH_LONG).show()
+                // Manual selection remains an explicit fallback for unusual
+                // firmware layouts; it is no longer the normal boot path.
+                launchInstalledQLauncher()
+                return@launch
+            }
+            runCatching {
+                val uri = FileProvider.getUriForFile(this@SynolsisSettingsHubActivity,
+                    "${packageName}.synolsis.firmware", target)
+                startQLauncher(uri)
+            }.onFailure {
+                Toast.makeText(this@SynolsisSettingsHubActivity,
+                    R.string.synolsis_qlauncher_open_failed, Toast.LENGTH_LONG).show()
+            }
         }
     }
 
@@ -183,9 +225,9 @@ class SynolsisSettingsHubActivity : AppCompatActivity() {
         addCard(R.string.synolsis_hub_about, R.string.synolsis_hub_about_desc, R.drawable.ic_settings) {
             openSettings(SettingsActivity.SECTION_ABOUT)
         }
-        // Experimental executable bootstrap from the user's *own* QLauncher
-        // program NCA. Native loader validates its real title ID/ExeFS.
-        // Remaining Horizon applet services can still prevent menu startup.
+        // Automatically find the Program NCA in the installed firmware.
+        // Only use the SAF picker as fallback; Horizon services may still
+        // prevent the real home menu from starting.
         addCard(R.string.synolsis_qlauncher_title,
                 R.string.synolsis_qlauncher_desc, R.drawable.ic_play) {
             qlauncherPicker.launch(arrayOf("*/*"))
