@@ -44,7 +44,7 @@ jobs:
         with:
           # Source is checked out at the start of the run, then built from that snapshot.
           # Pin the tested revision, including safe V4 locale migration.
-          ref: dfdf7a8c09780fee848cc411e01561fe8b60f799
+          ref: 64f01b77b7060c5d1a29ca7affe82536dd5a5203
           submodules: false
 
       - name: Assert full source is checked in
@@ -1057,7 +1057,7 @@ jobs:
           else
             gh release create "$tag" "${files[@]}" \
               --repo "$GITHUB_REPOSITORY" \
-              --target "dfdf7a8c09780fee848cc411e01561fe8b60f799" \
+              --target "64f01b77b7060c5d1a29ca7affe82536dd5a5203" \
               --title "Synolsis V27 Vulkan + QLauncher + Compact UI test ${GITHUB_RUN_NUMBER}" \
               --notes "Android ARM64 experimental diagnostic APK: additional Vulkan memory ordering for texture readbacks/layout transitions, header-first QLauncher firmware scan, smaller bilingual settings UI. QLauncher still lacks complete Horizon services; true internal resolution, FSR dispatch and frame generation remain unavailable. User-reported V25 flicker fix and FPS improvement are NOT yet verified." \
               --prerelease
