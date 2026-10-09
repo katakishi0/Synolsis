@@ -16,6 +16,8 @@ namespace skyline::service::aocsrv {
     Result IAddOnContentManager::CountAddOnContent(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
         // Count only readable, decrypted AOC RomFS images registered for
         // this running application. Staged-only NSP files do not qualify.
+        const auto processId{request.Pop<u64>()}; // aoc:u command 2 carries an id/pid
+        (void)processId;
         response.Push<u32>(static_cast<u32>(state.os->mountedAddOns.Count()));
         return {};
     }
@@ -23,6 +25,8 @@ namespace skyline::service::aocsrv {
     Result IAddOnContentManager::ListAddOnContent(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
         const auto startIndex{request.Pop<u32>()};
         const auto requestedCount{request.Pop<u32>()};
+        const auto processId{request.Pop<u64>()}; // command 3 also accepts id/pid
+        (void)processId;
         if (request.outputBuf.empty()) {
             response.Push<u32>(0);
             return {};
@@ -39,6 +43,8 @@ namespace skyline::service::aocsrv {
     }
 
     Result IAddOnContentManager::GetAddOnContentBaseId(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        const auto processId{request.Pop<u64>()};
+        (void)processId;
         response.Push<u64>(MountedAddOnRegistry::BaseId(state.os->mountedAddOns.Application()));
         return {};
     }
@@ -47,6 +53,8 @@ namespace skyline::service::aocsrv {
         // Backings have already been opened at game launch. Do not pretend
         // an unknown/unmounted DLC was installed by a Prepare request.
         const auto index{request.Pop<u32>()};
+        const auto processId{request.Pop<u64>()};
+        (void)processId;
         if (!state.os->mountedAddOns.HasIndex(index))
             LOGW("Guest requested unavailable DLC index {}", index);
         return {};
