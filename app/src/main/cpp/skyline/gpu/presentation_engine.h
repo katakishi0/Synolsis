@@ -11,6 +11,7 @@
 #include <services/hosbinder/GraphicBufferProducer.h>
 #include "texture/texture.h"
 #include "frame_history.h"
+#include "presentation_skip_policy.h"
 #include "packed_compute_pipelines.h"
 
 struct ANativeWindow;
@@ -82,7 +83,7 @@ namespace skyline::gpu {
         CircularQueue<PresentableFrame> presentQueue{PresentQueueFrameCount}; //!< A circular queue containing all the frames that we can present
         std::thread presentationThread; //!< A thread for asynchronously presenting queued frames after their corresponded fences are signalled
         size_t nextFrameId{1}; //!< The frame ID to use for the next frame
-        u64 presentationFrameCounter{}; //!< Counts submitted host frames for optional frame skipping; presentation-thread only
+        PresentationSkipPolicy skipPolicy; //!< Presentation-only, per-thread skip phase; not guest-frame acceleration
         framegen::FrameHistory frameHistory; //!< Metadata only, never claims generated FPS
         bool computePipelinesAttempted{}; //!< One attempt per Vulkan device
         std::unique_ptr<packed_compute::PipelineSet> computePipelines; //!< Not dispatched until image/sync integration
