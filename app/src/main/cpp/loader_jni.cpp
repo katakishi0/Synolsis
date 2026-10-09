@@ -267,7 +267,7 @@ Java_org_stratoemu_strato_data_GameContentStore_readNativeContentMetadata(
         std::vector<std::string> identities;
         for (const auto &entry : entries) {
             // Metadata NCAs in standard NSPs use the .cnmt.nca suffix.
-            // Skip big program/data NCAs to keep imports responsive on 6 GB.
+            // Skip large program/data NCAs to keep firmware imports responsive on mobile.
             if (!entry.name.ends_with(".cnmt.nca"))
                 continue;
             try {
