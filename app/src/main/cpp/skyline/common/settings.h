@@ -83,6 +83,7 @@ namespace skyline {
         Setting<u32> executorSlotCountScale; //!< Number of GPU executor slots that can be used concurrently
         Setting<u32> executorFlushThreshold; //!< Number of commands that need to accumulate before they're flushed to the GPU
         Setting<bool> useDirectMemoryImport; //!< If buffer emulation should be done by importing guest buffer mappings
+        Setting<bool> gpuFenceAntiFlicker; //!< Experimental: defer guest GPU callbacks until the submitting Vulkan fence completes
         Setting<bool> forceMaxGpuClocks; //!< If the GPU should be forced to run at maximum clocks
         Setting<bool> freeGuestTextureMemory; //!< If guest textrue memory should be freed when the owning texture is GPU dirty
 
