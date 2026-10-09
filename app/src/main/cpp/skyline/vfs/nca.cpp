@@ -63,6 +63,49 @@ namespace skyline::vfs {
     }
 
     void NCA::ReadRomFs(const NcaSectionHeader &sectionHeader, const NcaFsEntry &entry) {
+        if (sectionHeader.encryptionType == NcaSectionEncryptionType::BKTR) {
+            // BKTR isn't ordinary AES-CTR over a contiguous RomFS. The
+            // relocation table refers to both base+patch RomFS, and patch
+            // subsections have their own CTR values. Exposing an ordinary
+            // CtrEncryptedBacking here served corrupt data as valid RomFS.
+            hasBktrRomFs = true;
+            const auto &patch{sectionHeader.patchInfo};
+            constexpr size_t MaxRelocationTable{32 * 1024 * 1024};
+            const auto sectionStart{static_cast<u64>(entry.startOffset) * constant::MediaUnitSize};
+            const auto sectionSize{static_cast<u64>(entry.endOffset - entry.startOffset) * constant::MediaUnitSize};
+            if (entry.endOffset < entry.startOffset || patch.indirectSize < bktr::BucketSize ||
+                patch.indirectSize > MaxRelocationTable ||
+                patch.indirectOffset > sectionSize ||
+                patch.indirectSize > sectionSize - patch.indirectOffset ||
+                sectionStart > backing->size ||
+                patch.indirectOffset > backing->size - sectionStart ||
+                patch.indirectSize > backing->size - sectionStart - patch.indirectOffset) {
+                LOGW("Invalid BKTR relocation table bounds in NCA");
+                return;
+            }
+            try {
+                const auto offset{static_cast<size_t>(sectionStart + patch.indirectOffset)};
+                const auto bytes{static_cast<size_t>(patch.indirectSize)};
+                auto region{std::make_shared<RegionBacking>(backing, offset, bytes)};
+                auto decrypted{CreateBacking(sectionHeader, region, offset)};
+                if (!decrypted)
+                    return;
+                std::vector<u8> buffer(bytes);
+                decrypted->Read(span(buffer));
+                bktrRelocations = bktr::RelocationTable::Parse(
+                    std::span<const u8>(buffer.data(), buffer.size()));
+                if (bktrRelocations) {
+                    LOGD("Parsed BKTR relocation index with {} entries; waiting for base RomFS and CTR-Ex subsection implementation",
+                         bktrRelocations->EntryCount());
+                }
+            } catch (const std::exception &e) {
+                LOGW("Unable to read BKTR relocation metadata: {}", e.what());
+            }
+            // Do not set romFs yet: successful BKTR relocation parsing alone
+            // is insufficient without subsection decryption and base merge.
+            return;
+        }
+
         size_t offset{static_cast<size_t>(entry.startOffset) * constant::MediaUnitSize + sectionHeader.integrityHashInfo.levels.back().offset};
         size_t size{sectionHeader.integrityHashInfo.levels.back().size};
 
