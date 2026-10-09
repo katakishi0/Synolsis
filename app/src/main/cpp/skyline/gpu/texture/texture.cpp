@@ -895,7 +895,7 @@ namespace skyline::gpu {
         return std::make_shared<TextureView>(shared_from_this(), type, range, pFormat, mapping);
     }
 
-    void Texture::CopyFrom(std::shared_ptr<Texture> source, vk::Semaphore waitSemaphore, vk::Semaphore signalSemaphore, texture::Format srcFormat, const vk::ImageSubresourceRange &subresource) {
+    void Texture::CopyFrom(std::shared_ptr<Texture> source, vk::Semaphore waitSemaphore, vk::Semaphore signalSemaphore, texture::Format srcFormat, const vk::ImageSubresourceRange &subresource, bool permitScaledBlit) {
         if (cycle)
             cycle->WaitSubmit();
         if (source->cycle)
@@ -907,8 +907,23 @@ namespace skyline::gpu {
 
         if (source->layout == vk::ImageLayout::eUndefined)
             throw exception("Cannot copy from image with undefined layout");
-        else if (source->dimensions != dimensions)
+        else if (source->dimensions != dimensions && !permitScaledBlit)
             throw exception("Cannot copy from image with different dimensions");
+        else if (source->dimensions.depth != dimensions.depth ||
+                 (source->dimensions != dimensions && (levelCount != 1 || source->levelCount != 1)))
+            throw exception("Scaled blits require equal depth and exactly one mip level");
+
+        const bool dimensionsDiffer{source->dimensions != dimensions};
+        auto selectedFilter{vk::Filter::eLinear};
+        if (dimensionsDiffer) {
+            const auto srcFeatures{gpu.vkPhysicalDevice.getFormatProperties(*source->format).optimalTilingFeatures};
+            const auto dstFeatures{gpu.vkPhysicalDevice.getFormatProperties(*format).optimalTilingFeatures};
+            if (!(srcFeatures & vk::FormatFeatureFlagBits::eBlitSrc) ||
+                !(dstFeatures & vk::FormatFeatureFlagBits::eBlitDst))
+                throw exception("Vulkan image formats do not support scaled presentation blits");
+            if (!(srcFeatures & vk::FormatFeatureFlagBits::eSampledImageFilterLinear))
+                selectedFilter = vk::Filter::eNearest;
+        }
 
         TRACE_EVENT("gpu", "Texture::CopyFrom");
 
@@ -959,13 +974,13 @@ namespace skyline::gpu {
                     .layerCount = subresource.layerCount == VK_REMAINING_ARRAY_LAYERS ? layerCount - subresource.baseArrayLayer : subresource.layerCount,
                     };
                 for (; subresourceLayers.mipLevel < (subresource.levelCount == VK_REMAINING_MIP_LEVELS ? levelCount - subresource.baseMipLevel : subresource.levelCount); subresourceLayers.mipLevel++) {
-                    if (srcFormat != format) {
+                    if (srcFormat != format || dimensionsDiffer) {
                         commandBuffer.blitImage(sourceBacking, vk::ImageLayout::eTransferSrcOptimal, destinationBacking, vk::ImageLayout::eTransferDstOptimal, vk::ImageBlit{
                                 .srcSubresource = subresourceLayers,
                                 .srcOffsets = std::array<vk::Offset3D, 2>{
                                     vk::Offset3D{0, 0, 0},
-                                    vk::Offset3D{static_cast<i32>(dimensions.width),
-                                                 static_cast<i32>(dimensions.height),
+                                    vk::Offset3D{static_cast<i32>(source->dimensions.width),
+                                                 static_cast<i32>(source->dimensions.height),
                                                  static_cast<i32>(subresourceLayers.layerCount)}
                                 },
                                 .dstSubresource = subresourceLayers,
@@ -975,7 +990,7 @@ namespace skyline::gpu {
                                                  static_cast<i32>(dimensions.height),
                                                  static_cast<i32>(subresourceLayers.layerCount)}
                                 }
-                            }, vk::Filter::eLinear);
+                            }, selectedFilter);
                     } else {
                         commandBuffer.copyImage(sourceBacking, vk::ImageLayout::eTransferSrcOptimal, destinationBacking, vk::ImageLayout::eTransferDstOptimal, vk::ImageCopy{
                             .srcSubresource = subresourceLayers,
