@@ -25,7 +25,7 @@ concurrency:
 
 jobs:
   build:
-    name: V37 Vulkan Image Copy Coherency and Guest GPU Stability ARM64
+    name: V40 Low-End Profiles, Vulkan Shader Modes and QLauncher NCA ARM64
     runs-on: ubuntu-22.04
     timeout-minutes: 150
     env:
@@ -44,7 +44,7 @@ jobs:
         with:
           # Source is checked out at the start of the run, then built from that snapshot.
           # Pin the tested revision, including safe V4 locale migration.
-          ref: 93ef14348936d9004e2249df53a4c843e68625f3
+          ref: 90840aaa7bd5904ef358fd2b593ed8be263ea7ce
           submodules: false
 
       - name: Assert full source is checked in
@@ -1256,6 +1256,15 @@ jobs:
           print("PASS: typed storage-image capability, identity views, guest writes, Maxwell and Kepler descriptors")
           PY
 
+      - name: Test V40 NCA PFS0 bounds and preserve V39 GPU shader correctness
+        shell: bash
+        run: |
+          set -euo pipefail
+          c++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic tests/nca_pfs_bounds_test.cpp -o /tmp/synolsis-v40-pfs-test
+          /tmp/synolsis-v40-pfs-test
+          python3 tests/synolsis_v40_integration_test.py
+          echo "PASS: V40 NCA PFS0 region, shader modes, low-end preset, QLauncher diagnostics" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Compile Android Kotlin frontend before expensive native build
         shell: bash
         run: |
@@ -1334,16 +1343,16 @@ jobs:
             echo "::error::Gradle did not produce an APK"
             exit 1
           fi
-          tag="synolsis-v39-storage-images-${GITHUB_RUN_NUMBER}"
+          tag="synolsis-v40-low-end-qlauncher-${GITHUB_RUN_NUMBER}"
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             # Rerunning a build must not fail just because its release exists.
             gh release upload "$tag" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
           else
             gh release create "$tag" "${files[@]}" \
               --repo "$GITHUB_REPOSITORY" \
-              --target "93ef14348936d9004e2249df53a4c843e68625f3" \
-              --title "Synolsis V39 Storage-Image Shader Compatibility ${GITHUB_RUN_NUMBER}" \
-              --notes "Experimental Synolsis V39 ARM64: keeps V35 Horizon SVC fix, V36 GPU debug sampling, V37 Vulkan copy coherence, and V38 optional anti-flicker switch. Implements missing Maxwell3D and KeplerCompute STORAGE_IMAGE Vulkan descriptor writes, capability-checked storage usage for guest textures, identity-swizzled typed/typeless image views, GPU-dirty tracking, conservative memory barriers and typed null fallback images. V38 flicker persisted ON/OFF; V39 is a new compatibility attempt, NOT a guaranteed NieR/Nine Sols fix until tested. Full NVDEC/VIC, QLauncher, shader backends and real internal resolution remain incomplete. See docs/SYNOLSIS_V39_STORAGE_IMAGE_COMPATIBILITY.md." \
+              --target "90840aaa7bd5904ef358fd2b593ed8be263ea7ce" \
+              --title "Synolsis V40 Low-End Shader Modes and QLauncher NCA ${GITHUB_RUN_NUMBER}" \
+              --notes "Synolsis V40 ARM64: keeps the V39 Maxwell/Kepler storage image compatibility (confirmed by user on NieR with optional GPU fence accuracy OFF), V35 SVC zero-handle boot repair and V37 Vulkan copy fixes. Renames optional GPU fence synchronization and leaves OFF by default. Removes hardcoded 6 GB label; adds low-memory handheld preset and real Vulkan SPIR-V standard/compatibility modes. Repairs NCA ExeFS PFS0 section bounds and differentiates QLauncher missing keys vs invalid ExeFS. HOME menu applet services, GLSL/GLASM backends, full NVDEC/VIC, alternate ASTC decoders and true internal resolution remain incomplete. See docs/SYNOLSIS_V40_LOW_END_SHADER_QLAUNCHER.md." \
               --prerelease
           fi
           {
