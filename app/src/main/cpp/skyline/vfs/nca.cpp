@@ -10,6 +10,7 @@
 #include "region_backing.h"
 #include "partition_filesystem.h"
 #include "nca.h"
+#include "nca_pfs_bounds.h"
 #include "rom_filesystem.h"
 #include "directory.h"
 
@@ -54,10 +55,24 @@ namespace skyline::vfs {
     }
 
     void NCA::ReadPfs0(const NcaSectionHeader &sectionHeader, const NcaFsEntry &entry) {
-        size_t offset{static_cast<size_t>(entry.startOffset) * constant::MediaUnitSize + sectionHeader.sha256HashInfo.pfs0Offset};
-        size_t size{constant::MediaUnitSize * static_cast<size_t>(entry.endOffset - entry.startOffset)};
+        // sha256HashInfo.pfs0Offset is relative to the NCA section and
+        // pfs0Size is the size of the filesystem *within* that section.
+        // Using the entire section size after adding the offset extended
+        // some firmware program NCAs beyond EOF, breaking ExeFS discovery.
+        const auto region{nca_bounds::GetPfsRegion(
+            entry.startOffset, entry.endOffset,
+            sectionHeader.sha256HashInfo.pfs0Offset,
+            sectionHeader.sha256HashInfo.pfs0Size,
+            backing->size)};
+        if (!region)
+            throw loader_exception(LoaderResult::ParsingError, "Invalid NCA PFS0 section bounds");
 
-        auto pfs{std::make_shared<PartitionFileSystem>(CreateBacking(sectionHeader, std::make_shared<RegionBacking>(backing, offset, size), offset))};
+        const auto offset{static_cast<size_t>(region->offset)};
+        const auto size{static_cast<size_t>(region->size)};
+        auto pfs{std::make_shared<PartitionFileSystem>(
+            CreateBacking(sectionHeader,
+                          std::make_shared<RegionBacking>(backing, offset, size),
+                          offset))};
 
         if (contentType == NcaContentType::Program) {
             // An ExeFS must always contain an NPDM and a main NSO, whereas the logo section will always contain a logo and a startup movie
