@@ -3,6 +3,7 @@
 // Copyright © 2022 Skyline Team and Contributors (https://github.com/skyline-emu/)
 
 #include <gpu/interconnect/command_executor.h>
+#include <gpu/scissor_geometry.h>
 #include <gpu/interconnect/conversion/quads.h>
 #include <gpu/interconnect/common/state_updater.h>
 #include <soc/gm20b/channel.h>
@@ -67,72 +68,61 @@ namespace skyline::gpu::interconnect::maxwell3d {
     }
 
     vk::Rect2D Maxwell3D::GetClearScissor() {
-        const auto &clearSurfaceControl{clearEngineRegisters.clearSurfaceControl};
+        const auto &control{clearEngineRegisters.clearSurfaceControl};
+        const auto &clip{clearEngineRegisters.surfaceClip};
+        using namespace scissor_geometry;
 
-        const auto &surfaceClip{clearEngineRegisters.surfaceClip};
-        vk::Rect2D scissor{
-            {surfaceClip.horizontal.x, surfaceClip.vertical.y},
-            {surfaceClip.horizontal.width, surfaceClip.vertical.height}
-        };
+        Rect area{FromOriginSize(clip.horizontal.x, clip.vertical.y,
+                                 clip.horizontal.width, clip.vertical.height)};
 
-        auto rectIntersection{[](const vk::Rect2D &a, const vk::Rect2D &b) -> vk::Rect2D {
-            vk::Offset2D maxOffset{std::max(a.offset.x, b.offset.x), std::max(a.offset.y, b.offset.y)};
-            i32 signedWidth{std::min(a.offset.x + static_cast<i32>(a.extent.width), b.offset.x + static_cast<i32>(b.extent.width)) - maxOffset.x};
-            i32 signedHeight{std::min(a.offset.y + static_cast<i32>(a.extent.height), b.offset.y + static_cast<i32>(b.extent.height)) - maxOffset.y};
-
-            return {
-                maxOffset,
-                {static_cast<u32>(std::max(signedWidth, 0)),
-                 static_cast<u32>(std::max(signedHeight, 0))}
-            };
-        }};
-
-        if (clearSurfaceControl.useClearRect) {
-            const auto &clearRect{clearEngineRegisters.clearRect};
-            scissor = rectIntersection(scissor, {
-                {clearRect.horizontal.xMin, clearRect.vertical.yMin},
-                {static_cast<u32>(clearRect.horizontal.xMax - clearRect.horizontal.xMin), static_cast<u32>(clearRect.vertical.yMax - clearRect.vertical.yMin)}
-            });
+        if (control.useClearRect) {
+            const auto &rect{clearEngineRegisters.clearRect};
+            area = Intersect(area, FromBounds(rect.horizontal.xMin, rect.vertical.yMin,
+                                              rect.horizontal.xMax, rect.vertical.yMax));
+        }
+        if (control.useScissor0 && clearEngineRegisters.scissor0.enable) {
+            const auto &rect{clearEngineRegisters.scissor0};
+            area = Intersect(area, FromBounds(rect.horizontal.xMin, rect.vertical.yMin,
+                                              rect.horizontal.xMax, rect.vertical.yMax));
+        }
+        if (control.useViewportClip0) {
+            const auto &rect{clearEngineRegisters.viewportClip0};
+            area = Intersect(area, FromOriginSize(rect.horizontal.x0, rect.vertical.y0,
+                                                  rect.horizontal.width, rect.vertical.height));
         }
 
-        if (clearSurfaceControl.useScissor0 && clearEngineRegisters.scissor0.enable) {
-            const auto &scissor0{clearEngineRegisters.scissor0};
-            scissor = rectIntersection(scissor, {
-                {scissor0.horizontal.xMin, scissor0.vertical.yMin},
-                {static_cast<u32>(scissor0.horizontal.xMax - scissor0.horizontal.xMin), static_cast<u32>(scissor0.vertical.yMax - scissor0.vertical.yMin)}
-            });
-        }
-
-        if (clearSurfaceControl.useViewportClip0) {
-            const auto &viewportClip0{clearEngineRegisters.viewportClip0};
-            scissor = rectIntersection(scissor, {
-                {viewportClip0.horizontal.x0, viewportClip0.vertical.y0},
-                {viewportClip0.horizontal.width, viewportClip0.vertical.height}
-            });
-        }
-
-        return scissor;
+        // Saturate negative/inverted rectangles instead of wrapping to
+        // multi-gigapixel Vulkan clear regions on Turnip.
+        const auto scissor{MakeScissor(area)};
+        return {{scissor.x, scissor.y}, {scissor.width, scissor.height}};
     }
 
     vk::Rect2D Maxwell3D::GetDrawScissor() {
-        const auto &surfaceClip{clearEngineRegisters.surfaceClip};
-        vk::Rect2D scissor{{surfaceClip.horizontal.x, surfaceClip.vertical.y},
-                           {surfaceClip.horizontal.width, surfaceClip.vertical.height}};
+        const auto &clip{clearEngineRegisters.surfaceClip};
+        using namespace scissor_geometry;
+        Rect area{FromOriginSize(clip.horizontal.x, clip.vertical.y,
+                                 clip.horizontal.width, clip.vertical.height)};
 
         auto colorAttachments{activeState.GetColorAttachments()};
         auto depthStencilAttachment{activeState.GetDepthAttachment()};
-        auto depthStencilAttachmentSpan{depthStencilAttachment ? span<TextureView *>(depthStencilAttachment) : span<TextureView *>()};
+        auto depthStencilAttachmentSpan{depthStencilAttachment
+            ? span<TextureView *>(depthStencilAttachment)
+            : span<TextureView *>()};
         for (auto attachment : ranges::views::concat(colorAttachments, depthStencilAttachmentSpan)) {
             if (attachment) {
-                scissor.extent.width = std::min(scissor.extent.width, static_cast<u32>(static_cast<i32>(attachment->texture->dimensions.width) - scissor.offset.x));
-                scissor.extent.height = std::min(scissor.extent.height, static_cast<u32>(static_cast<i32>(attachment->texture->dimensions.height) - scissor.offset.y));
+                // The old signed subtraction was cast to uint32_t before
+                // min(), creating enormous extents when a scissor starts
+                // beyond a smaller color/depth render target.
+                const auto &extent{attachment->texture->dimensions};
+                area = ClipToExtent(area, extent.width, extent.height);
             }
         }
 
-        return scissor;
+        const auto scissor{MakeScissor(area)};
+        return {{scissor.x, scissor.y}, {scissor.width, scissor.height}};
     }
 
-     void Maxwell3D::PrepareDraw(StateUpdateBuilder &builder,
+    void Maxwell3D::PrepareDraw(StateUpdateBuilder &builder,
                                  engine::DrawTopology topology, bool indexed, bool estimateIndexBufferSize, u32 firstIndex, u32 count,
                                  vk::PipelineStageFlags &srcStageMask, vk::PipelineStageFlags &dstStageMask) {
          Pipeline *oldPipeline{activeState.GetPipeline()};
