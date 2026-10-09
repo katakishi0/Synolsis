@@ -12,6 +12,7 @@
 #include <kernel/types/KProcess.h>
 #include "presentation_engine.h"
 #include "presentation_scale.h"
+#include "swapchain_compatibility.h"
 #include <os.h>
 #include "native_window.h"
 #include "texture/format.h"
@@ -369,13 +370,40 @@ namespace skyline::gpu {
 
         vk::Format vkFormat{*format};
         texture::Format underlyingFormat{format};
-        if (swapchainFormat != format) {
-            auto formats{gpu.vkPhysicalDevice.getSurfaceFormatsKHR(**vkSurface)};
-            if (std::find(formats.begin(), formats.end(), vk::SurfaceFormatKHR{vkFormat, vk::ColorSpaceKHR::eSrgbNonlinear}) == formats.end()) {
-                LOGD("Surface doesn't support requested image format '{}' with colorspace '{}'", vk::to_string(vkFormat), vk::to_string(vk::ColorSpaceKHR::eSrgbNonlinear));
+        // The chosen format is a PROPERTY OF THE CURRENT Android surface.
+        // Always validate it, including when a new surface happens to reuse
+        // the same guest format as the previous one.
+        const auto formats{gpu.vkPhysicalDevice.getSurfaceFormatsKHR(**vkSurface)};
+        if (formats.empty())
+            throw exception("Surface advertises no Vulkan presentation formats");
+        const auto supportedFormat{[&](vk::Format f) {
+            return std::find(formats.begin(), formats.end(),
+                             vk::SurfaceFormatKHR{f, vk::ColorSpaceKHR::eSrgbNonlinear}) != formats.end();
+        }};
+        // Vulkan's single VK_FORMAT_UNDEFINED entry permits any format with
+        // the advertised colorspace. Otherwise use only explicitly listed
+        // formats, never assume RGBA8 is always supported on Turnip.
+        const bool anyFormat{formats.size() == 1 && formats[0].format == vk::Format::eUndefined &&
+                             formats[0].colorSpace == vk::ColorSpaceKHR::eSrgbNonlinear};
+        if (!anyFormat && !supportedFormat(vkFormat)) {
+            if (supportedFormat(vk::Format::eR8G8B8A8Unorm))
                 underlyingFormat = format::R8G8B8A8Unorm;
-            }
+            else if (supportedFormat(vk::Format::eB8G8R8A8Unorm))
+                underlyingFormat = format::B8G8R8A8Unorm;
+            else
+                throw exception("Surface does not support the requested or compatible RGBA/BGRA Vulkan format");
+            LOGW("Vulkan surface format fallback: {} -> {}",
+                 vk::to_string(vkFormat), vk::to_string(static_cast<vk::Format>(*underlyingFormat)));
         }
+
+        const u32 alphaBits{swapchain_compatibility::ChooseCompositeAlphaBits(
+            static_cast<u32>(capabilities.supportedCompositeAlpha))};
+        const u32 transformBits{swapchain_compatibility::ChoosePreTransformBits(
+            static_cast<u32>(capabilities.supportedTransforms),
+            static_cast<u32>(capabilities.currentTransform))};
+        if (!alphaBits || !transformBits)
+            throw exception("Surface has no usable composite alpha or pre-transform (alpha=0x{:X}, transform=0x{:X})",
+                            alphaBits, transformBits);
 
         constexpr vk::ImageUsageFlags presentUsage{vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst};
         if ((capabilities.supportedUsageFlags & presentUsage) != presentUsage)
@@ -403,6 +431,16 @@ namespace skyline::gpu {
                 throw exception("Swapchain does not support required FIFO present mode");
         }
 
+        // Ensure the old swapchain has no queued GPU readers/presents before
+        // its Vulkan handle and image wrappers are replaced. This is only hit
+        // on surface/format/extent changes, never on normal frame submission.
+        if (vkSwapchain) {
+            gpu.vkDevice.waitIdle();
+            for (auto &fence : frameFences)
+                fence.reset();
+            frameIndex = 0;
+        }
+
         vkSwapchain.emplace(gpu.vkDevice, vk::SwapchainCreateInfoKHR{
             .surface = **vkSurface,
             .minImageCount = minImageCount,
@@ -412,7 +450,8 @@ namespace skyline::gpu {
             .imageArrayLayers = 1,
             .imageUsage = presentUsage,
             .imageSharingMode = vk::SharingMode::eExclusive,
-            .compositeAlpha = vk::CompositeAlphaFlagBitsKHR::eInherit,
+            .preTransform = static_cast<vk::SurfaceTransformFlagBitsKHR>(transformBits),
+            .compositeAlpha = static_cast<vk::CompositeAlphaFlagBitsKHR>(alphaBits),
             .presentMode = requestedMode,
             .clipped = true,
         });
