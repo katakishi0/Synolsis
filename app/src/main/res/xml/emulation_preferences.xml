@@ -118,16 +118,6 @@
             app:key="shader_compile_threads"
             app:title="@string/synolsis_shader_threads_title"
             android:summary="@string/synolsis_shader_threads_summary" />
-        <!-- The Android graphics device is Vulkan-only. Both choices compile
-             actual SPIR-V, while the compatibility mode controls the
-             shader compiler's subgroup shuffle handling. -->
-        <ListPreference
-            android:defaultValue="standard"
-            android:entries="@array/synolsis_shader_mode_entries"
-            android:entryValues="@array/synolsis_shader_mode_values"
-            app:key="synolsis_shader_mode"
-            app:title="@string/synolsis_shader_mode_title"
-            android:summary="@string/synolsis_shader_mode_summary" />
         <org.stratoemu.strato.preference.IntegerListPreference
             android:defaultValue="100"
             android:entries="@array/synolsis_vulkan_output_scale_entries"
