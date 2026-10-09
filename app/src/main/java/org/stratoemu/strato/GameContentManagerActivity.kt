@@ -117,10 +117,36 @@ class GameContentManagerActivity : AppCompatActivity() {
                 setPadding(0, dp(10), 0, dp(10))
             }
             row.addView(TextView(this).apply {
-                text = getString(R.string.synolsis_content_package_summary, entry.displayName, entry.size / 1048576.0, entry.ncaCount, entry.cnmtCount)
-                maxLines = 3
+                val summary = getString(R.string.synolsis_content_package_summary, entry.displayName, entry.size / 1048576.0, entry.ncaCount, entry.cnmtCount)
+                text = if (entry.sha256 != null) summary + "\n" +
+                    getString(R.string.synolsis_content_checksum_label, entry.sha256.take(12))
+                else summary
+                maxLines = 4
                 layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
             })
+            if (entry.sha256 != null) {
+                row.addView(Button(this).apply {
+                    text = getString(R.string.synolsis_content_verify)
+                    setOnClickListener {
+                        if (busy) return@setOnClickListener
+                        busy = true
+                        importButton.isEnabled = false
+                        lifecycleScope.launch {
+                            val result = withContext(Dispatchers.IO) {
+                                runCatching { GameContentStore.verifyIntegrity(entry) }
+                            }
+                            busy = false
+                            importButton.isEnabled = true
+                            val message = when {
+                                result.isFailure -> R.string.synolsis_content_error
+                                result.getOrNull() == true -> R.string.synolsis_content_checksum_ok
+                                else -> R.string.synolsis_content_checksum_failed
+                            }
+                            Toast.makeText(this@GameContentManagerActivity, message, Toast.LENGTH_LONG).show()
+                        }
+                    }
+                })
+            }
             row.addView(Button(this).apply {
                 text = getString(R.string.synolsis_content_delete)
                 setOnClickListener {
@@ -164,10 +190,16 @@ class GameContentManagerActivity : AppCompatActivity() {
                     refreshList()
                 },
                 onFailure = { e ->
-                    AlertDialog.Builder(this@GameContentManagerActivity)
-                        .setTitle(R.string.synolsis_content_error)
-                        .setMessage(e.localizedMessage ?: getString(R.string.synolsis_content_error))
-                        .setPositiveButton(android.R.string.ok, null).show()
+                    if (e is GameContentStore.DuplicatePackageException) {
+                        Toast.makeText(this@GameContentManagerActivity,
+                            R.string.synolsis_content_duplicate, Toast.LENGTH_LONG).show()
+                        refreshList()
+                    } else {
+                        AlertDialog.Builder(this@GameContentManagerActivity)
+                            .setTitle(R.string.synolsis_content_error)
+                            .setMessage(e.localizedMessage ?: getString(R.string.synolsis_content_error))
+                            .setPositiveButton(android.R.string.ok, null).show()
+                    }
                 }
             )
         }
