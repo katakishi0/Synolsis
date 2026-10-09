@@ -44,7 +44,7 @@ jobs:
         with:
           # Source is checked out at the start of the run, then built from that snapshot.
           # Pin the tested revision, including safe V4 locale migration.
-          ref: 717ecb9b652e340d4d6f4967b8d0f84a9ba702f5
+          ref: 93ef14348936d9004e2249df53a4c843e68625f3
           submodules: false
 
       - name: Assert full source is checked in
@@ -1246,6 +1246,7 @@ jobs:
           assert 'vk::ComponentMapping{}' in src and 'vk::ComponentMapping{}' in pool
           assert 'ResolveStorageImageFormat(' in src
           assert 'GetStorageImageBinding(' in src
+          assert 'static_cast<u32>(handle.textureIndex)' in src
           assert 'MarkGpuDirty(ctx.executor.usageTracker)' in src
           assert 'cbufUsageInfo.storageImages' in max3 and 'storageImages' in mh
           assert 'GetStorageImageBinding(ctx, desc, textures, handle,' in max3
@@ -1340,7 +1341,7 @@ jobs:
           else
             gh release create "$tag" "${files[@]}" \
               --repo "$GITHUB_REPOSITORY" \
-              --target "717ecb9b652e340d4d6f4967b8d0f84a9ba702f5" \
+              --target "93ef14348936d9004e2249df53a4c843e68625f3" \
               --title "Synolsis V39 Storage-Image Shader Compatibility ${GITHUB_RUN_NUMBER}" \
               --notes "Experimental Synolsis V39 ARM64: keeps V35 Horizon SVC fix, V36 GPU debug sampling, V37 Vulkan copy coherence, and V38 optional anti-flicker switch. Implements missing Maxwell3D and KeplerCompute STORAGE_IMAGE Vulkan descriptor writes, capability-checked storage usage for guest textures, identity-swizzled typed/typeless image views, GPU-dirty tracking, conservative memory barriers and typed null fallback images. V38 flicker persisted ON/OFF; V39 is a new compatibility attempt, NOT a guaranteed NieR/Nine Sols fix until tested. Full NVDEC/VIC, QLauncher, shader backends and real internal resolution remain incomplete. See docs/SYNOLSIS_V39_STORAGE_IMAGE_COMPATIBILITY.md." \
               --prerelease
