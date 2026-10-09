@@ -8,6 +8,7 @@
 #include <mutex>
 #include <vector>
 #include <vfs/backing.h>
+#include "aoc_title_id.h"
 
 namespace skyline::service::aocsrv {
     // AOC is only visible once it has a real, decrypted RomFS backing.
@@ -27,7 +28,7 @@ namespace skyline::service::aocsrv {
 
       public:
         static std::uint64_t BaseId(std::uint64_t appId) {
-            return (appId & ~std::uint64_t{0x1FFF}) + 0x1000;
+            return AddOnBaseId(appId);
         }
 
         void SetApplication(std::uint64_t appId) {
@@ -40,16 +41,14 @@ namespace skyline::service::aocsrv {
             if (!backing || !backing->size)
                 return false;
             std::scoped_lock lock(mutex);
-            const auto base{BaseId(applicationId)};
-            if (!applicationId || aocId < base || aocId - base > 0x7FF ||
-                mounted.size() >= 2048)
+            const auto index{AddOnIndex(applicationId, aocId)};
+            if (!index || mounted.size() >= 2048)
                 return false;
             if (std::any_of(mounted.begin(), mounted.end(), [&](const Entry &e) {
                     return e.titleId == aocId;
                 }))
                 return false;
-            const auto index{static_cast<std::uint32_t>(aocId - base)};
-            mounted.push_back({aocId, index, std::move(backing)});
+            mounted.push_back({aocId, *index, std::move(backing)});
             std::sort(mounted.begin(), mounted.end(),
                       [](const Entry &a, const Entry &b) { return a.index < b.index; });
             return true;
