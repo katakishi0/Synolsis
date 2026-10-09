@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="synolsis_gpu_fence_antiflicker_title">Anti-flicker (fences da GPU)</string>
+    <string name="synolsis_gpu_fence_antiflicker_off">Conclusão rápida da GPU; pode causar flicker em alguns jogos.</string>
+    <string name="synolsis_gpu_fence_antiflicker_on">Espera a GPU terminar antes de liberar fences. Pode reduzir FPS.</string>
+</resources>
