@@ -42,7 +42,8 @@ jobs:
           test -e .gitmodules
           test -f app/libraries/boost/LICENSE_1_0.txt
           test -f app/libraries/oboe/README.md
-          git submodule status --recursive | head -50
+          git submodule status --recursive > "$RUNNER_TEMP/strato-submodules.txt"
+          head -50 "$RUNNER_TEMP/strato-submodules.txt"
           git status --porcelain
           echo 'Pristine upstream, no Synolsis or mirrored Strato source patches; only CI packaging changes.' >> "$GITHUB_STEP_SUMMARY"
 
