@@ -7,6 +7,7 @@
 #include "vfs/filesystem.h"
 #include "loader/loader.h"
 #include "services/serviceman.h"
+#include "services/aocsrv/mounted_add_on_registry.h"
 
 namespace skyline::kernel {
     /**
@@ -21,6 +22,7 @@ namespace skyline::kernel {
         std::shared_ptr<vfs::FileSystem> assetFileSystem; //!< A filesystem to be used for accessing emulator assets (like tzdata)
         DeviceState state;
         service::ServiceManager serviceManager;
+        service::aocsrv::MountedAddOnRegistry mountedAddOns; //!< Per-running-title, backed DLC; never staged-only
 
         /**
          * @param settings An instance of the Settings class
