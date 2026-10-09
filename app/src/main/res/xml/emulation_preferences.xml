@@ -4,7 +4,7 @@
         android:key="category_system"
         android:title="@string/system">
         <SwitchPreferenceCompat
-            android:defaultValue="true"
+            android:defaultValue="false"
             android:summaryOff="@string/handheld_enabled"
             android:summaryOn="@string/docked_enabled"
             app:key="is_docked"

@@ -24,7 +24,8 @@ class EmulationSettings private constructor(context : Context, prefName : String
     var useCustomSettings by sharedPreferences(context, false, prefName = prefName)
 
     // System
-    var isDocked by sharedPreferences(context, true, prefName = prefName)
+    // New installs use handheld by default. Existing saved user choices are kept.
+    var isDocked by sharedPreferences(context, false, prefName = prefName)
     var usernameValue by sharedPreferences(context, context.getString(R.string.username_default), prefName = prefName)
     var profilePictureValue by sharedPreferences(context, "", prefName = prefName)
     var systemLanguage by sharedPreferences(context, 1, prefName = prefName)

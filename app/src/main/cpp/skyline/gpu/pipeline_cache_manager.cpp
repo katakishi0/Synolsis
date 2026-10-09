@@ -27,37 +27,12 @@ namespace skyline::gpu {
     void PipelineCacheManager::Run() {
         std::ofstream stream{stagingPath, std::ios::binary | std::ios::trunc};
         PipelineCacheFileHeader header{};
-        stream.write(reinterpret_cast<const char *>(&header), sizeof(header));
-        stream.flush();
-
-        // Shader creation can enqueue hundreds of bundles at once. Avoid
-        // seeking to offset zero and rewriting the header for every shader,
-        // which causes avoidable flash I/O and queue contention on Adreno.
-        // Bound the uncommitted staging tail to at most 15 bundles.
-        constexpr u32 HeaderBatchSize{16};
-        u32 pendingHeaderUpdates{};
-
-        const auto flushHeader{[&]() {
-            if (!pendingHeaderUpdates)
-                return;
-            const auto savedPosition{stream.tellp()};
-            stream.seekp(0, std::ios_base::beg);
-            stream.write(reinterpret_cast<const char *>(&header), sizeof(header));
-            stream.seekp(savedPosition);
-            stream.flush();
-            pendingHeaderUpdates = 0;
-        }};
+        stream.write(reinterpret_cast<const char *>(&header), sizeof(PipelineCacheFileHeader));
 
         while (true) {
             std::unique_lock lock(writeMutex);
-            if (writeQueue.empty()) {
-                lock.unlock();
-                // Persist the count promptly when the shader queue goes idle.
-                // If Android kills the app while busy, a short trailing cache
-                // segment may be ignored safely on next launch.
-                flushHeader();
-                lock.lock();
-            }
+            if (writeQueue.empty())
+                stream.flush();
 
             writeCondition.wait(lock, [this] { return !writeQueue.empty(); });
             auto bundle{std::move(writeQueue.front())};
@@ -65,9 +40,13 @@ namespace skyline::gpu {
             lock.unlock();
 
             bundle->Serialise(stream);
-            ++header.count;
-            if (++pendingHeaderUpdates >= HeaderBatchSize)
-                flushHeader();
+
+            header.count++;
+            // Rewrite the header with the updated count
+            auto savedPosition{stream.tellp()};
+            stream.seekp(0, std::ios_base::beg);
+            stream.write(reinterpret_cast<const char *>(&header), sizeof(PipelineCacheFileHeader));
+            stream.seekp(savedPosition);
         }
     }
 
@@ -77,9 +56,7 @@ namespace skyline::gpu {
 
         PipelineCacheFileHeader header{};
         stream.read(reinterpret_cast<char *>(&header), sizeof(PipelineCacheFileHeader));
-        // A truncated file may leave the default-initialised magic/version intact.
-        // Accept the header only if the entire on-disk structure was read.
-        return stream.gcount() == static_cast<std::streamsize>(sizeof(PipelineCacheFileHeader)) && header.IsValid();
+        return header.IsValid();
     }
 
     void PipelineCacheManager::MergeStaging() {
@@ -89,7 +66,7 @@ namespace skyline::gpu {
 
         PipelineCacheFileHeader stagingHeader{};
         stagingStream.read(reinterpret_cast<char *>(&stagingHeader), sizeof(PipelineCacheFileHeader));
-        if (stagingStream.gcount() != static_cast<std::streamsize>(sizeof(PipelineCacheFileHeader)) || !stagingHeader.IsValid()) {
+        if (!stagingHeader.IsValid()) {
             LOGW("Discarding invalid pipeline cache staging file");
             return;
         }
@@ -98,55 +75,14 @@ namespace skyline::gpu {
         PipelineCacheFileHeader mainHeader{};
         mainStream.seekg(0, std::ios_base::beg);
         mainStream.read(reinterpret_cast<char *>(&mainHeader), sizeof(PipelineCacheFileHeader));
-        if (mainStream.gcount() != static_cast<std::streamsize>(sizeof(PipelineCacheFileHeader)) || !mainHeader.IsValid()) {
-            LOGW("Cannot merge staging data into an invalid pipeline cache");
-            return;
-        }
 
-        // Append payload first, commit the new count only after the bytes
-        // have been written successfully. The old code increased the count
-        // before copying data, corrupting the cache on a short disk write.
-        mainStream.seekp(0, std::ios::end);
-        const auto originalEnd{mainStream.tellp()};
-        if (originalEnd == std::streampos(-1)) {
-            LOGW("Cannot determine graphics pipeline cache size; keeping staging");
-            return;
-        }
-        if (stagingHeader.count > std::numeric_limits<u32>::max() - mainHeader.count) {
-            LOGW("Pipeline cache count overflow; keeping staging for recovery");
-            return;
-        }
-
-        mainStream << stagingStream.rdbuf();
-        mainStream.flush();
-        if (!mainStream || stagingStream.bad()) {
-            LOGW("Pipeline cache append failed; restoring previous length");
-            mainStream.close();
-            std::error_code rollbackError;
-            std::filesystem::resize_file(mainPath, static_cast<u64>(static_cast<std::streamoff>(originalEnd)), rollbackError);
-            if (rollbackError)
-                LOGW("Pipeline cache rollback failed: {}", rollbackError.message());
-            return;
-        }
-
+        // Update the main header with the new count
         mainHeader.count += stagingHeader.count;
         mainStream.seekp(0, std::ios_base::beg);
         mainStream.write(reinterpret_cast<const char *>(&mainHeader), sizeof(PipelineCacheFileHeader));
-        mainStream.flush();
-        if (!mainStream) {
-            LOGW("Pipeline cache header commit failed; keeping staging for recovery");
-            return;
-        }
 
-        // Important: the next launch must not append the same staging bundles
-        // again. A stale .staging file previously caused unbounded cache growth
-        // and progressively longer cache replays.
-        stagingStream.close();
-        mainStream.close();
-        std::error_code removeError;
-        std::filesystem::remove(stagingPath, removeError);
-        if (removeError)
-            LOGW("Could not remove merged pipeline cache staging file: {}", removeError.message());
+        mainStream.seekp(0, std::ios::end);
+        mainStream << stagingStream.rdbuf();
     }
 
     PipelineCacheManager::PipelineCacheManager(const DeviceState &state, const std::string &path)
@@ -186,23 +122,8 @@ namespace skyline::gpu {
 
         PipelineCacheFileHeader header{};
         mainStream.read(reinterpret_cast<char *>(&header), sizeof(PipelineCacheFileHeader));
-        if (mainStream.gcount() != static_cast<std::streamsize>(sizeof(PipelineCacheFileHeader)) || !header.IsValid())
+        if (!header.IsValid())
             throw exception("Pipeline cache main file corrupted at runtime!");
-
-        // Never trust a malformed count from disk: replaying an excessive
-        // number of entries can turn a corrupt cache into a lengthy startup
-        // stall or an out-of-bounds stream read. Every serialized bundle
-        // occupies at least one byte after the fixed header.
-        mainStream.seekg(0, std::ios::end);
-        const auto endOffset{static_cast<std::streamoff>(mainStream.tellg())};
-        constexpr auto headerSize{static_cast<std::streamoff>(sizeof(PipelineCacheFileHeader))};
-        if (endOffset < headerSize ||
-            static_cast<u64>(header.count) > static_cast<u64>(endOffset - headerSize))
-            throw exception("Pipeline cache has an impossible pipeline count!");
-
-        mainStream.seekg(sizeof(PipelineCacheFileHeader), std::ios::beg);
-        if (!mainStream)
-            throw exception("Failed to seek pipeline cache payload!");
 
         return {std::move(mainStream), header.count};
     }

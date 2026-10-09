@@ -2,7 +2,6 @@
 // Copyright © 2022 Skyline Team and Contributors (https://github.com/skyline-emu/)
 
 #include <boost/functional/hash.hpp>
-#include <algorithm>
 #include <fstream>
 #include <filesystem>
 #include <gpu.h>
@@ -57,25 +56,8 @@ namespace skyline::gpu {
         PipelineCacheFileDataHeader header{};
         stream.read(reinterpret_cast<char *>(&header), sizeof(PipelineCacheFileDataHeader));
 
-        // Do not allocate arbitrary driver-controlled sizes from a corrupt
-        // cache header. Limit a warm-start cache to 256 MiB on Android, and
-        // reject truncated or mismatched files *before* allocating the buffer.
-        constexpr u64 MaxPipelineCacheBytes{256ULL * 1024 * 1024};
-        std::error_code sizeError;
-        const auto fileSize{std::filesystem::file_size(path, sizeError)};
-        if (!stream || sizeError || fileSize < sizeof(PipelineCacheFileDataHeader) ||
-            header.size > MaxPipelineCacheBytes ||
-            header.size != fileSize - sizeof(PipelineCacheFileDataHeader)) {
-            LOGW("Ignoring truncated, oversized or invalid Vulkan pipeline cache");
-            return {gpu.vkDevice, vk::PipelineCacheCreateInfo{}};
-        }
-
-        std::vector<u8> readData(static_cast<size_t>(header.size));
+        std::vector<u8> readData(header.size);
         stream.read(reinterpret_cast<char *>(readData.data()), static_cast<std::streamsize>(header.size));
-        if (!stream) {
-            LOGW("Vulkan pipeline cache payload could not be fully read");
-            return {gpu.vkDevice, vk::PipelineCacheCreateInfo{}};
-        }
 
         if (header.hash != XXH64(readData.data(), readData.size(), 0)) {
             LOGW("Ignoring invalid pipeline cache file!");
@@ -96,47 +78,22 @@ namespace skyline::gpu {
             .size = data.size(),
             .hash = XXH64(data.data(), data.size(), 0)
         };
-        constexpr u64 MaxPipelineCacheBytes{256ULL * 1024 * 1024};
-        if (data.size() > MaxPipelineCacheBytes) {
-            LOGW("Skipping oversized Vulkan cache save ({} bytes)", data.size());
-            return;
-        }
-
-        // Never truncate the last known-good Vulkan driver cache if Android
-        // closes the process or storage fills during a save.
-        const std::filesystem::path temporaryPath{path.string() + ".writing"};
-        std::ofstream stream{temporaryPath, std::ios::binary | std::ios::trunc};
-        if (!stream) {
-            LOGW("Failed to open temporary Vulkan pipeline cache!");
+        std::ofstream stream{path, std::ios::binary | std::ios::trunc};
+        if (stream.fail()) {
+            LOGW("Failed to write Vulkan pipeline cache!");
             return;
         }
 
         stream.write(reinterpret_cast<char *>(&header), sizeof(PipelineCacheFileDataHeader));
         stream.write(reinterpret_cast<char *>(data.data()), static_cast<std::streamsize>(data.size()));
-        stream.flush();
-        const bool complete{stream.good()};
-        stream.close();
-        if (!complete) {
-            LOGW("Incomplete Vulkan pipeline cache write; preserving previous cache");
-            std::error_code removeError;
-            std::filesystem::remove(temporaryPath, removeError);
-            return;
-        }
-        std::error_code replaceError;
-        std::filesystem::rename(temporaryPath, path, replaceError);
-        if (replaceError) {
-            LOGW("Failed to replace Vulkan driver cache atomically: {}", replaceError.message());
-            std::filesystem::remove(temporaryPath, replaceError);
-            return;
-        }
 
         LOGI("Wrote Vulkan pipeline cache to {} (size: 0x{:X} bytes)", path.string(), data.size());
     }
 
-    GraphicsPipelineAssembler::GraphicsPipelineAssembler(GPU &gpu, std::string_view pipelineCacheDir, u32 pipelineCompileThreads)
+    GraphicsPipelineAssembler::GraphicsPipelineAssembler(GPU &gpu, std::string_view pipelineCacheDir, u32 /*pipelineCompileThreads*/)
         : gpu{gpu},
           vkPipelineCache{DeserialisePipelineCache(gpu, pipelineCacheDir)},
-          pool{gpu.traits.quirks.brokenMultithreadedPipelineCompilation ? 1U : std::min(pipelineCompileThreads, 4U)},
+          pool{gpu.traits.quirks.brokenMultithreadedPipelineCompilation ? 1U : 0U},
           pipelineCacheDir{pipelineCacheDir} {}
 
     #define VEC_CPY(pointer, size) state.pointer, state.pointer + state.size

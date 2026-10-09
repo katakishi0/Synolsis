@@ -404,24 +404,12 @@ namespace skyline::gpu {
 
     void Texture::CopyFromStagingBuffer(const vk::raii::CommandBuffer &commandBuffer, const std::shared_ptr<memory::StagingBuffer> &stagingBuffer) {
         auto image{GetBacking()};
-        const auto previousLayout{layout};
-        // vkCmdCopyBufferToImage accepts only GENERAL or TRANSFER_DST_OPTIMAL.
-        // The old path passed the tracked image layout directly, which may be
-        // SHADER_READ_ONLY_OPTIMAL or COLOR_ATTACHMENT_OPTIMAL and is invalid.
-        // Synchronize previous shader/attachment readers and writers before
-        // replacing the image contents, including when layout is GENERAL.
-        commandBuffer.pipelineBarrier(
-            previousLayout == vk::ImageLayout::eUndefined
-                ? vk::PipelineStageFlags{vk::PipelineStageFlagBits::eTopOfPipe}
-                : vk::PipelineStageFlags{vk::PipelineStageFlagBits::eAllCommands},
-            vk::PipelineStageFlagBits::eTransfer, {}, {}, {},
-            vk::ImageMemoryBarrier{
+        if (layout == vk::ImageLayout::eUndefined)
+            commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eHost, vk::PipelineStageFlagBits::eTransfer, {}, {}, {}, vk::ImageMemoryBarrier{
                 .image = image,
-                .srcAccessMask = previousLayout == vk::ImageLayout::eUndefined
-                    ? vk::AccessFlags{}
-                    : vk::AccessFlags{vk::AccessFlagBits::eMemoryRead | vk::AccessFlagBits::eMemoryWrite},
+                .srcAccessMask = vk::AccessFlagBits::eMemoryRead,
                 .dstAccessMask = vk::AccessFlagBits::eTransferWrite,
-                .oldLayout = previousLayout,
+                .oldLayout = std::exchange(layout, vk::ImageLayout::eGeneral),
                 .newLayout = vk::ImageLayout::eGeneral,
                 .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
                 .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
@@ -431,40 +419,14 @@ namespace skyline::gpu {
                     .layerCount = layerCount,
                 },
             });
-        if (previousLayout == vk::ImageLayout::eUndefined)
-            layout = vk::ImageLayout::eGeneral;
 
         auto bufferImageCopies{GetBufferImageCopies()};
-        commandBuffer.copyBufferToImage(stagingBuffer->vkBuffer, image, vk::ImageLayout::eGeneral,
-            vk::ArrayProxy(static_cast<u32>(bufferImageCopies.size()), bufferImageCopies.data()));
-
-        // Make uploaded texels visible to the next texture sampling, rendering
-        // or transfer operation. Restore the guest texture's previous layout,
-        // except UNDEFINED, which must become GENERAL after initialization.
-        commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer,
-            vk::PipelineStageFlagBits::eAllCommands, {}, {}, {},
-            vk::ImageMemoryBarrier{
-                .image = image,
-                .srcAccessMask = vk::AccessFlagBits::eTransferWrite,
-                .dstAccessMask = vk::AccessFlagBits::eMemoryRead | vk::AccessFlagBits::eMemoryWrite,
-                .oldLayout = vk::ImageLayout::eGeneral,
-                .newLayout = previousLayout == vk::ImageLayout::eUndefined
-                    ? vk::ImageLayout::eGeneral : previousLayout,
-                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                .subresourceRange = {
-                    .aspectMask = format->vkAspect,
-                    .levelCount = levelCount,
-                    .layerCount = layerCount,
-                },
-            });
+        commandBuffer.copyBufferToImage(stagingBuffer->vkBuffer, image, layout, vk::ArrayProxy(static_cast<u32>(bufferImageCopies.size()), bufferImageCopies.data()));
     }
 
     void Texture::CopyIntoStagingBuffer(const vk::raii::CommandBuffer &commandBuffer, const std::shared_ptr<memory::StagingBuffer> &stagingBuffer) {
         auto image{GetBacking()};
-        // BOTTOM_OF_PIPE cannot make prior shader/attachment writes available
-        // to a subsequent transfer read. Use a real producer stage mask.
-        commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eAllCommands, vk::PipelineStageFlagBits::eTransfer, {}, {}, {}, vk::ImageMemoryBarrier{
+        commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eBottomOfPipe, vk::PipelineStageFlagBits::eTransfer, {}, {}, {}, vk::ImageMemoryBarrier{
             .image = image,
             .srcAccessMask = vk::AccessFlagBits::eMemoryWrite,
             .dstAccessMask = vk::AccessFlagBits::eTransferRead,
@@ -743,13 +705,10 @@ namespace skyline::gpu {
 
         if (layout != pLayout) {
             auto lCycle{gpu.scheduler.Submit([&](vk::raii::CommandBuffer &commandBuffer) {
-                // Layout changes must order actual producer writes and subsequent
-                // consumers, including when the backing is recycled on Turnip.
-                const bool discarded{layout == vk::ImageLayout::eUndefined};
-                commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eAllCommands, vk::PipelineStageFlagBits::eAllCommands, {}, {}, {}, vk::ImageMemoryBarrier{
+                commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eBottomOfPipe, {}, {}, {}, vk::ImageMemoryBarrier{
                     .image = GetBacking(),
-                    .srcAccessMask = discarded ? vk::AccessFlags{} : vk::AccessFlags{vk::AccessFlagBits::eMemoryWrite},
-                    .dstAccessMask = vk::AccessFlagBits::eMemoryRead | vk::AccessFlagBits::eMemoryWrite,
+                    .srcAccessMask = vk::AccessFlagBits::eNoneKHR,
+                    .dstAccessMask = vk::AccessFlagBits::eNoneKHR,
                     .oldLayout = std::exchange(layout, pLayout),
                     .newLayout = pLayout,
                     .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
@@ -936,7 +895,7 @@ namespace skyline::gpu {
         return std::make_shared<TextureView>(shared_from_this(), type, range, pFormat, mapping);
     }
 
-    void Texture::CopyFrom(std::shared_ptr<Texture> source, vk::Semaphore waitSemaphore, vk::Semaphore signalSemaphore, texture::Format srcFormat, const vk::ImageSubresourceRange &subresource, bool permitScaledBlit) {
+    void Texture::CopyFrom(std::shared_ptr<Texture> source, vk::Semaphore waitSemaphore, vk::Semaphore signalSemaphore, texture::Format srcFormat, const vk::ImageSubresourceRange &subresource, bool /*permitScaledBlit*/) {
         if (cycle)
             cycle->WaitSubmit();
         if (source->cycle)
@@ -948,23 +907,8 @@ namespace skyline::gpu {
 
         if (source->layout == vk::ImageLayout::eUndefined)
             throw exception("Cannot copy from image with undefined layout");
-        else if (source->dimensions != dimensions && !permitScaledBlit)
+        else if (source->dimensions != dimensions)
             throw exception("Cannot copy from image with different dimensions");
-        else if (source->dimensions.depth != dimensions.depth ||
-                 (source->dimensions != dimensions && (levelCount != 1 || source->levelCount != 1)))
-            throw exception("Scaled blits require equal depth and exactly one mip level");
-
-        const bool dimensionsDiffer{source->dimensions != dimensions};
-        auto selectedFilter{vk::Filter::eLinear};
-        if (dimensionsDiffer) {
-            const auto srcFeatures{gpu.vkPhysicalDevice.getFormatProperties(*source->format).optimalTilingFeatures};
-            const auto dstFeatures{gpu.vkPhysicalDevice.getFormatProperties(*format).optimalTilingFeatures};
-            if (!(srcFeatures & vk::FormatFeatureFlagBits::eBlitSrc) ||
-                !(dstFeatures & vk::FormatFeatureFlagBits::eBlitDst))
-                throw exception("Vulkan image formats do not support scaled presentation blits");
-            if (!(srcFeatures & vk::FormatFeatureFlagBits::eSampledImageFilterLinear))
-                selectedFilter = vk::Filter::eNearest;
-        }
 
         TRACE_EVENT("gpu", "Texture::CopyFrom");
 
@@ -978,13 +922,8 @@ namespace skyline::gpu {
 
             return gpu.scheduler.Submit([&](vk::raii::CommandBuffer &commandBuffer) {
                 auto sourceBacking{source->GetBacking()};
-                {
-                    // An existing TRANSFER_SRC_OPTIMAL layout does not
-                    // imply the latest shader/color-attachment/transfer write
-                    // is visible. Always establish availability before
-                    // reading this image for presentation, even without a
-                    // layout transition (important for Turnip reuses).
-                    commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eAllCommands, vk::PipelineStageFlagBits::eTransfer, {}, {}, {}, vk::ImageMemoryBarrier{
+                if (source->layout != vk::ImageLayout::eTransferSrcOptimal) {
+                    commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer, {}, {}, {}, vk::ImageMemoryBarrier{
                         .image = sourceBacking,
                         .srcAccessMask = vk::AccessFlagBits::eMemoryWrite,
                         .dstAccessMask = vk::AccessFlagBits::eTransferRead,
@@ -1000,7 +939,7 @@ namespace skyline::gpu {
                 if (layout != vk::ImageLayout::eTransferDstOptimal) {
                     commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eAllCommands, vk::PipelineStageFlagBits::eAllCommands, {}, {}, {}, vk::ImageMemoryBarrier{
                         .image = destinationBacking,
-                        .srcAccessMask = vk::AccessFlagBits::eMemoryRead | vk::AccessFlagBits::eMemoryWrite,
+                        .srcAccessMask = vk::AccessFlagBits::eMemoryRead,
                         .dstAccessMask = vk::AccessFlagBits::eTransferWrite,
                         .oldLayout = layout,
                         .newLayout = vk::ImageLayout::eTransferDstOptimal,
@@ -1020,13 +959,13 @@ namespace skyline::gpu {
                     .layerCount = subresource.layerCount == VK_REMAINING_ARRAY_LAYERS ? layerCount - subresource.baseArrayLayer : subresource.layerCount,
                     };
                 for (; subresourceLayers.mipLevel < (subresource.levelCount == VK_REMAINING_MIP_LEVELS ? levelCount - subresource.baseMipLevel : subresource.levelCount); subresourceLayers.mipLevel++) {
-                    if (srcFormat != format || dimensionsDiffer) {
+                    if (srcFormat != format) {
                         commandBuffer.blitImage(sourceBacking, vk::ImageLayout::eTransferSrcOptimal, destinationBacking, vk::ImageLayout::eTransferDstOptimal, vk::ImageBlit{
                                 .srcSubresource = subresourceLayers,
                                 .srcOffsets = std::array<vk::Offset3D, 2>{
                                     vk::Offset3D{0, 0, 0},
-                                    vk::Offset3D{static_cast<i32>(source->dimensions.width),
-                                                 static_cast<i32>(source->dimensions.height),
+                                    vk::Offset3D{static_cast<i32>(dimensions.width),
+                                                 static_cast<i32>(dimensions.height),
                                                  static_cast<i32>(subresourceLayers.layerCount)}
                                 },
                                 .dstSubresource = subresourceLayers,
@@ -1036,7 +975,7 @@ namespace skyline::gpu {
                                                  static_cast<i32>(dimensions.height),
                                                  static_cast<i32>(subresourceLayers.layerCount)}
                                 }
-                            }, selectedFilter);
+                            }, vk::Filter::eLinear);
                     } else {
                         commandBuffer.copyImage(sourceBacking, vk::ImageLayout::eTransferSrcOptimal, destinationBacking, vk::ImageLayout::eTransferDstOptimal, vk::ImageCopy{
                             .srcSubresource = subresourceLayers,

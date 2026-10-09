@@ -11,8 +11,6 @@
 #include <loader/loader.h>
 #include <kernel/types/KProcess.h>
 #include "presentation_engine.h"
-#include "presentation_scale.h"
-#include <os.h>
 #include "native_window.h"
 #include "texture/format.h"
 
@@ -103,61 +101,14 @@ namespace skyline::gpu {
         std::scoped_lock textureLock(*frame.textureView);
 
         auto texture{frame.textureView->texture};
-        // Observe completed guest frame submissions only. This tracker
-        // retains NO Vulkan image snapshots, so synthetic presentation is
-        // deliberately disabled until a synchronized compute path exists.
-        const auto candidate{frameHistory.Observe({
-            static_cast<std::uint64_t>(frame.id),
-            static_cast<std::int64_t>(util::GetTimeNs()),
-            texture->dimensions.width, texture->dimensions.height,
-            static_cast<std::uint32_t>(*frame.textureView->format),
-            reinterpret_cast<std::uintptr_t>(texture.get())
-        })};
-        if (candidate && (frameHistory.AcceptedPairs() % 120) == 0)
-            LOGD("Observed {} eligible frame-history pairs; frame interpolation output not enabled",
-                 frameHistory.AcceptedPairs());
-        // This is *presentation* scaling only. The emulated GPU still renders
-        // all game attachments at their original size, and this setting must
-        // never be described as an internal resolution or FSR implementation.
-        // V25 flicker diagnostic: keep native 100% final swapchain size.
-        // The old 50/75% option only affected host presentation, not
-        // guest render targets, and was unreliable on some Turnip paths.
-        constexpr u32 percent{100U};
-        constexpr bool canBlit{false}; // A/B test: no scaled-image blit on Turnip.
-        const auto desired{presentation_scale::ChooseExtent(
-            {texture->dimensions.width, texture->dimensions.height},
-            percent,
-            {vkSurfaceCapabilities.minImageExtent.width, vkSurfaceCapabilities.minImageExtent.height},
-            {vkSurfaceCapabilities.maxImageExtent.width, vkSurfaceCapabilities.maxImageExtent.height},
-            canBlit)};
-        const texture::Dimensions outputExtent{desired.width, desired.height, texture->dimensions.depth};
-        if (frame.textureView->format != swapchainFormat || outputExtent != swapchainExtent)
-            UpdateSwapchain(frame.textureView->format, outputExtent);
-
-        auto finalCrop{frame.crop};
-        if (finalCrop && outputExtent != texture->dimensions) {
-            // Guest crop fields are unsigned; saturate before converting to
-            // signed crop geometry to avoid -Wc++11-narrowing or wraparound.
-            const auto safeCrop{[](u32 value) -> i32 {
-                return static_cast<i32>(std::min<u32>(
-                    value, static_cast<u32>(std::numeric_limits<i32>::max())));
-            }};
-            const auto scaled{presentation_scale::ScaleCrop(
-                {safeCrop(finalCrop.left), safeCrop(finalCrop.top),
-                 safeCrop(finalCrop.right), safeCrop(finalCrop.bottom)},
-                {texture->dimensions.width, texture->dimensions.height},
-                {outputExtent.width, outputExtent.height})};
-            finalCrop.left = scaled.left;
-            finalCrop.top = scaled.top;
-            finalCrop.right = scaled.right;
-            finalCrop.bottom = scaled.bottom;
-        }
+        if (frame.textureView->format != swapchainFormat || texture->dimensions != swapchainExtent)
+            UpdateSwapchain(frame.textureView->format, texture->dimensions);
 
         int result;
-        if (finalCrop && finalCrop != windowCrop) {
-            if ((result = window->perform(window, NATIVE_WINDOW_SET_CROP, &finalCrop)))
-                throw exception("Setting the layer crop to ({}-{})x({}-{}) failed with {}", finalCrop.left, finalCrop.right, finalCrop.top, finalCrop.bottom, result);
-            windowCrop = finalCrop;
+        if (frame.crop && frame.crop != windowCrop) {
+            if ((result = window->perform(window, NATIVE_WINDOW_SET_CROP, &frame.crop)))
+                throw exception("Setting the layer crop to ({}-{})x({}-{}) failed with {}", frame.crop.left, frame.crop.right, frame.crop.top, frame.crop.bottom, result);
+            windowCrop = frame.crop;
         }
 
         if (frame.scalingMode != NativeWindowScalingMode::Freeze && windowScalingMode != frame.scalingMode) {
@@ -166,14 +117,9 @@ namespace skyline::gpu {
             windowScalingMode = frame.scalingMode;
         }
 
-        // Avoid a redundant native-window perform/Binder transition on every
-        // frame if the Switch output transform did not change.
-        if (!windowTransformApplied || frame.transform != windowTransform) {
-            if ((result = window->perform(window, NATIVE_WINDOW_SET_BUFFERS_TRANSFORM, static_cast<i32>(frame.transform))))
-                throw exception("Setting the buffer transform to '{}' failed with {}", ToString(frame.transform), result);
-            windowTransform = frame.transform;
-            windowTransformApplied = true;
-        }
+        if ((result = window->perform(window, NATIVE_WINDOW_SET_BUFFERS_TRANSFORM, static_cast<i32>(frame.transform))))
+            throw exception("Setting the buffer transform to '{}' failed with {}", ToString(frame.transform), result);
+        windowTransform = frame.transform;
 
         auto &acquireSemaphore{acquireSemaphores[frameIndex]};
         auto &frameFence{frameFences[frameIndex]};
@@ -198,7 +144,7 @@ namespace skyline::gpu {
             .aspectMask = vk::ImageAspectFlagBits::eColor,
             .levelCount = 1,
             .layerCount = 1,
-        }, outputExtent != texture->dimensions);
+        });
 
         frameFence = nextImageTexture->cycle;
 
@@ -289,28 +235,10 @@ namespace skyline::gpu {
 
         try {
             presentQueue.Process([this](const PresentableFrame &frame) {
-                // Experimental HOST presentation frame skipping. It cannot
-                // skip game simulation or guest GPU rendering. Keeping fence
-                // waits and callbacks is necessary so Horizon buffer slots
-                // get released and the guest does not deadlock.
-                const bool shouldPresent{skipPolicy.ShouldPresent(
-                    *state.settings->presentationFrameSkip)};
-                if (!shouldPresent) {
-                    // The guest fence and release callback are still required:
-                    // skipping these can recycle incomplete guest buffers.
-                    frame.fence.Wait(state.soc->host1x);
-                    // Temporal history must not span a dropped display frame.
-                    // Do not advertise a generated frame without snapshots.
-                    {
-                        std::scoped_lock presentLock{mutex};
-                        frameHistory.Reset();
-                    }
-                } else {
-                    PresentFrame(frame);
-                }
-                frame.presentCallback(); // Must happen even if host output is skipped
+                PresentFrame(frame);
+                frame.presentCallback(); // We're calling the callback here as it's outside of all the locks in PresentFrame
                 skipSignal = true;
-                vsyncEvent->Signal(); // Preserve the guest's VI synchronization
+                vsyncEvent->Signal();
             }, [] {});
         } catch (const signal::SignalException &e) {
             LOGE("{}\nStack Trace:{}", e.what(), state.loader->GetStackTrace(e.frames));
@@ -351,19 +279,13 @@ namespace skyline::gpu {
     }
 
     void PresentationEngine::UpdateSwapchain(texture::Format format, texture::Dimensions extent) {
-        // Some Adreno/Turnip surfaces expose only two swapchain buffers.
-        // Prefer triple buffering when available but avoid failing startup
-        // when the Vulkan implementation advertises a smaller maximum.
-        const auto &capabilities{vkSurfaceCapabilities};
-        auto minImageCount{std::max(capabilities.minImageCount, *state.settings->forceTripleBuffering ? 3U : 2U)};
-        if (capabilities.maxImageCount && minImageCount > capabilities.maxImageCount) {
-            LOGW("Clamping requested swapchain images {} to device maximum {}", minImageCount, capabilities.maxImageCount);
-            minImageCount = capabilities.maxImageCount;
-        }
+        auto minImageCount{std::max(vkSurfaceCapabilities.minImageCount, *state.settings->forceTripleBuffering ? 3U : 2U)};
         if (minImageCount > MaxSwapchainImageCount)
             throw exception("Requesting swapchain with higher image count ({}) than maximum slot count ({})", minImageCount, MaxSwapchainImageCount);
-        if (minImageCount < capabilities.minImageCount)
-            throw exception("Swapchain cannot satisfy the minimum image count {}", capabilities.minImageCount);
+
+        const auto &capabilities{vkSurfaceCapabilities};
+        if (minImageCount < capabilities.minImageCount || (capabilities.maxImageCount && minImageCount > capabilities.maxImageCount))
+            throw exception("Cannot update swapchain to accomodate image count: {} ({}-{})", minImageCount, capabilities.minImageCount, capabilities.maxImageCount);
         else if (capabilities.minImageExtent.height > extent.height || capabilities.minImageExtent.width > extent.width || capabilities.maxImageExtent.height < extent.height || capabilities.maxImageExtent.width < extent.width)
             throw exception("Cannot update swapchain to accomodate image extent: {}x{} ({}x{}-{}x{})", extent.width, extent.height, capabilities.minImageExtent.width, capabilities.minImageExtent.height, capabilities.maxImageExtent.width, capabilities.maxImageExtent.height);
 
@@ -381,27 +303,10 @@ namespace skyline::gpu {
         if ((capabilities.supportedUsageFlags & presentUsage) != presentUsage)
             throw exception("Swapchain doesn't support image usage '{}': {}", vk::to_string(presentUsage), vk::to_string(capabilities.supportedUsageFlags));
 
-        vk::PresentModeKHR requestedMode{
-            *state.settings->disableFrameThrottling ? vk::PresentModeKHR::eMailbox : vk::PresentModeKHR::eFifo
-        };
-        // Keep Auto equivalent to the original Strato behavior. The other
-        // selections are real Vulkan present modes, opt-in and capability-
-        // checked below; unsupported choices fall back to mandatory FIFO.
-        switch (*state.settings->vulkanPresentMode) {
-            case 1: requestedMode = vk::PresentModeKHR::eFifo; break;
-            case 2: requestedMode = vk::PresentModeKHR::eMailbox; break;
-            case 3: requestedMode = vk::PresentModeKHR::eImmediate; break;
-            default: break;
-        }
+        auto requestedMode{*state.settings->disableFrameThrottling ? vk::PresentModeKHR::eMailbox : vk::PresentModeKHR::eFifo};
         auto modes{gpu.vkPhysicalDevice.getSurfacePresentModesKHR(**vkSurface)};
-        if (std::find(modes.begin(), modes.end(), requestedMode) == modes.end()) {
-            // FIFO is Vulkan's portable presentation mode and must be used
-            // when MAILBOX is unavailable instead of terminating game launch.
-            LOGW("Present mode {} unavailable; falling back to FIFO", vk::to_string(requestedMode));
-            requestedMode = vk::PresentModeKHR::eFifo;
-            if (std::find(modes.begin(), modes.end(), requestedMode) == modes.end())
-                throw exception("Swapchain does not support required FIFO present mode");
-        }
+        if (std::find(modes.begin(), modes.end(), requestedMode) == modes.end())
+            throw exception("Swapchain doesn't support present mode: {}", vk::to_string(requestedMode));
 
         vkSwapchain.emplace(gpu.vkDevice, vk::SwapchainCreateInfoKHR{
             .surface = **vkSurface,
@@ -447,8 +352,6 @@ namespace skyline::gpu {
             jSurface = env->NewGlobalRef(newSurface);
 
         vkSwapchain.reset();
-        frameHistory.Reset(); // Surface recreation invalidates old frame identity and size.
-        windowTransformApplied = false; // New native window needs fresh transform
 
         if (jSurface) {
             window = ANativeWindow_fromSurface(env, jSurface);
@@ -458,22 +361,6 @@ namespace skyline::gpu {
             if (!gpu.vkPhysicalDevice.getSurfaceSupportKHR(gpu.vkQueueFamilyIndex, **vkSurface))
                 throw exception("Vulkan Queue doesn't support presentation with surface");
             vkSurfaceCapabilities = gpu.vkPhysicalDevice.getSurfaceCapabilitiesKHR(**vkSurface);
-            // Construct real FSR1/temporal compute pipelines exactly once
-            // per Vulkan device. They cannot dispatch until intermediate
-            // VkImages, descriptors and proper barriers are wired up.
-            // On unsupported drivers this must never break game display.
-            if (!computePipelinesAttempted && state.os && state.os->assetFileSystem) {
-                computePipelinesAttempted = true;
-                try {
-                    computePipelines = std::make_unique<packed_compute::PipelineSet>(
-                        gpu.vkDevice, *state.os->assetFileSystem);
-                    LOGI("FSR1 EASU/RCAS + temporal Vulkan pipelines initialized; dispatch remains disabled");
-                } catch (const std::exception &e) {
-                    computePipelines.reset();
-                    LOGW("Optional Vulkan compute module unavailable: {}. Continuing with native presentation.", e.what());
-                }
-            }
-
 
             if (swapchainExtent && swapchainFormat)
                 UpdateSwapchain(swapchainFormat, swapchainExtent);
