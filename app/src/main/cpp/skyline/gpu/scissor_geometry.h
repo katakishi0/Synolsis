@@ -56,6 +56,7 @@ namespace skyline::gpu::scissor_geometry {
     struct VulkanScissor {
         std::int32_t x{}, y{};
         std::uint32_t width{}, height{};
+        constexpr bool operator==(const VulkanScissor &) const = default;
     };
 
     constexpr VulkanScissor MakeScissor(Rect rect) {
