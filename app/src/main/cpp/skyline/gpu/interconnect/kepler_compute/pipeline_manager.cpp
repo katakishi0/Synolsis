@@ -201,7 +201,17 @@ namespace skyline::gpu::interconnect::kepler_compute {
                             return binding.first;
                         });
 
-        // Since we don't implement all descriptor types the number of writes might not match what's expected
+        // Kepler compute shaders use imageStore/imageLoad via STORAGE_IMAGE.
+        // The descriptor layout was already declared, but not actually bound.
+        writeImageDescs(vk::DescriptorType::eStorageImage, shaderStage.info.image_descriptors,
+                        [&](const Shader::ImageDescriptor &desc, size_t arrayIdx) {
+                            BindlessHandle handle{ReadBindlessHandle(ctx, constantBuffers, desc, arrayIdx)};
+                            return GetStorageImageBinding(ctx, desc, textures, handle,
+                                vk::PipelineStageFlagBits::eComputeShader,
+                                srcStageMask, dstStageMask);
+                        });
+
+        // Unsupported texel-buffer descriptor types still require work.
         if (!writeIdx)
             return nullptr;
 
