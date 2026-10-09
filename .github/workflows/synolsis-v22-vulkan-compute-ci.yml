@@ -958,33 +958,39 @@ jobs:
           head -35 .ccache-stats.txt >> "$GITHUB_STEP_SUMMARY"
           echo '~~~' >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload Synolsis APK
-        continue-on-error: true
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: synolsis-v22-compute-bootstrap-${{ inputs.build_type || 'optimized' }}-${{ github.run_number }}
-          path: app/build/outputs/apk/mainline/*/*.apk
-          if-no-files-found: error
-          retention-days: 2
-
-      - name: Publish APK as private-repository pre-release (artifact quota fallback)
+      # GitHub Actions Artifacts quota can stay blocked for 6-12 hours.
+      # The compiled APK must be delivered through Releases directly.
+      - name: Publish APK to GitHub Releases (no Actions Artifacts quota)
         if: success()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
+          set -euo pipefail
           shopt -s nullglob
           files=(app/build/outputs/apk/mainline/*/*.apk)
-          if (("${#files[@]}" == 0)); then
+          if (( ${#files[@]} == 0 )); then
             echo "::error::Gradle did not produce an APK"
             exit 1
           fi
           tag="synolsis-v22-compute-${GITHUB_RUN_NUMBER}"
-          gh release create "$tag" "${files[@]}" \
-            --repo "$GITHUB_REPOSITORY" \
-            --target "ec151ed3fa62c62a34b68e27176bc7280067885d" \
-            --title "Synolsis V22 Vulkan compute pipeline bootstrap ${GITHUB_RUN_NUMBER}" \
-            --notes "ARM64 APK with Vulkan shader modules, descriptor layouts and compute pipelines for FSR1 EASU/RCAS and temporal interpolation. These pipelines are initialized at surface creation with fallback, but rendering compute DISPATCH and framegen still are NOT enabled. True internal scale, full QLauncher, NVDEC guest integration remain incomplete." \
-            --prerelease
-          echo "APK released via GitHub Releases; Actions artifact quota is not required." >> "$GITHUB_STEP_SUMMARY"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            # Rerunning a build must not fail just because its release exists.
+            gh release upload "$tag" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$tag" "${files[@]}" \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "ec151ed3fa62c62a34b68e27176bc7280067885d" \
+              --title "Synolsis V22 Vulkan compute pipeline bootstrap ${GITHUB_RUN_NUMBER}" \
+              --notes "ARM64 APK with Vulkan shader modules, descriptor layouts and compute pipelines for FSR1 EASU/RCAS and temporal interpolation. These pipelines are initialized at surface creation with fallback, but rendering compute DISPATCH and framegen still are NOT enabled. True internal scale, full QLauncher, NVDEC guest integration remain incomplete." \
+              --prerelease
+          fi
+          {
+            echo "### Download optimized APK (GitHub Releases)"
+            echo "Release: https://github.com/${GITHUB_REPOSITORY}/releases/tag/${tag}"
+            echo "GitHub Actions artifact upload intentionally disabled while quota is exhausted."
+            for apk in "${files[@]}"; do
+              echo "APK: ${apk}"
+              sha256sum "$apk"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
