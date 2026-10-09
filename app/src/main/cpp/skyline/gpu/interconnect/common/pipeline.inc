@@ -4,6 +4,7 @@
 #pragma once
 
 #include <gpu/interconnect/command_executor.h>
+#include <gpu/texture/format.h>
 #include "samplers.h"
 #include "textures.h"
 
@@ -94,6 +95,74 @@ namespace skyline::gpu::interconnect {
         }
 
         return {.raw = primaryVal};
+    }
+
+    // Maxwell storage-image formats are independent of the TIC's component
+    // swizzle: Vulkan storage image views MUST have identity components.
+    static texture::Format ResolveStorageImageFormat(Shader::ImageFormat formatType) {
+        switch (formatType) {
+            case Shader::ImageFormat::Typeless: return {};
+            case Shader::ImageFormat::R8_UINT: return format::R8Uint;
+            case Shader::ImageFormat::R8_SINT: return format::R8Sint;
+            case Shader::ImageFormat::R16_UINT: return format::R16Uint;
+            case Shader::ImageFormat::R16_SINT: return format::R16Sint;
+            case Shader::ImageFormat::R32_UINT: return format::R32Uint;
+            case Shader::ImageFormat::R32G32_UINT: return format::R32G32Uint;
+            case Shader::ImageFormat::R32G32B32A32_UINT: return format::R32G32B32A32Uint;
+        }
+        return {};
+    }
+
+    static vk::DescriptorImageInfo GetStorageImageBinding(
+        InterconnectContext &ctx, const auto &desc, Textures &textures,
+        BindlessHandle handle, vk::PipelineStageFlagBits dstStage,
+        vk::PipelineStageFlags &srcStageMask, vk::PipelineStageFlags &dstStageMask) {
+        const auto requestedFormat{ResolveStorageImageFormat(desc.format)};
+        auto *view{textures.GetTexture(ctx, handle.textureIndex, desc.type)};
+
+        auto &texture{*view->texture};
+        const bool supportsStorage{static_cast<bool>(texture.usage & vk::ImageUsageFlagBits::eStorage)};
+        const bool correctLayout{texture.layout == vk::ImageLayout::eGeneral};
+        const bool colorAspect{static_cast<bool>(texture.format->vkAspect & vk::ImageAspectFlagBits::eColor)};
+        const bool compatibleView{!requestedFormat || requestedFormat == texture.format ||
+            (static_cast<bool>(texture.flags & vk::ImageCreateFlagBits::eMutableFormat) &&
+             requestedFormat->IsCompatible(*texture.format))};
+
+        if (!supportsStorage || !correctLayout || !colorAspect || !compatibleView) {
+            // Never pass an image without VK_IMAGE_USAGE_STORAGE_BIT to a
+            // storage-image descriptor: this is invalid Vulkan on Turnip.
+            // Preserve descriptor validity with a typed, identity-mapped
+            // fallback instead of crashing the host driver.
+            LOGW("Storage image fallback: TIC={} format={} requested={} storage={} layout={}",
+                 handle.textureIndex, vk::to_string(*texture.format),
+                 requestedFormat ? vk::to_string(*requestedFormat) : "Typeless",
+                 supportsStorage, vk::to_string(texture.layout));
+            view = textures.GetNullStorageTexture(ctx, desc.type, requestedFormat);
+        }
+
+        ctx.executor.AttachTexture(view);
+        auto &selectedTexture{*view->texture};
+        // Null placeholder textures have no guest metadata; supply an empty
+        // format there so Texture::GetView uses the native backing format.
+        const auto viewFormat{selectedTexture.guest ? requestedFormat : texture::Format{}};
+        auto storageView{selectedTexture.GetView(view->type, view->range, viewFormat,
+                                               vk::ComponentMapping{})};
+
+        // The executor records a memory barrier before the shader stage.
+        // Storage-image writers also dirty the guest texture's mapped ranges
+        // so future guest reads cannot reuse stale framebuffer contents.
+        srcStageMask |= vk::PipelineStageFlagBits::eAllCommands;
+        dstStageMask |= dstStage;
+        if (selectedTexture.guest) {
+            selectedTexture.PopulateReadBarrier(dstStage, srcStageMask, dstStageMask);
+            if (desc.is_written)
+                selectedTexture.MarkGpuDirty(ctx.executor.usageTracker);
+        }
+
+        return vk::DescriptorImageInfo{
+            .imageView = storageView->GetView(),
+            .imageLayout = vk::ImageLayout::eGeneral,
+        };
     }
 
     static std::pair<vk::DescriptorImageInfo, TextureView *> GetTextureBinding(InterconnectContext &ctx, const auto &desc,
