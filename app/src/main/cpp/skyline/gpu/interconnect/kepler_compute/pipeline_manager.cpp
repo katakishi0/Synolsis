@@ -57,9 +57,9 @@ namespace skyline::gpu::interconnect::kepler_compute {
             LOGW("Image buffer descriptors are not supported");
 
         pushBindings(vk::DescriptorType::eCombinedImageSampler, stage.info.texture_descriptors, descriptorInfo.totalImageDescCount);
+        // Storage images are bound in SyncDescriptors with identity views
+        // and GPU-dirty tracking, rather than remaining uninitialized.
         pushBindings(vk::DescriptorType::eStorageImage, stage.info.image_descriptors, descriptorInfo.totalImageDescCount);
-        if (stage.info.image_descriptors.size() > 0)
-            LOGW("Image descriptors are not supported");
 
         return descriptorInfo;
     }
