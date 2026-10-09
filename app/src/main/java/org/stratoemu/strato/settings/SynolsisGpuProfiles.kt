@@ -83,8 +83,10 @@ internal fun PreferenceFragmentCompat.wireSynolsisGpuProfiles(settings : Emulati
         } else {
             findPreference<androidx.preference.TwoStatePreference>("is_docked")?.isChecked =
                 settings.isDocked
-            findPreference<org.stratoemu.strato.preference.IntegerListPreference>("shader_compile_threads")?.value =
-                settings.shaderCompileThreads
+            findPreference<org.stratoemu.strato.preference.IntegerListPreference>("shader_compile_threads")?.let { pref ->
+                val index = pref.entryValues?.indexOf(settings.shaderCompileThreads) ?: -1
+                if (index >= 0) pref.setValueIndex(index)
+            }
             findPreference<androidx.preference.TwoStatePreference>("force_max_gpu_clocks")?.isChecked =
                 settings.forceMaxGpuClocks
             findPreference<SeekBarPreference>("executor_slot_count_scale")?.value =
