@@ -404,12 +404,24 @@ namespace skyline::gpu {
 
     void Texture::CopyFromStagingBuffer(const vk::raii::CommandBuffer &commandBuffer, const std::shared_ptr<memory::StagingBuffer> &stagingBuffer) {
         auto image{GetBacking()};
-        if (layout == vk::ImageLayout::eUndefined)
-            commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer, {}, {}, {}, vk::ImageMemoryBarrier{
+        const auto previousLayout{layout};
+        // vkCmdCopyBufferToImage accepts only GENERAL or TRANSFER_DST_OPTIMAL.
+        // The old path passed the tracked image layout directly, which may be
+        // SHADER_READ_ONLY_OPTIMAL or COLOR_ATTACHMENT_OPTIMAL and is invalid.
+        // Synchronize previous shader/attachment readers and writers before
+        // replacing the image contents, including when layout is GENERAL.
+        commandBuffer.pipelineBarrier(
+            previousLayout == vk::ImageLayout::eUndefined
+                ? vk::PipelineStageFlags{vk::PipelineStageFlagBits::eTopOfPipe}
+                : vk::PipelineStageFlags{vk::PipelineStageFlagBits::eAllCommands},
+            vk::PipelineStageFlagBits::eTransfer, {}, {}, {},
+            vk::ImageMemoryBarrier{
                 .image = image,
-                .srcAccessMask = vk::AccessFlagBits::eNoneKHR,
+                .srcAccessMask = previousLayout == vk::ImageLayout::eUndefined
+                    ? vk::AccessFlags{}
+                    : vk::AccessFlags{vk::AccessFlagBits::eMemoryRead | vk::AccessFlagBits::eMemoryWrite},
                 .dstAccessMask = vk::AccessFlagBits::eTransferWrite,
-                .oldLayout = std::exchange(layout, vk::ImageLayout::eGeneral),
+                .oldLayout = previousLayout,
                 .newLayout = vk::ImageLayout::eGeneral,
                 .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
                 .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
@@ -419,9 +431,33 @@ namespace skyline::gpu {
                     .layerCount = layerCount,
                 },
             });
+        if (previousLayout == vk::ImageLayout::eUndefined)
+            layout = vk::ImageLayout::eGeneral;
 
         auto bufferImageCopies{GetBufferImageCopies()};
-        commandBuffer.copyBufferToImage(stagingBuffer->vkBuffer, image, layout, vk::ArrayProxy(static_cast<u32>(bufferImageCopies.size()), bufferImageCopies.data()));
+        commandBuffer.copyBufferToImage(stagingBuffer->vkBuffer, image, vk::ImageLayout::eGeneral,
+            vk::ArrayProxy(static_cast<u32>(bufferImageCopies.size()), bufferImageCopies.data()));
+
+        // Make uploaded texels visible to the next texture sampling, rendering
+        // or transfer operation. Restore the guest texture's previous layout,
+        // except UNDEFINED, which must become GENERAL after initialization.
+        commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer,
+            vk::PipelineStageFlagBits::eAllCommands, {}, {}, {},
+            vk::ImageMemoryBarrier{
+                .image = image,
+                .srcAccessMask = vk::AccessFlagBits::eTransferWrite,
+                .dstAccessMask = vk::AccessFlagBits::eMemoryRead | vk::AccessFlagBits::eMemoryWrite,
+                .oldLayout = vk::ImageLayout::eGeneral,
+                .newLayout = previousLayout == vk::ImageLayout::eUndefined
+                    ? vk::ImageLayout::eGeneral : previousLayout,
+                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .subresourceRange = {
+                    .aspectMask = format->vkAspect,
+                    .levelCount = levelCount,
+                    .layerCount = layerCount,
+                },
+            });
     }
 
     void Texture::CopyIntoStagingBuffer(const vk::raii::CommandBuffer &commandBuffer, const std::shared_ptr<memory::StagingBuffer> &stagingBuffer) {
