@@ -274,7 +274,11 @@ namespace skyline::gpu {
                 .pWaitSemaphores = &*presentSemaphore,
             });
         }
-        if (traceFrame || presentResult != vk::Result::eSuccess)
+        // SUBOPTIMAL is a successful presentation status. Logging it
+        // every frame can flood debug sessions without providing additional
+        // information; keep sampled status and always report real errors.
+        if (traceFrame || (presentResult != vk::Result::eSuccess &&
+                           presentResult != vk::Result::eSuboptimalKHR))
             LOGI("Synolsis present result: attempt={} result={} image={}",
                  attempt, vk::to_string(presentResult), nextImage.second);
         if (presentResult == vk::Result::eErrorOutOfDateKHR) {
