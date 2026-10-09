@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-  <string name="synolsis_qlauncher_title">QLauncher — experimental system menu</string>
-  <string name="synolsis_qlauncher_desc">Automatically locate the QLauncher program from your installed firmware, validate its NCA and try to launch it. Manually selecting an NCA is only a fallback. Horizon menu services are still incomplete.</string>
-  <string name="synolsis_qlauncher_bad_nca">This is not a valid QLauncher Program NCA, or compatible keys are missing.</string>
-  <string name="synolsis_qlauncher_not_found">QLauncher was not found or could not be decrypted in your installed firmware. You can select its Program NCA manually.</string>
-  <string name="synolsis_qlauncher_open_failed">Could not open QLauncher from the installed firmware.</string>
+  <string name="synolsis_qlauncher_title">QLauncher</string>
+  <string name="synolsis_qlauncher_desc">Switch HOME Menu (experimental)</string>
+  <string name="synolsis_qlauncher_bad_nca">Invalid HOME Menu NCA or missing keys.</string>
+  <string name="synolsis_qlauncher_not_found">HOME Menu not found in installed firmware. Select NCA manually.</string>
+  <string name="synolsis_qlauncher_open_failed">Could not start HOME Menu.</string>
 </resources>

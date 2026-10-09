@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-  <string name="synolsis_qlauncher_title">QLauncher — menu do sistema experimental</string>
-  <string name="synolsis_qlauncher_desc">Localiza automaticamente o programa QLauncher no firmware já instalado, valida a NCA e tenta iniciá-lo. A seleção manual é apenas alternativa. Os serviços Horizon do menu ainda estão incompletos.</string>
-  <string name="synolsis_qlauncher_bad_nca">Este arquivo não é uma NCA válida do programa QLauncher ou faltam chaves compatíveis.</string>
-  <string name="synolsis_qlauncher_not_found">QLauncher não foi localizado ou descriptografado no firmware instalado. Você pode selecionar manualmente a NCA do programa.</string>
-  <string name="synolsis_qlauncher_open_failed">Não foi possível abrir o QLauncher do firmware instalado.</string>
+  <string name="synolsis_qlauncher_title">QLauncher</string>
+  <string name="synolsis_qlauncher_desc">Menu HOME do Switch (experimental)</string>
+  <string name="synolsis_qlauncher_bad_nca">NCA do menu inválida ou chaves ausentes.</string>
+  <string name="synolsis_qlauncher_not_found">Menu HOME não encontrado no firmware. Selecione uma NCA manualmente.</string>
+  <string name="synolsis_qlauncher_open_failed">Não foi possível iniciar o menu HOME.</string>
 </resources>
