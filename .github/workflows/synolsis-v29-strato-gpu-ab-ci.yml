@@ -1,0 +1,202 @@
+name: Synolsis V29 Original Strato GPU A-B APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/synolsis-v29-strato-gpu-ab-ci.yml'
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: "Compare compiler modes"
+        type: choice
+        required: true
+        default: optimized
+        options:
+          - optimized
+          - debug
+
+permissions:
+  contents: write
+
+concurrency:
+  group: synolsis-v29-original-gpu-ab
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Original Strato rendering + portable default
+    runs-on: ubuntu-22.04
+    timeout-minutes: 150
+    env:
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_MAXSIZE: 2G
+      CMAKE_C_COMPILER_LAUNCHER: ccache
+      CMAKE_CXX_COMPILER_LAUNCHER: ccache
+    steps:
+      - name: Checkout pinned V29 GPU rollback source
+        uses: actions/checkout@v4
+        with:
+          ref: 5f9351091026991ae66507679a60113d99781d3c
+          submodules: false
+
+      - name: Verify native GPU rollback and handheld default
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e .gitmodules
+          python3 - <<'PY'
+          from pathlib import Path
+          root=Path('app/src/main/cpp/skyline/gpu')
+          present=(root/'presentation_engine.cpp').read_text()
+          assert 'presentation_scale::ChooseExtent(' not in present
+          assert 'skipPolicy.ShouldPresent(' not in present
+          assert 'packed_compute::PipelineSet' not in present
+          assert 'texture->SynchronizeHost()' in present
+          tex=(root/'texture/texture.cpp').read_text()
+          assert 'void Texture::CopyFrom(' in tex
+          assert 'bool /*permitScaledBlit*/' in tex
+          assert 'const auto previousLayout' not in tex
+          assert 'if (layout == vk::ImageLayout::eUndefined)' in tex
+          assembler=(root/'graphics_pipeline_assembler.cpp').read_text()
+          assert 'u32 /*pipelineCompileThreads*/' in assembler
+          assert 'gpu.traits.quirks.brokenMultithreadedPipelineCompilation ? 1U : 0U' in assembler
+          settings=Path('app/src/main/java/org/stratoemu/strato/settings/EmulationSettings.kt').read_text()
+          assert 'var isDocked by sharedPreferences(context, false, prefName = prefName)' in settings
+          xml=Path('app/src/main/res/xml/emulation_preferences.xml').read_text()
+          assert 'android:defaultValue="false"' in xml.split('app:key="is_docked"')[0][-220:]
+          print('PASS: renderer code rollback and new-install portable default')
+          PY
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Exclude only known unused Oboe sample wrapper
+        shell: bash
+        run: |
+          set -euo pipefail
+          unused=app/libraries/oboe/apps/OboeTester/gradle/wrapper/gradle-wrapper.jar
+          if [ -f "$unused" ]; then
+            printf '%s  %s\n' 'e2b82129ab64751fd40437007bd2f7f2afb3c6e41a9198e628650b22d5824a14' "$unused" | sha256sum --check --status
+            rm -- "$unused"
+          fi
+
+      - name: Setup Gradle with caching and wrapper validation
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
+
+      - name: Install Android SDK/NDK with retry on broken download
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v ccache >/dev/null || ! command -v ninja >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq ccache ninja-build
+          fi
+          mkdir -p "$CCACHE_DIR"
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          test -n "$SDK_ROOT"
+          SDKMGR="$(command -v sdkmanager || true)"
+          if [ -z "$SDKMGR" ]; then
+            SDKMGR="$(find "$SDK_ROOT/cmdline-tools" -type f -path '*/bin/sdkmanager' | sort -V | tail -1)"
+          fi
+          test -n "$SDKMGR"
+
+          install_checked() {
+            local spec="$1"
+            local directory="$2"
+            local marker="$3"
+            if [ -f "$directory/$marker" ]; then
+              echo "Already installed: $spec"
+              return 0
+            fi
+            for attempt in 1 2 3 4; do
+              echo "::group::Installing $spec (attempt $attempt/4)"
+              # SDK archives can occasionally arrive truncated or as an
+              # invalid ZIP from the mirror. Never treat a partial NDK as valid.
+              if "$SDKMGR" --install "$spec" && [ -f "$directory/$marker" ]; then
+                echo "::endgroup::"
+                return 0
+              fi
+              echo "::warning::$spec download or validation failed (attempt $attempt)"
+              echo "::endgroup::"
+              if [ "$attempt" -eq 4 ]; then
+                echo "::error::Failed to install $spec after four attempts"
+                return 1
+              fi
+              rm -rf -- "$HOME/.android/cache"
+              # A failed NDK extract can leave an invalid directory in place.
+              # The directory is under the runner's ephemeral SDK installation.
+              if [ ! -f "$directory/$marker" ] && [ -d "$directory" ]; then
+                rm -rf -- "$directory"
+              fi
+              sleep $((attempt * 8))
+            done
+          }
+
+          install_checked "platforms;android-34" "$SDK_ROOT/platforms/android-34" "android.jar"
+          install_checked "build-tools;34.0.0" "$SDK_ROOT/build-tools/34.0.0" "aapt2"
+          install_checked "ndk;26.1.10909125" "$SDK_ROOT/ndk/26.1.10909125" "source.properties"
+          install_checked "cmake;3.22.1" "$SDK_ROOT/cmake/3.22.1" "bin/cmake"
+          echo "Android SDK/NDK validated after installation"
+
+      - name: Check Kotlin build before C++
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x ./gradlew
+          case "${{ inputs.build_type || 'optimized' }}" in
+            optimized) ./gradlew :app:compileMainlineOptimizedKotlin --no-daemon --build-cache ;;
+            debug) ./gradlew :app:compileMainlineDebugKotlin --no-daemon --build-cache ;;
+          esac
+
+      - name: Build GPU rollback ARM64 APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "${{ inputs.build_type || 'optimized' }}" in
+            optimized) ./gradlew :app:assembleMainlineOptimized --no-daemon --stacktrace --build-cache ;;
+            debug) ./gradlew :app:assembleMainlineDebug --no-daemon --stacktrace --build-cache ;;
+          esac
+
+      - name: Verify APK generated
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import glob,zipfile
+          builds=glob.glob("app/build/outputs/apk/mainline/*/*.apk")
+          assert builds
+          for f in builds:
+              with zipfile.ZipFile(f) as z:
+                  assert any(p.startswith("lib/arm64-v8a/") for p in z.namelist()), f
+                  print('APK',f)
+          PY
+
+      - name: Publish diagnostic APK
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(app/build/outputs/apk/mainline/*/*.apk)
+          mode="${{ inputs.build_type || 'optimized' }}"
+          tag="synolsis-v29-gpu-rollback-${mode}-${GITHUB_RUN_NUMBER}"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$tag" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$tag" "${files[@]}" \
+              --repo "$GITHUB_REPOSITORY" \
+              --target 5f9351091026991ae66507679a60113d99781d3c \
+              --title "Synolsis V29 original Strato GPU ${mode} comparison" \
+              --notes "V28 UI and services + upstream Strato GPU presentation/texture/shader cache paths, only signature adapters; portable by default for NEW settings profiles. Other Synolsis changes remain, so this is not a 100% untouched upstream build. Please manually disable docked in existing installations and use shader cache warmup before comparing flicker/FPS with V28 and the standalone Strato baseline. Diagnostic build; flicker fix is not proven." \
+              --prerelease
+          fi
+          for f in "${files[@]}"; do sha256sum "$f"; done
+          echo "V29 diagnostic: https://github.com/${GITHUB_REPOSITORY}/releases/tag/${tag}" >> "$GITHUB_STEP_SUMMARY"
