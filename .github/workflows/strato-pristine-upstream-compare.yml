@@ -53,6 +53,18 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Exclude a verified unused Oboe sample wrapper from Gradle's global scan
+        shell: bash
+        run: |
+          set -euo pipefail
+          jar=app/libraries/oboe/apps/OboeTester/gradle/wrapper/gradle-wrapper.jar
+          if [ -f "$jar" ]; then
+            printf '%s  %s\n' 'e2b82129ab64751fd40437007bd2f7f2afb3c6e41a9198e628650b22d5824a14' "$jar" | sha256sum --check --status
+            # This belongs to an unused demo app in a dependency, NOT to
+            # the Strato build or emulator core. Source revision stays pinned.
+            rm -- "$jar"
+          fi
+
       - name: Setup Gradle with caching and wrapper validation
         uses: gradle/actions/setup-gradle@v4
         with:
