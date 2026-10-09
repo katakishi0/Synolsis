@@ -208,7 +208,8 @@ namespace skyline {
             std::shared_ptr<Backing> romFs; //!< The backing for this NCA's RomFS section
             bool hasBktrRomFs{}; //!< Patch RomFS needs base image and subsection CTR handling
             std::optional<bktr::RelocationTable> bktrRelocations; //!< Parsed indirect table only; not mounted
-            std::optional<bktr::SubsectionTable> bktrSubsections; //!< Physical AES-CTR-Ex counters; not yet applied
+            std::optional<bktr::SubsectionTable> bktrSubsections; //!< Physical AES-CTR-Ex subsection boundaries
+            std::shared_ptr<Backing> bktrPhysicalSection; //!< On-demand CTR-Ex decrypted physical patch; not a merged RomFS
             NcaHeader header; //!< The header of the NCA
             NcaContentType contentType; //!< The content type of the NCA
 
