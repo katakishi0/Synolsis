@@ -195,7 +195,7 @@ class SynolsisSettingsHubActivity : AppCompatActivity() {
             })
             labels.addView(TextView(this).apply {
                 text = getString(descRes)
-                textSize = 12f
+                textSize = 13f
                 maxLines = 2
                 ellipsize = android.text.TextUtils.TruncateAt.END
                 setPadding(0, dp(3), 0, 0)
