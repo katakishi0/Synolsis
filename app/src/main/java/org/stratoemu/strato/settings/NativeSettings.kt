@@ -39,6 +39,7 @@ data class NativeSettings(
     var executorSlotCountScale : Int,
     var executorFlushThreshold : Int,
     var useDirectMemoryImport : Boolean,
+    var gpuFenceAntiFlicker : Boolean,
     var forceMaxGpuClocks : Boolean,
     var freeGuestTextureMemory : Boolean,
     var disableShaderCache : Boolean,
@@ -73,6 +74,7 @@ data class NativeSettings(
         // The Direct Memory Import path is only supported with the system
         // proprietary Adreno driver, never a custom Turnip Vulkan driver.
         pref.useDirectMemoryImport && pref.gpuDriver == EmulationSettings.SYSTEM_GPU_DRIVER,
+        pref.gpuFenceAntiFlicker,
         pref.forceMaxGpuClocks,
         pref.freeGuestTextureMemory,
         pref.disableShaderCache,
