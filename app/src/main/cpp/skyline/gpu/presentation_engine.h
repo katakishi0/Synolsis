@@ -10,6 +10,7 @@
 #include <kernel/types/KEvent.h>
 #include <services/hosbinder/GraphicBufferProducer.h>
 #include "texture/texture.h"
+#include "frame_history.h"
 
 struct ANativeWindow;
 
@@ -81,6 +82,7 @@ namespace skyline::gpu {
         std::thread presentationThread; //!< A thread for asynchronously presenting queued frames after their corresponded fences are signalled
         size_t nextFrameId{1}; //!< The frame ID to use for the next frame
         u64 presentationFrameCounter{}; //!< Counts submitted host frames for optional frame skipping; presentation-thread only
+        framegen::FrameHistory frameHistory; //!< Metadata only, never claims generated FPS
 
         /**
          * @url https://developer.android.com/ndk/reference/group/choreographer#achoreographer_postframecallback64
