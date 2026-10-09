@@ -6,6 +6,7 @@ package org.stratoemu.strato.data
 
 import android.content.Context
 import android.net.Uri
+import android.os.ParcelFileDescriptor
 import android.provider.OpenableColumns
 import java.io.File
 import java.io.FileOutputStream
@@ -14,6 +15,7 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.security.MessageDigest
 import java.util.UUID
+import java.util.Locale
 
 /**
  * Stores legally obtained update/DLC NSP packages in application-private
@@ -34,10 +36,40 @@ object GameContentStore {
         val displayName: String = file.name,
         val ncaCount: Int = 0,
         val cnmtCount: Int = 0,
-        val sha256: String? = null
+        val sha256: String? = null,
+        val cnmtOwnerMatched: Boolean = false
     )
 
     class DuplicatePackageException : IllegalArgumentException("This NSP package is already imported for this game")
+    class WrongTitleException : IllegalArgumentException("NSP metadata belongs to a different game")
+    class WrongContentKindException : IllegalArgumentException("The package is not the selected update/DLC type")
+
+    // This JNI method uses the existing VFS NCA decryptor. It can read CNMT
+    // from update-only and DLC-only NSPs, unlike the boot-only NspLoader.
+    // Null/empty means *unknown*, never "verified" or "installed".
+    private external fun readNativeContentMetadata(fd: Int, keysPath: String): Array<String>?
+
+    private data class ContentIdentity(val type: String, val titleId: String, val ownerId: String)
+
+    /** Verify CNMT owner/kind when readable; never pretend missing keys are success. */
+    private fun inspectSelectedContent(context: Context, file: File, titleId: String, kind: Kind): ContentIdentity? {
+        val rows = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { pfd ->
+            readNativeContentMetadata(pfd.fd, File(context.filesDir, "keys").absolutePath)
+        } ?: return null
+        if (rows.isEmpty()) return null
+
+        val pattern = Regex("(80|81|82|83|84):([0-9A-F]{16}):([0-9A-F]{16}):[0-9]+")
+        val contents = rows.map { row ->
+            val match = pattern.matchEntire(row) ?: return null
+            ContentIdentity(match.groupValues[1], match.groupValues[2], match.groupValues[3])
+        }
+        val expectedOwner = titleId.uppercase(Locale.ROOT)
+        // Do not allow an NSP with mixed owners to be assigned to one game.
+        if (contents.any { it.ownerId != expectedOwner })
+            throw WrongTitleException()
+        val expectedKinds = if (kind == Kind.UPDATE) setOf("81", "84") else setOf("82")
+        return contents.firstOrNull { it.type in expectedKinds } ?: throw WrongContentKindException()
+    }
 
     private fun metadataFile(file: File) = File(file.parentFile, file.nameWithoutExtension + ".json")
 
@@ -49,7 +81,8 @@ object GameContentStore {
             displayName = metadata?.optString("name")?.takeIf { it.isNotBlank() } ?: file.name,
             ncaCount = metadata?.optInt("nca_count") ?: 0,
             cnmtCount = metadata?.optInt("cnmt_count") ?: 0,
-            sha256 = metadata?.optString("sha256")?.takeIf { it.matches(Regex("[a-fA-F0-9]{64}")) }
+            sha256 = metadata?.optString("sha256")?.takeIf { it.matches(Regex("[a-fA-F0-9]{64}")) },
+            cnmtOwnerMatched = metadata?.optBoolean("cnmt_owner_matched", false) == true
         )
     }
 
@@ -156,8 +189,9 @@ object GameContentStore {
                 throw DuplicatePackageException()
             }
 
-            // This is a verified NSP container, NOT necessarily an update/DLC
-            // for this game: encrypted CNMT metadata needs native validation.
+            // If the user's keys can decode CNMT, reject wrong-title and
+            // wrong-kind imports. If not, stage as UNVERIFIED (never active).
+            val matchedContent = inspectSelectedContent(context, staging, titleId, kind)
             check(staging.renameTo(destination)) { "Could not finalize imported NSP" }
             val safeName = displayName.filter { it >= ' ' }.take(160)
             val metadata = org.json.JSONObject()
@@ -167,7 +201,10 @@ object GameContentStore {
                 .put("nca_count", info.first)
                 .put("cnmt_count", info.second)
                 .put("native_status", "staged_not_mounted")
-                .put("title_id_verified", false)
+                .put("title_id_verified", false) // CNMT parsing is not signature verification
+                .put("cnmt_owner_matched", matchedContent != null)
+                .put("cnmt_content_title_id", matchedContent?.titleId ?: "")
+                .put("cnmt_content_type", matchedContent?.type ?: "")
                 .put("sha256", sha256)
             try {
                 metadataFile(destination).writeText(metadata.toString())
@@ -175,7 +212,7 @@ object GameContentStore {
                 destination.delete()
                 throw error
             }
-            return Entry(destination, written, safeName, info.first, info.second, sha256)
+            return Entry(destination, written, safeName, info.first, info.second, sha256, matchedContent != null)
         } finally {
             if (staging.exists()) staging.delete()
         }
