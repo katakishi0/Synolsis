@@ -116,5 +116,6 @@ class GlobalSettingsFragment : PreferenceFragmentCompat() {
         configureInlineExperimentalOptions(EmulationSettings.global.gpuDriver)
         wireSynolsisGpuProfiles(EmulationSettings.global)
         wireSynolsisReadbackPrecision(EmulationSettings.global)
+        wireSynolsisShaderMode(EmulationSettings.global)
     }
 }
