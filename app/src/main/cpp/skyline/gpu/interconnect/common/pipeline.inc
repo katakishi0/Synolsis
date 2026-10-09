@@ -134,7 +134,7 @@ namespace skyline::gpu::interconnect {
             // Preserve descriptor validity with a typed, identity-mapped
             // fallback instead of crashing the host driver.
             LOGW("Storage image fallback: TIC={} format={} requested={} storage={} layout={}",
-                 handle.textureIndex, vk::to_string(*texture.format),
+                 static_cast<u32>(handle.textureIndex), vk::to_string(*texture.format),
                  requestedFormat ? vk::to_string(*requestedFormat) : "Typeless",
                  supportsStorage, vk::to_string(texture.layout));
             view = textures.GetNullStorageTexture(ctx, desc.type, requestedFormat);
