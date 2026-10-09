@@ -44,7 +44,7 @@ jobs:
         with:
           # Source is checked out at the start of the run, then built from that snapshot.
           # Pin the tested revision, including safe V4 locale migration.
-          ref: 20d9598637f917578b7f82aeb7f4df9e906bef92
+          ref: 72d173f3c72b49f061a3bda37f373f276235b8dd
           submodules: false
 
       - name: Assert full source is checked in
@@ -1186,6 +1186,43 @@ jobs:
           print("PASS: image-copy range/geometry, transfer-dst WAW barrier, format conversion blit guard")
           PY
 
+      - name: Test V38 Eden-inspired fence callback accuracy option
+        shell: bash
+        run: |
+          set -euo pipefail
+          c++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic tests/gpu_fence_callback_policy_test.cpp -o /tmp/synolsis-v38-fence-test
+          /tmp/synolsis-v38-fence-test
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          executor=Path("app/src/main/cpp/skyline/gpu/interconnect/command_executor.cpp").read_text()
+          header=Path("app/src/main/cpp/skyline/common/settings.h").read_text()
+          jni=Path("app/src/main/cpp/skyline/common/android_settings.h").read_text()
+          emu=Path("app/src/main/java/org/stratoemu/strato/settings/EmulationSettings.kt").read_text()
+          native=Path("app/src/main/java/org/stratoemu/strato/settings/NativeSettings.kt").read_text()
+          assert 'fence_policy::DelayCallbacks(' in executor
+          assert 'if (delayedGpuCallbacks)' in executor
+          assert 'if (!delayedGpuCallbacks)' in executor
+          assert 'waiterThread.Queue(cycle, {});' in executor
+          assert 'waiterThread.Queue(nullptr, std::move(actionCb));' in executor
+          assert 'Setting<bool> gpuFenceAntiFlicker' in header
+          assert 'ktSettings.GetBool("gpuFenceAntiFlicker")' in jni
+          assert 'var gpuFenceAntiFlicker by sharedPreferences(context, false' in emu
+          assert 'var gpuFenceAntiFlicker : Boolean,' in native
+          assert 'pref.gpuFenceAntiFlicker' in native
+          gui=Path("app/src/main/res/xml/emulation_preferences.xml").read_text()
+          assert 'app:key="gpu_fence_anti_flicker"' in gui
+          for lang in ('values','values-pt-rBR'):
+              root=ET.parse(Path("app/src/main/res")/lang/"synolsis_gpu_fence_antiflicker.xml").getroot()
+              keys={x.get('name') for x in root}
+              assert {
+                  'synolsis_gpu_fence_antiflicker_title',
+                  'synolsis_gpu_fence_antiflicker_off',
+                  'synolsis_gpu_fence_antiflicker_on'
+              } <= keys
+          print("PASS: GPU fence anti-flicker option wired Kotlin/JNI/C++ and localized to English/pt-BR")
+          PY
+
       - name: Compile Android Kotlin frontend before expensive native build
         shell: bash
         run: |
@@ -1264,16 +1301,16 @@ jobs:
             echo "::error::Gradle did not produce an APK"
             exit 1
           fi
-          tag="synolsis-v37-vulkan-copy-${GITHUB_RUN_NUMBER}"
+          tag="synolsis-v38-gpu-fence-${GITHUB_RUN_NUMBER}"
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             # Rerunning a build must not fail just because its release exists.
             gh release upload "$tag" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
           else
             gh release create "$tag" "${files[@]}" \
               --repo "$GITHUB_REPOSITORY" \
-              --target "20d9598637f917578b7f82aeb7f4df9e906bef92" \
-              --title "Synolsis V37 Vulkan Texture Copy and GPU Coherency ${GITHUB_RUN_NUMBER}" \
-              --notes "Experimental Synolsis V37 ARM64: retains V35 SVC fix/V36 debug log sampling; repairs missing Vulkan transfer destination ordering, per-mip copy/blit geometry and range checks; validates blit support even for format conversion. These are real Vulkan correctness changes, NOT a confirmed fix for NieR/Nine Sols corruption on phone. Full guest storage images, NVDEC/VIC, QLauncher and internal resolution remain incomplete. See docs/SYNOLSIS_V37_EDEN_VULKAN_COPY_COMPARISON.md." \
+              --target "72d173f3c72b49f061a3bda37f373f276235b8dd" \
+              --title "Synolsis V38 GPU Fence Anti-Flicker ${GITHUB_RUN_NUMBER}" \
+              --notes "Experimental Synolsis V38 ARM64: includes V35 Horizon SVC, V36 debug log sampling, and V37 Vulkan image copy fixes. Adds an actual English/pt-BR per-game GPU Anti-flicker toggle based on Eden PR #4004: when enabled, guest GPU syncpoint/semaphore callbacks wait behind the associated Vulkan completion fence. OFF by default because this can reduce FPS; not verified to fix NieR/Nine Sols on device. NVDEC/VIC, storage-image descriptors, QLauncher, internal resolution and alternate GPU render backends remain incomplete. See docs/SYNOLSIS_V38_EDEN_GPU_FENCE_ANTIFLICKER.md." \
               --prerelease
           fi
           {
