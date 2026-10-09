@@ -367,14 +367,33 @@ namespace skyline::gpu {
         else if (capabilities.minImageExtent.height > extent.height || capabilities.minImageExtent.width > extent.width || capabilities.maxImageExtent.height < extent.height || capabilities.maxImageExtent.width < extent.width)
             throw exception("Cannot update swapchain to accomodate image extent: {}x{} ({}x{}-{}x{})", extent.width, extent.height, capabilities.minImageExtent.width, capabilities.minImageExtent.height, capabilities.maxImageExtent.width, capabilities.maxImageExtent.height);
 
-        vk::Format vkFormat{*format};
+        // Surface formats may differ between Android windows and drivers.
+        // Never assume RGBA is supported simply because the guest format is
+        // unsupported: requesting an undeclared format is invalid Vulkan.
+        const auto formats{gpu.vkPhysicalDevice.getSurfaceFormatsKHR(**vkSurface)};
+        if (formats.empty())
+            throw exception("Vulkan surface does not expose any image formats");
+        const bool unrestricted{formats.size() == 1 &&
+            formats.front().format == vk::Format::eUndefined};
+        const auto supportsFormat{[&](vk::Format candidate) {
+            return unrestricted || std::any_of(formats.begin(), formats.end(),
+                [candidate](const vk::SurfaceFormatKHR &entry) {
+                    return entry.format == candidate &&
+                        entry.colorSpace == vk::ColorSpaceKHR::eSrgbNonlinear;
+                });
+        }};
         texture::Format underlyingFormat{format};
-        if (swapchainFormat != format) {
-            auto formats{gpu.vkPhysicalDevice.getSurfaceFormatsKHR(**vkSurface)};
-            if (std::find(formats.begin(), formats.end(), vk::SurfaceFormatKHR{vkFormat, vk::ColorSpaceKHR::eSrgbNonlinear}) == formats.end()) {
-                LOGD("Surface doesn't support requested image format '{}' with colorspace '{}'", vk::to_string(vkFormat), vk::to_string(vk::ColorSpaceKHR::eSrgbNonlinear));
+        if (!supportsFormat(*format)) {
+            if (supportsFormat(*format::R8G8B8A8Unorm))
                 underlyingFormat = format::R8G8B8A8Unorm;
-            }
+            else if (supportsFormat(*format::B8G8R8A8Unorm))
+                underlyingFormat = format::B8G8R8A8Unorm;
+            else
+                throw exception("Vulkan surface cannot present guest format '{}' or RGBA/BGRA fallbacks",
+                                vk::to_string(static_cast<vk::Format>(*format)));
+            LOGW("Vulkan surface lacks requested image format {}, selecting {}",
+                 vk::to_string(static_cast<vk::Format>(*format)),
+                 vk::to_string(static_cast<vk::Format>(*underlyingFormat)));
         }
 
         constexpr vk::ImageUsageFlags presentUsage{vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst};
@@ -403,6 +422,36 @@ namespace skyline::gpu {
                 throw exception("Swapchain does not support required FIFO present mode");
         }
 
+        // Android Vulkan surface capabilities are authoritative. The old
+        // Strato code always requested INHERIT alpha and implicitly IDENTITY
+        // transform even when the WSI advertised neither. These are explicit
+        // Vulkan validity requirements (VUID 01279/01280).
+        vk::SurfaceTransformFlagBitsKHR preTransform{vk::SurfaceTransformFlagBitsKHR::eIdentity};
+        if (!(capabilities.supportedTransforms & preTransform)) {
+            preTransform = capabilities.currentTransform;
+            if (!(capabilities.supportedTransforms & preTransform))
+                throw exception("Vulkan surface has no usable pre-transform");
+        }
+
+        vk::CompositeAlphaFlagBitsKHR compositeAlpha{vk::CompositeAlphaFlagBitsKHR::eInherit};
+        if (!(capabilities.supportedCompositeAlpha & compositeAlpha)) {
+            for (auto candidate : {
+                     vk::CompositeAlphaFlagBitsKHR::eOpaque,
+                     vk::CompositeAlphaFlagBitsKHR::ePreMultiplied,
+                     vk::CompositeAlphaFlagBitsKHR::ePostMultiplied}) {
+                if (capabilities.supportedCompositeAlpha & candidate) {
+                    compositeAlpha = candidate;
+                    break;
+                }
+            }
+            if (!(capabilities.supportedCompositeAlpha & compositeAlpha))
+                throw exception("Vulkan surface has no supported composite alpha mode");
+        }
+        LOGI("Swapchain WSI: format={} transform={} alpha={} mode={}",
+             vk::to_string(static_cast<vk::Format>(*underlyingFormat)),
+             vk::to_string(preTransform), vk::to_string(compositeAlpha),
+             vk::to_string(requestedMode));
+
         vkSwapchain.emplace(gpu.vkDevice, vk::SwapchainCreateInfoKHR{
             .surface = **vkSurface,
             .minImageCount = minImageCount,
@@ -412,7 +461,8 @@ namespace skyline::gpu {
             .imageArrayLayers = 1,
             .imageUsage = presentUsage,
             .imageSharingMode = vk::SharingMode::eExclusive,
-            .compositeAlpha = vk::CompositeAlphaFlagBitsKHR::eInherit,
+            .preTransform = preTransform,
+            .compositeAlpha = compositeAlpha,
             .presentMode = requestedMode,
             .clipped = true,
         });
