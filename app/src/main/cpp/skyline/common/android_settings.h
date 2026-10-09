@@ -50,6 +50,7 @@ namespace skyline {
             executorSlotCountScale = ktSettings.GetInt<u32>("executorSlotCountScale");
             executorFlushThreshold = ktSettings.GetInt<u32>("executorFlushThreshold");
             useDirectMemoryImport = ktSettings.GetBool("useDirectMemoryImport");
+            gpuFenceAntiFlicker = ktSettings.GetBool("gpuFenceAntiFlicker");
             forceMaxGpuClocks = ktSettings.GetBool("forceMaxGpuClocks");
             disableShaderCache = ktSettings.GetBool("disableShaderCache");
             freeGuestTextureMemory = ktSettings.GetBool("freeGuestTextureMemory");
