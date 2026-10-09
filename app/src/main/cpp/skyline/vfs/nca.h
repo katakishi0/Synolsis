@@ -213,7 +213,7 @@ namespace skyline {
             NcaHeader header; //!< The header of the NCA
             NcaContentType contentType; //!< The content type of the NCA
 
-            NCA(std::shared_ptr<vfs::Backing> backing, std::shared_ptr<crypto::KeyStore> keyStore, bool useKeyArea = false);
+            NCA(std::shared_ptr<vfs::Backing> backing, std::shared_ptr<crypto::KeyStore> keyStore, bool useKeyArea = false, bool headerOnly = false);
         };
     }
 }
