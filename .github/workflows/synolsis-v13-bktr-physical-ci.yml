@@ -44,7 +44,7 @@ jobs:
         with:
           # Source is checked out at the start of the run, then built from that snapshot.
           # Pin the tested revision, including safe V4 locale migration.
-          ref: c3768303f00521ae663c501d07fe41e1363ba22f
+          ref: b8f652efd8385a57005ce1dd2e77459f15122683
           submodules: false
 
       - name: Assert full source is checked in
@@ -214,6 +214,7 @@ jobs:
           assert "class BktrMergedBacking final : public Backing" in overlay
           assert "relocations->Resolve(" in overlay
           assert "std::make_shared<bktr::BktrCtrExBacking>" in nca
+          assert "if (!encrypted)" in nca and "bktrPhysicalSection = std::move(patchSection)" in nca
           assert "bktrPhysicalSection" in header
           assert "romFs = CreateBacking" in nca and "Do not set romFs yet" in nca
           print("PASS: physical CTR-Ex reader, virtual base/patch composition, guarded NCA integration")
