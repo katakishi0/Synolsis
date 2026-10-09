@@ -6,6 +6,7 @@
 #include <vector>
 
 using skyline::vfs::bktr::RelocationTable;
+using skyline::vfs::bktr::SubsectionTable;
 static void Put32(std::vector<std::uint8_t> &b, std::size_t p, std::uint32_t v) {
     for (int i{}; i < 4; ++i) b[p+i] = std::uint8_t(v >> (8*i));
 }
@@ -57,6 +58,30 @@ int main() {
     }
     const auto clip = parsed->Resolve(0x3FFC, 0x3000, 0x4000);
     assert(clip && clip->size == 4);
+    {
+        auto subsection = Make();
+        // Reinterpret the synthetic bucket as AES-CTR-Ex subsections:
+        // 0x00..0x0FFF uses counter 7; 0x1000..0x3FFF uses 9.
+        Put32(subsection, 0x4020, 7);
+        Put32(subsection, 0x4030, 9); // entry at 0x4020, counter at 0x402C+4
+        // Make() puts relocation entries at 0x4010 and 0x4024.
+        // Subsection entries are 0x10 bytes, second starts at 0x4020.
+        Put64(subsection, 0x4020, 0x1000);
+        Put32(subsection, 0x402C, 9);
+        Put32(subsection, 0x4004, 2);
+        Put64(subsection, 0x4008, 0x4000);
+        Put64(subsection, 0x4010, 0);
+        Put32(subsection, 0x401C, 7);
+        auto parsedSections = SubsectionTable::Parse(subsection);
+        assert(parsedSections && parsedSections->EntryCount() == 2);
+        auto r0 = parsedSections->Resolve(0xFF0);
+        auto r1 = parsedSections->Resolve(0x1200);
+        assert(r0 && r0->counter == 7 && r0->size == 0x10);
+        assert(r1 && r1->counter == 9 && r1->size == 0x2E00);
+        assert(!parsedSections->Resolve(0x4000));
+        subsection[0x4004] = 0;
+        assert(!SubsectionTable::Parse(subsection));
+    }
     for (std::size_t len{}; len < 0x4000*2; len += 73)
         assert(!RelocationTable::Parse(
             std::span<const std::uint8_t>(source.data(), len)));
