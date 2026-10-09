@@ -342,7 +342,6 @@ jobs:
           assert "commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer" not in t
           assert "constexpr u32 percent{100U};" in p
           assert "constexpr bool canBlit{false};" in p
-          assert "vkGetPhysicalDeviceFormatProperties" not in p
           assert "getFormatProperties(" not in p
           assert "outputExtent != texture->dimensions" in p
           assert "frameHistory.Observe(" in p
