@@ -108,7 +108,7 @@ namespace skyline::gpu {
         const auto percent{*state.settings->vulkanPresentationScalePercent};
         const auto srcFeatures{gpu.vkPhysicalDevice.getFormatProperties(*texture->format).optimalTilingFeatures};
         const auto dstFeatures{gpu.vkPhysicalDevice.getFormatProperties(
-            *format::R8G8B8A8Unorm).optimalTilingFeatures};
+            format::R8G8B8A8Unorm.vkFormat).optimalTilingFeatures};
         const auto nativeDstFeatures{gpu.vkPhysicalDevice.getFormatProperties(
             *frame.textureView->format).optimalTilingFeatures};
         const bool canBlit{
@@ -128,8 +128,15 @@ namespace skyline::gpu {
 
         auto finalCrop{frame.crop};
         if (finalCrop && outputExtent != texture->dimensions) {
+            // Guest crop fields are unsigned; saturate before converting to
+            // signed crop geometry to avoid -Wc++11-narrowing or wraparound.
+            const auto safeCrop{[](u32 value) -> i32 {
+                return static_cast<i32>(std::min<u32>(
+                    value, static_cast<u32>(std::numeric_limits<i32>::max())));
+            }};
             const auto scaled{presentation_scale::ScaleCrop(
-                {finalCrop.left, finalCrop.top, finalCrop.right, finalCrop.bottom},
+                {safeCrop(finalCrop.left), safeCrop(finalCrop.top),
+                 safeCrop(finalCrop.right), safeCrop(finalCrop.bottom)},
                 {texture->dimensions.width, texture->dimensions.height},
                 {outputExtent.width, outputExtent.height})};
             finalCrop.left = scaled.left;
