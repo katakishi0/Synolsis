@@ -19,8 +19,8 @@ def array(res, key):
 presets = array("values/synolsis_gpu_presets.xml", "synolsis_gpu_preset_entries")
 values = array("values/synolsis_gpu_presets.xml", "synolsis_gpu_preset_values")
 pt = array("values-pt-rBR/synolsis_arrays.xml", "synolsis_gpu_preset_entries")
-assert len(presets) == len(values) == len(pt) == 5
-assert values[0] == "low_end"
+assert len(presets) == len(values) == len(pt) == 6
+assert values[0:2] == ["ultra_low_end", "low_end"]
 assert all("6 GB" not in text and "6GB" not in text for text in presets + pt)
 
 profiles = source("app/src/main/java/org/stratoemu/strato/settings/SynolsisGpuProfiles.kt")
