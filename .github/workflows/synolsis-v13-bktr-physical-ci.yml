@@ -44,7 +44,7 @@ jobs:
         with:
           # Source is checked out at the start of the run, then built from that snapshot.
           # Pin the tested revision, including safe V4 locale migration.
-          ref: b8f652efd8385a57005ce1dd2e77459f15122683
+          ref: 1a8529a2d3c1a78d90dcb961adc70b9e9c4f939e
           submodules: false
 
       - name: Assert full source is checked in
@@ -212,6 +212,7 @@ jobs:
           assert "subsections->Resolve(current)" in reader
           assert "cipher.SetIV(Counter(" in reader
           assert "class BktrMergedBacking final : public Backing" in overlay
+          assert "MaxBuckets{(BucketSize - BucketEntriesOffset)" in (base/"bktr_relocation.h").read_text()
           assert "relocations->Resolve(" in overlay
           assert "std::make_shared<bktr::BktrCtrExBacking>" in nca
           assert "if (!encrypted)" in nca and "bktrPhysicalSection = std::move(patchSection)" in nca
