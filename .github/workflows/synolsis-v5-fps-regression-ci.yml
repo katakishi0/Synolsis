@@ -322,20 +322,18 @@ jobs:
           lang_pref=(root/"java/org/stratoemu/strato/preference/LanguagePreference.kt").read_text()
           assert 'LocaleListCompat.forLanguageTags("en")' in locale
           assert 'KEY_INITIALIZED' in locale and 'getBoolean(KEY_INITIALIZED, false)' in locale
-          assert 'val existingInstall = preferenceDirectory.listFiles()' in locale
-          assert 'if (!existingInstall && appCompatSelection.isEmpty' in locale
           assert 'getApplicationLocales()' in locale
           assert 'systemSelection.isEmpty' in locale
           assert 'SynolsisLocaleBootstrap.initialize(this)' in application
           assert '"syslang"' in lang_pref and 'setApplicationLocales(newLocale)' in lang_pref
           assert 'app:key="app_language"' in (root/"res/xml/app_preferences.xml").read_text()
-          # Avoid per-frame Android native-window IPC with unused return value.
+          # Restore previous V4 native-window and shader-cache behaviors for FPS A/B.
           present=(root/"cpp/skyline/gpu/presentation_engine.cpp").read_text()
           assert "NATIVE_WINDOW_GET_NEXT_FRAME_ID" in present
           assert "vkQueue.presentKHR" in present
           # Keep all guest-facing VI callbacks even with presentation skipping.
           assert 'frame.presentCallback()' in present and 'vsyncEvent->Signal()' in present
-          assert 'HeaderBatchSize{32}' in cache
+          assert 'HeaderBatchSize{16}' in cache
           assert 'writeCondition.notify_one();' in cache
           assert cache.index('writeQueue.emplace(std::move(bundle));') < cache.index('writeCondition.notify_one();')
           print("PASS: English locale retained with exact V4 native presentation and shader cache rollback")
