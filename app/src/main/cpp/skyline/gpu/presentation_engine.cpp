@@ -387,9 +387,9 @@ namespace skyline::gpu {
         }};
         texture::Format underlyingFormat{format};
         if (!supportsFormat(*format)) {
-            if (supportsFormat(*format::R8G8B8A8Unorm))
+            if (supportsFormat(format::R8G8B8A8Unorm.vkFormat))
                 underlyingFormat = format::R8G8B8A8Unorm;
-            else if (supportsFormat(*format::B8G8R8A8Unorm))
+            else if (supportsFormat(format::B8G8R8A8Unorm.vkFormat))
                 underlyingFormat = format::B8G8R8A8Unorm;
             else
                 throw exception("Vulkan surface cannot present guest format '{}' or RGBA/BGRA fallbacks",
