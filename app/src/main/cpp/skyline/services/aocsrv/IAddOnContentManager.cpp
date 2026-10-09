@@ -2,6 +2,9 @@
 // Copyright © 2020 Skyline Team and Contributors (https://github.com/skyline-emu/)
 
 #include <kernel/types/KProcess.h>
+#include <os.h>
+#include <algorithm>
+#include <cstring>
 #include "IAddOnContentManager.h"
 #include "IPurchaseEventManager.h"
 
@@ -11,12 +14,41 @@ namespace skyline::service::aocsrv {
           addOnContentListChangedEvent(std::make_shared<type::KEvent>(state, false)) {}
 
     Result IAddOnContentManager::CountAddOnContent(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
-        response.Push<u32>(0);
+        // Count only readable, decrypted AOC RomFS images registered for
+        // this running application. Staged-only NSP files do not qualify.
+        response.Push<u32>(static_cast<u32>(state.os->mountedAddOns.Count()));
         return {};
     }
 
     Result IAddOnContentManager::ListAddOnContent(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
-        response.Push<u32>(0);
+        const auto startIndex{request.Pop<u32>()};
+        const auto requestedCount{request.Pop<u32>()};
+        if (request.outputBuf.empty()) {
+            response.Push<u32>(0);
+            return {};
+        }
+
+        const auto output{request.outputBuf.at(0)};
+        const auto capacity{output.size() / sizeof(u32)};
+        const auto amount{std::min<std::size_t>(requestedCount, capacity)};
+        const auto indexes{state.os->mountedAddOns.List(startIndex, amount)};
+        for (std::size_t i{}; i < indexes.size(); ++i)
+            std::memcpy(output.data() + i * sizeof(u32), &indexes[i], sizeof(u32));
+        response.Push<u32>(static_cast<u32>(indexes.size()));
+        return {};
+    }
+
+    Result IAddOnContentManager::GetAddOnContentBaseId(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        response.Push<u64>(MountedAddOnRegistry::BaseId(state.os->mountedAddOns.Application()));
+        return {};
+    }
+
+    Result IAddOnContentManager::PrepareAddOnContent(type::KSession &session, ipc::IpcRequest &request, ipc::IpcResponse &response) {
+        // Backings have already been opened at game launch. Do not pretend
+        // an unknown/unmounted DLC was installed by a Prepare request.
+        const auto index{request.Pop<u32>()};
+        if (!state.os->mountedAddOns.HasIndex(index))
+            LOGW("Guest requested unavailable DLC index {}", index);
         return {};
     }
 
