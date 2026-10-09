@@ -6,6 +6,7 @@
 #include <crypto/key_store.h>
 #include <crypto/aes_cipher.h>
 #include "filesystem.h"
+#include "bktr_relocation.h"
 
 namespace skyline {
     namespace constant {
@@ -127,6 +128,19 @@ namespace skyline {
             };
             static_assert(sizeof(HierarchicalSha256HashInfo) == 0xF8);
 
+            // Section header PatchInfo offsets are relative to the start of
+            // this NCA section, not the RomFS IVFC data level. Encryption
+            // subsections must be resolved before patch physical data reads.
+            struct BktrPatchInfo {
+                u64 indirectOffset;
+                u64 indirectSize;
+                std::array<u8, 16> indirectHeader;
+                u64 subsectionOffset;
+                u64 subsectionSize;
+                std::array<u8, 16> subsectionHeader;
+            };
+            static_assert(sizeof(BktrPatchInfo) == 0x40);
+
             struct NcaSectionHeader {
                 u16 version; //!< The version, always 2
                 NcaSectionFsType fsType; //!< The type of the filesystem in the section
@@ -137,7 +151,7 @@ namespace skyline {
                     HierarchicalIntegrityHashInfo integrityHashInfo; //!< The HashInfo used for RomFS
                     HierarchicalSha256HashInfo sha256HashInfo; //!< The HashInfo used for PFS0
                 };
-                u8 _pad1_[0x40]; // PatchInfo
+                BktrPatchInfo patchInfo; //!< Relocation and subsection descriptors
                 u32 generation; //!< The generation of the NCA section
                 u32 secureValue; //!< The secure value of the section
                 u8 _pad2_[0x30]; //!< SparseInfo
@@ -192,6 +206,8 @@ namespace skyline {
             std::shared_ptr<FileSystem> logo; //!< The PFS0 filesystem for this NCA's logo section
             std::shared_ptr<FileSystem> cnmt; //!< The PFS0 filesystem for this NCA's CNMT section
             std::shared_ptr<Backing> romFs; //!< The backing for this NCA's RomFS section
+            bool hasBktrRomFs{}; //!< Patch RomFS needs base image and subsection CTR handling
+            std::optional<bktr::RelocationTable> bktrRelocations; //!< Parsed indirect table only; not mounted
             NcaHeader header; //!< The header of the NCA
             NcaContentType contentType; //!< The content type of the NCA
 
