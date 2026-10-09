@@ -15,7 +15,8 @@ namespace skyline::vfs::bktr {
     constexpr std::size_t BucketSize{0x4000};
     constexpr std::size_t BucketEntriesOffset{0x10};
     constexpr std::size_t RelocationSize{0x14};
-    constexpr std::size_t MaxBuckets{4096};
+    // Bucket pointers live entirely in the initial 0x4000-byte header.
+    constexpr std::size_t MaxBuckets{(BucketSize - BucketEntriesOffset) / sizeof(std::uint64_t)};
 
     struct Relocation {
         std::uint64_t virtualOffset{};
