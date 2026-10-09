@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="synolsis_vulkan_output_scale">Resolução da apresentação Vulkan</string>
-    <string name="synolsis_vulkan_output_scale_desc">Reduz apenas o swapchain Vulkan final, não a resolução interna do jogo. 100% é mais seguro. Isto não é FSR.</string>
+    <string name="synolsis_vulkan_output_scale">Escala Vulkan</string>
+    <string name="synolsis_vulkan_output_scale_desc">V25 usa 100%. Não altera a resolução interna.</string>
     <string-array name="synolsis_vulkan_output_scale_entries">
-        <item>100% — nativo (padrão)</item>
-        <item>75% — apresentação reduzida</item>
-        <item>50% — apresentação reduzida</item>
+        <item>100% (ativo)</item>
+        <item>75% (inativo na V25)</item>
+        <item>50% (inativo na V25)</item>
     </string-array>
 </resources>
