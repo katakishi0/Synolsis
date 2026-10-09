@@ -44,7 +44,7 @@ jobs:
         with:
           # Source is checked out at the start of the run, then built from that snapshot.
           # Pin the tested revision, including safe V4 locale migration.
-          ref: ece6d0da309ada24ed19c08b6542e927f9d03559
+          ref: ec7b17b7b4d8821c784db46bd97a645934c3bdef
           submodules: false
 
       - name: Assert full source is checked in
@@ -185,6 +185,8 @@ jobs:
           assert "mountedAddOns.List(startIndex, amount)" in aoc
           assert "GetAddOnContentBaseId(" in aoc
           assert "hasBktrRomFs = true" in loader
+          assert "bktrSubsections = bktr::SubsectionTable::Parse" in loader
+          assert "class SubsectionTable" in (root/"vfs/bktr_relocation.h").read_text()
           assert "bktrRelocations = bktr::RelocationTable::Parse" in loader
           assert "ReadDecrypted(" in (root/"vfs/bktr_relocation.h").read_text()
           assert "mounted.push_back" in reg
