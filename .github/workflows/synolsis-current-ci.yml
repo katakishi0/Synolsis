@@ -1405,7 +1405,11 @@ jobs:
               --repo "$GITHUB_REPOSITORY" \
               --target "836f2ae35dd59913abf99161395748702f28d862" \
               --title "Synolsis V42 UI, Telemetry, QLauncher Stages and Auto Skip ${GITHUB_RUN_NUMBER}" \
-              --notes "Experimental Synolsis V42 ARM64, retains V39 Maxwell/Kepler storage image correctness and V35 SVC boot fix. Restores explicit firmware/prod.keys/title.keys/save/game-folder navigation and larger themed cards. Converts in-game left rail to swipe drag only, themed color. Adds detailed HUD based on real native FPS, RAM, frametime and Android battery temperature; not copied Citron source. Adds optional automatic HOST presentation frame skip under sustained host pressure, not guest FPS increase. Gives exact QLauncher ExeFS failure stage. WARNING: HOME Menu/QLauncher still requires missing services, true internal resolution, frame generation and NVDEC/VIC cutscene decode are not implemented. See docs/SYNOLSIS_V42_USER_FEEDBACK_SCOPE.md."
+              --notes "Experimental Synolsis V42 ARM64, retains V39 Maxwell/Kepler storage image correctness and V35 SVC boot fix. Restores explicit firmware/prod.keys/title.keys/save/game-folder navigation and larger themed cards. Converts in-game left rail to swipe drag only, themed color. Adds detailed HUD based on real native FPS, RAM, frametime and Android battery temperature; not copied Citron source. Adds optional automatic HOST presentation frame skip under sustained host pressure, not guest FPS increase. Gives exact QLauncher ExeFS failure stage. WARNING: HOME Menu/QLauncher still requires missing services, true internal resolution, frame generation and NVDEC/VIC cutscene decode are not implemented. See docs/SYNOLSIS_V42_USER_FEEDBACK_SCOPE.md." \
+              --prerelease
+          fi
+          {
+            echo "### Download optimized APK (GitHub Releases)"
             echo "Release: https://github.com/${GITHUB_REPOSITORY}/releases/tag/${tag}"
             echo "GitHub Actions artifact upload intentionally disabled while quota is exhausted."
             for apk in "${files[@]}"; do
