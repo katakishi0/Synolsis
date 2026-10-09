@@ -659,8 +659,14 @@ namespace skyline::kernel::svc {
         constexpr u8 MaxSyncHandles{0x40}; // The total amount of handles that can be passed to WaitSynchronization
 
         u32 numHandles{ctx.w2};
-        if (numHandles > MaxSyncHandles) {
+        if (!numHandles || numHandles > MaxSyncHandles) {
+            // A zero-handle wait would later read waitHandles[0] when
+            // creating the trace event. Reject it with a guest result.
             ctx.w0 = result::OutOfRange;
+            return;
+        }
+        if (!ctx.x1) {
+            ctx.w0 = result::InvalidAddress;
             return;
         }
 
@@ -669,20 +675,30 @@ namespace skyline::kernel::svc {
         objectTable.reserve(numHandles);
 
         for (const auto &handle : waitHandles) {
-            auto object{state.process->GetHandle(handle)};
-            switch (object->objectType) {
-                case type::KType::KProcess:
-                case type::KType::KThread:
-                case type::KType::KEvent:
-                case type::KType::KSession:
-                    objectTable.push_back(std::static_pointer_cast<type::KSyncObject>(object));
-                    break;
-
-                default: {
-                    LOGD("An invalid handle was supplied: 0x{:X}", handle);
+            try {
+                auto object{state.process->GetHandle(handle)};
+                if (!object) {
                     ctx.w0 = result::InvalidHandle;
                     return;
                 }
+                switch (object->objectType) {
+                    case type::KType::KProcess:
+                    case type::KType::KThread:
+                    case type::KType::KEvent:
+                    case type::KType::KSession:
+                        objectTable.push_back(std::static_pointer_cast<type::KSyncObject>(object));
+                        break;
+
+                    default:
+                        LOGD("An invalid synchronization object was supplied: 0x{:X}", handle);
+                        ctx.w0 = result::InvalidHandle;
+                        return;
+                }
+            } catch (const std::out_of_range &) {
+                // Invalid guest handles are not host exceptions. Report the
+                // correct Horizon error so game-side recovery can proceed.
+                ctx.w0 = result::InvalidHandle;
+                return;
             }
         }
 
@@ -1043,7 +1059,11 @@ namespace skyline::kernel::svc {
                 break;
 
             case InfoState::TotalMemoryAvailableWithoutSystemResource:
-                out = std::min(totalPhysicalMemory, state.process->memory.heap.size()) - state.process->npdm.meta.systemResourceSize;
+                // Subtract only after saturating: reserved system memory may
+                // exceed the current heap region on low-memory titles.
+                out = std::min(totalPhysicalMemory, state.process->memory.heap.size());
+                out = out > state.process->npdm.meta.systemResourceSize
+                    ? out - state.process->npdm.meta.systemResourceSize : 0;
                 break;
 
             case InfoState::TotalMemoryUsageWithoutSystemResource:
