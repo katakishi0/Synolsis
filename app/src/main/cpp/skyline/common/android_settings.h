@@ -41,6 +41,8 @@ namespace skyline {
             forceTripleBuffering = ktSettings.GetBool("forceTripleBuffering");
             disableFrameThrottling = ktSettings.GetBool("disableFrameThrottling");
             presentationFrameSkip = std::min(ktSettings.GetInt<u32>("presentationFrameSkip"), 2U);
+            const auto presentationScale{ktSettings.GetInt<u32>("vulkanPresentationScalePercent")};
+            vulkanPresentationScalePercent = (presentationScale == 50 || presentationScale == 75) ? presentationScale : 100U;
             vulkanPresentMode = std::min(ktSettings.GetInt<u32>("vulkanPresentMode"), 3U);
             shaderCompileThreads = std::min(ktSettings.GetInt<u32>("shaderCompileThreads"), 4U);
             gpuDriver = ktSettings.GetString("gpuDriver");
