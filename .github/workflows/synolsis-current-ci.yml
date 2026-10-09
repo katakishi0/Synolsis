@@ -44,7 +44,7 @@ jobs:
         with:
           # Source is checked out at the start of the run, then built from that snapshot.
           # Pin the tested revision, including safe V4 locale migration.
-          ref: 72d173f3c72b49f061a3bda37f373f276235b8dd
+          ref: 717ecb9b652e340d4d6f4967b8d0f84a9ba702f5
           submodules: false
 
       - name: Assert full source is checked in
@@ -1223,6 +1223,38 @@ jobs:
           print("PASS: GPU fence anti-flicker option wired Kotlin/JNI/C++ and localized to English/pt-BR")
           PY
 
+      - name: Verify V39 Maxwell and Kepler storage image pipeline and fallback policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          c++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic tests/storage_image_policy_test.cpp -o /tmp/synolsis-v39-storage-test
+          /tmp/synolsis-v39-storage-test
+          python3 - <<'PY'
+          from pathlib import Path
+          root=Path("app/src/main/cpp/skyline/gpu")
+          tex=(root/"texture/texture.cpp").read_text()
+          src=(root/"interconnect/common/pipeline.inc").read_text()
+          pool=(root/"interconnect/common/textures.cpp").read_text()
+          mh=(root/"interconnect/maxwell_3d/pipeline_manager.h").read_text()
+          max3=(root/"interconnect/maxwell_3d/pipeline_manager.cpp").read_text()
+          comp=(root/"interconnect/kepler_compute/pipeline_manager.cpp").read_text()
+          assert 'storage_image_policy::CanUseStorage(' in tex
+          assert 'usage |= vk::ImageUsageFlagBits::eStorage' in tex
+          assert 'guest && pFormat == guest->format' in tex
+          assert 'GetNullStorageTexture(' in src and 'GetNullStorageTexture(' in pool
+          assert 'vk::ImageUsageFlagBits::eStorage' in pool
+          assert 'vk::ComponentMapping{}' in src and 'vk::ComponentMapping{}' in pool
+          assert 'ResolveStorageImageFormat(' in src
+          assert 'GetStorageImageBinding(' in src
+          assert 'MarkGpuDirty(ctx.executor.usageTracker)' in src
+          assert 'cbufUsageInfo.storageImages' in max3 and 'storageImages' in mh
+          assert 'GetStorageImageBinding(ctx, desc, textures, handle,' in max3
+          assert 'GetStorageImageBinding(ctx, desc, textures, handle,' in comp
+          assert 'Image descriptors are not supported' not in comp
+          assert 'Image descriptors are not supported' not in max3
+          print("PASS: typed storage-image capability, identity views, guest writes, Maxwell and Kepler descriptors")
+          PY
+
       - name: Compile Android Kotlin frontend before expensive native build
         shell: bash
         run: |
@@ -1301,16 +1333,16 @@ jobs:
             echo "::error::Gradle did not produce an APK"
             exit 1
           fi
-          tag="synolsis-v38-gpu-fence-${GITHUB_RUN_NUMBER}"
+          tag="synolsis-v39-storage-images-${GITHUB_RUN_NUMBER}"
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             # Rerunning a build must not fail just because its release exists.
             gh release upload "$tag" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
           else
             gh release create "$tag" "${files[@]}" \
               --repo "$GITHUB_REPOSITORY" \
-              --target "72d173f3c72b49f061a3bda37f373f276235b8dd" \
-              --title "Synolsis V38 GPU Fence Anti-Flicker ${GITHUB_RUN_NUMBER}" \
-              --notes "Experimental Synolsis V38 ARM64: includes V35 Horizon SVC, V36 debug log sampling, and V37 Vulkan image copy fixes. Adds an actual English/pt-BR per-game GPU Anti-flicker toggle based on Eden PR #4004: when enabled, guest GPU syncpoint/semaphore callbacks wait behind the associated Vulkan completion fence. OFF by default because this can reduce FPS; not verified to fix NieR/Nine Sols on device. NVDEC/VIC, storage-image descriptors, QLauncher, internal resolution and alternate GPU render backends remain incomplete. See docs/SYNOLSIS_V38_EDEN_GPU_FENCE_ANTIFLICKER.md." \
+              --target "717ecb9b652e340d4d6f4967b8d0f84a9ba702f5" \
+              --title "Synolsis V39 Storage-Image Shader Compatibility ${GITHUB_RUN_NUMBER}" \
+              --notes "Experimental Synolsis V39 ARM64: keeps V35 Horizon SVC fix, V36 GPU debug sampling, V37 Vulkan copy coherence, and V38 optional anti-flicker switch. Implements missing Maxwell3D and KeplerCompute STORAGE_IMAGE Vulkan descriptor writes, capability-checked storage usage for guest textures, identity-swizzled typed/typeless image views, GPU-dirty tracking, conservative memory barriers and typed null fallback images. V38 flicker persisted ON/OFF; V39 is a new compatibility attempt, NOT a guaranteed NieR/Nine Sols fix until tested. Full NVDEC/VIC, QLauncher, shader backends and real internal resolution remain incomplete. See docs/SYNOLSIS_V39_STORAGE_IMAGE_COMPATIBILITY.md." \
               --prerelease
           fi
           {
