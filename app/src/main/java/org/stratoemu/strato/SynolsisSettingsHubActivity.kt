@@ -163,7 +163,7 @@ class SynolsisSettingsHubActivity : AppCompatActivity() {
         }
         val column = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(6), dp(6), dp(6), dp(16))
+            setPadding(dp(10), dp(8), dp(10), dp(20))
         }
         scroll.addView(column)
         setContentView(scroll)
@@ -180,26 +180,26 @@ class SynolsisSettingsHubActivity : AppCompatActivity() {
 
         fun addCard(titleRes : Int, descRes : Int, iconRes : Int, click : () -> Unit): MaterialCardView {
             val card = MaterialCardView(this).apply {
-                radius = dp(10).toFloat()
-                cardElevation = dp(1).toFloat()
+                radius = dp(16).toFloat()
+                cardElevation = dp(0).toFloat()
                 isClickable = true
                 isFocusable = true
                 setOnClickListener { click() }
                 layoutParams = LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.WRAP_CONTENT
-                ).apply { setMargins(dp(6), dp(3), dp(6), dp(3)) }
+                ).apply { setMargins(dp(2), dp(5), dp(2), dp(5)) }
             }
             val inner = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
-                setPadding(dp(12), dp(10), dp(12), dp(10))
+                setPadding(dp(14), dp(14), dp(14), dp(14))
             }
             val icon = ImageView(this).apply {
                 setImageResource(iconRes)
                 imageTintList = ContextCompat.getColorStateList(this@SynolsisSettingsHubActivity, android.R.color.white)
                 layoutParams = LinearLayout.LayoutParams(dp(24), dp(24)).apply {
-                    marginEnd = dp(10)
+                    marginEnd = dp(14)
                 }
                 contentDescription = null // The whole card has title+description.
             }
@@ -211,12 +211,12 @@ class SynolsisSettingsHubActivity : AppCompatActivity() {
             }
             labels.addView(TextView(this).apply {
                 text = getString(titleRes)
-                textSize = 14f
+                textSize = 16f
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
             })
             labels.addView(TextView(this).apply {
                 text = getString(descRes)
-                textSize = 11f
+                textSize = 13f
                 setPadding(0, dp(2), 0, 0)
             })
             inner.addView(labels, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
@@ -239,10 +239,23 @@ class SynolsisSettingsHubActivity : AppCompatActivity() {
         addCard(R.string.synolsis_hub_theme, R.string.synolsis_hub_theme_desc, R.drawable.ic_settings) {
             openSettings(SettingsActivity.SECTION_APPEARANCE, "synolsis_palette")
         }
-        addCard(R.string.synolsis_hub_firmware, R.string.synolsis_hub_firmware_desc, R.drawable.ic_play) {
+        // Never hide firmware and key import inside an ambiguous "files" card.
+        addCard(R.string.synolsis_hub_firmware, R.string.synolsis_v42_firmware_details, R.drawable.ic_play) {
             openSettings(SettingsActivity.SECTION_CONTENT, "firmware")
         }
-        addCard(R.string.synolsis_hub_data, R.string.synolsis_hub_data_desc, R.drawable.ic_search) {
+        addCard(R.string.synolsis_v42_prod_keys, R.string.synolsis_v42_prod_keys_desc, R.drawable.ic_settings) {
+            openSettings(SettingsActivity.SECTION_CONTENT, "prod_keys")
+        }
+        addCard(R.string.synolsis_v42_title_keys, R.string.synolsis_v42_title_keys_desc, R.drawable.ic_settings) {
+            openSettings(SettingsActivity.SECTION_CONTENT, "title_keys")
+        }
+        addCard(R.string.synolsis_v42_saves, R.string.synolsis_v42_saves_desc, R.drawable.ic_settings) {
+            openSettings(SettingsActivity.SECTION_CONTENT, "save_data_manager")
+        }
+        addCard(R.string.synolsis_v42_games_folder, R.string.synolsis_v42_games_folder_desc, R.drawable.ic_search) {
+            openSettings(SettingsActivity.SECTION_CONTENT, "search_location")
+        }
+        addCard(R.string.synolsis_hub_data, R.string.synolsis_v42_files_desc, R.drawable.ic_search) {
             openSettings(SettingsActivity.SECTION_CONTENT, "document_provider")
         }
         addCard(R.string.synolsis_hub_about, R.string.synolsis_hub_about_desc, R.drawable.ic_settings) {

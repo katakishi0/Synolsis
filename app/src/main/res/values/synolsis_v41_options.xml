@@ -22,4 +22,14 @@
     <string name="synolsis_drawer_auto_next">Optimized settings saved. Restart the game to apply GPU changes.</string>
     <string name="synolsis_drawer_exit_confirm">Exit the running game? Save your progress first.</string>
     <string name="synolsis_drawer_restart_note">Graphics and memory settings take effect when you restart the game.</string>
+    <string name="synolsis_v42_firmware_details">Import firmware from your console</string>
+    <string name="synolsis_v42_prod_keys">prod.keys</string>
+    <string name="synolsis_v42_prod_keys_desc">Import production keys from your console</string>
+    <string name="synolsis_v42_title_keys">title.keys</string>
+    <string name="synolsis_v42_title_keys_desc">Import title keys from your console</string>
+    <string name="synolsis_v42_saves">Save data</string>
+    <string name="synolsis_v42_saves_desc">Import and export game saves</string>
+    <string name="synolsis_v42_games_folder">Game folders</string>
+    <string name="synolsis_v42_games_folder_desc">Manage game directories</string>
+    <string name="synolsis_v42_files_desc">Open application files and logs</string>
 </resources>

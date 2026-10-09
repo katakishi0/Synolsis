@@ -313,6 +313,13 @@ class EmulationActivity : AppCompatActivity(), SurfaceHolder.Callback, View.OnTo
         inputHandler = InputHandler(inputManager, emulationSettings)
         setContentView(binding.root)
         setupSynolsisDrawer()
+        // Register once with the Activity lifecycle, not on every onStart().
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (!binding.synolsisDrawerScrim.isGone) hideSynolsisDrawer()
+                else returnFromEmulation()
+            }
+        })
         if (emulationSettings.synolsisMemoryGuard)
             memoryGuardHandler.postDelayed(memoryGuardCheck, 20_000L)
 
@@ -479,6 +486,8 @@ class EmulationActivity : AppCompatActivity(), SurfaceHolder.Callback, View.OnTo
 
     private fun showSynolsisDrawer() {
         refreshSynolsisDrawerLabels()
+        binding.synolsisDrawerPanel.translationX = 0f
+        binding.synolsisDrawerScrim.alpha = 1f
         binding.synolsisDrawerScrim.isGone = false
         binding.synolsisDrawerEdge.isGone = true
         binding.synolsisDrawerHandle.isGone = true
@@ -486,6 +495,8 @@ class EmulationActivity : AppCompatActivity(), SurfaceHolder.Callback, View.OnTo
 
     private fun hideSynolsisDrawer() {
         binding.synolsisDrawerScrim.isGone = true
+        binding.synolsisDrawerPanel.translationX = 0f
+        binding.synolsisDrawerScrim.alpha = 1f
         binding.synolsisDrawerEdge.isGone = false
         binding.synolsisDrawerHandle.isGone = false
     }
@@ -493,19 +504,33 @@ class EmulationActivity : AppCompatActivity(), SurfaceHolder.Callback, View.OnTo
     @SuppressLint("ClickableViewAccessibility")
     private fun setupSynolsisDrawer() {
         var touchStartX = 0f
+        var dragging = false
         binding.synolsisDrawerEdge.setOnTouchListener { _, event ->
+            val panelWidth = 290.toPx.toFloat()
             when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN -> { touchStartX = event.rawX; true }
-                MotionEvent.ACTION_UP -> {
-                    if (event.rawX - touchStartX >= 36.toPx ||
-                        abs(event.rawX - touchStartX) < 16.toPx)
-                        showSynolsisDrawer()
+                MotionEvent.ACTION_DOWN -> { touchStartX = event.rawX; dragging = false; true }
+                MotionEvent.ACTION_MOVE -> {
+                    val delta = (event.rawX - touchStartX).coerceIn(0f, panelWidth)
+                    if (delta > 8.toPx) dragging = true
+                    if (dragging) {
+                        binding.synolsisDrawerScrim.isGone = false
+                        binding.synolsisDrawerPanel.translationX = delta - panelWidth
+                        binding.synolsisDrawerScrim.alpha = (delta / panelWidth).coerceIn(0.15f, 1f)
+                    }
                     true
                 }
+                MotionEvent.ACTION_UP -> {
+                    if (dragging && event.rawX - touchStartX >= 72.toPx)
+                        showSynolsisDrawer()
+                    else hideSynolsisDrawer()
+                    true
+                }
+                MotionEvent.ACTION_CANCEL -> { hideSynolsisDrawer(); true }
                 else -> true
             }
         }
-        binding.synolsisDrawerHandle.setOnClickListener { showSynolsisDrawer() }
+        // Color follows the emulator theme. The indicator is not a button.
+        binding.synolsisDrawerHandle.isClickable = false
         binding.synolsisDrawerDismiss.setOnClickListener { hideSynolsisDrawer() }
         binding.synolsisDrawerClose.setOnClickListener { hideSynolsisDrawer() }
         binding.synolsisDrawerPause.setOnClickListener {
@@ -575,16 +600,7 @@ class EmulationActivity : AppCompatActivity(), SurfaceHolder.Callback, View.OnTo
         pauseEmulator()
     }
 
-    override fun onStart() {
-        super.onStart()
-
-        onBackPressedDispatcher.addCallback(object : OnBackPressedCallback(true) {
-            override fun handleOnBackPressed() {
-                if (!binding.synolsisDrawerScrim.isGone) hideSynolsisDrawer()
-                else returnFromEmulation()
-            }
-        })
-    }
+    override fun onStart() { super.onStart() }
 
     override fun onResume() {
         super.onResume()

@@ -22,4 +22,14 @@
     <string name="synolsis_drawer_auto_next">Opções de desempenho salvas. Reinicie o jogo para aplicar as mudanças da GPU.</string>
     <string name="synolsis_drawer_exit_confirm">Sair do jogo em execução? Salve o progresso antes.</string>
     <string name="synolsis_drawer_restart_note">Opções de GPU e RAM são aplicadas ao reiniciar o jogo.</string>
+    <string name="synolsis_v42_firmware_details">Importar firmware do seu console</string>
+    <string name="synolsis_v42_prod_keys">prod.keys (chaves de produção)</string>
+    <string name="synolsis_v42_prod_keys_desc">Importar suas chaves prod.keys</string>
+    <string name="synolsis_v42_title_keys">title.keys (chaves dos jogos)</string>
+    <string name="synolsis_v42_title_keys_desc">Importar suas chaves title.keys</string>
+    <string name="synolsis_v42_saves">Dados salvos</string>
+    <string name="synolsis_v42_saves_desc">Importar e exportar saves</string>
+    <string name="synolsis_v42_games_folder">Pastas de jogos</string>
+    <string name="synolsis_v42_games_folder_desc">Gerenciar diretórios de jogos</string>
+    <string name="synolsis_v42_files_desc">Abrir arquivos e registros do aplicativo</string>
 </resources>

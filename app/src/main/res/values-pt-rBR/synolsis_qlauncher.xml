@@ -7,6 +7,6 @@
   <string name="synolsis_qlauncher_open_failed">Não foi possível abrir o QLauncher do firmware instalado.</string>
   <string name="synolsis_qlauncher_firmware_missing">Instale o firmware primeiro.</string>
   <string name="synolsis_qlauncher_unreadable">Não foi possível ler as NCAs. Verifique as chaves.</string>
-  <string name="synolsis_qlauncher_program_invalid">O QLauncher foi encontrado, mas seu ExeFS está incompleto ou ilegível. Reinstale o firmware.</string>
+  <string name="synolsis_qlauncher_program_invalid">O QLauncher foi encontrado, mas seu ExeFS está incompleto ou ilegível. Confira no log os módulos ExeFS ausentes ou uma possível incompatibilidade com o leitor NCA.</string>
   <string name="synolsis_qlauncher_program_keys_missing">QLauncher encontrado, mas faltam as chaves para descriptografar essa versão do firmware. Importe prod.keys compatível do seu console.</string>
 </resources>
