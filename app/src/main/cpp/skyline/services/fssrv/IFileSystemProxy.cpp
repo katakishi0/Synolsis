@@ -104,6 +104,15 @@ namespace skyline::service::fssrv {
         request.Skip<std::array<u8, 7>>(); // 7-bytes padding
         auto dataId{request.Pop<u64>()};
 
+        // Real locally mounted DLCs expose their decrypted RomFS through
+        // fsp-srv, just like other title data. A matching CNMT filename alone
+        // never registers storage; only an actual NCA-backed mount does.
+        if (auto aoc{state.os->mountedAddOns.GetByTitleId(dataId)}) {
+            manager.RegisterService(std::make_shared<IStorage>(
+                std::move(aoc), state, manager), session, response);
+            return {};
+        }
+
         auto systemArchivesFileSystem{std::make_shared<vfs::OsFileSystem>(state.os->publicAppFilesPath + "/switch/nand/system/Contents/registered/")};
         auto systemArchives{systemArchivesFileSystem->OpenDirectory("")};
 
