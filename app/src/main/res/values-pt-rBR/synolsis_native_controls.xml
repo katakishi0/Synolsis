@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="synolsis_frame_skip_title">Pular quadros de apresentação</string>
-    <string name="synolsis_frame_skip_summary">Pula apenas quadros exibidos, sem acelerar CPU ou GPU do jogo. Pode causar engasgos ou tremores; desligado por padrão.</string>
-    <string name="synolsis_present_mode_title">Modo de apresentação Vulkan</string>
-    <string name="synolsis_present_mode_summary">Automático, FIFO com VSync, Mailbox de baixa latência ou Immediate (pode causar tearing). Modos não suportados usam FIFO. Reinicie o jogo.</string>
-    <string name="synolsis_shader_threads_title">Threads de compilação de pipelines Vulkan</string>
-    <string name="synolsis_shader_threads_summary">Define quantas threads compilam pipelines Vulkan em segundo plano. Auto segue o Strato. Mais threads usam mais RAM e podem causar engasgos.</string>
+    <string name="synolsis_frame_skip_title">Frame Skip</string>
+    <string name="synolsis_frame_skip_summary">Pula só a exibição; pode engasgar</string>
+    <string name="synolsis_present_mode_title">Modo VSync</string>
+    <string name="synolsis_present_mode_summary">Reinicie o jogo para aplicar</string>
+    <string name="synolsis_shader_threads_title">Threads de shaders</string>
+    <string name="synolsis_shader_threads_summary">Automático recomendado</string>
 </resources>
