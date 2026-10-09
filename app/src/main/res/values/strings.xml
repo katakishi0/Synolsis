@@ -126,12 +126,12 @@
     <string name="experimental_open_title">Experimental settings (Adreno / Vulkan)</string>
     <string name="experimental_open_summary">Risky GPU options and performance tuning. All toggles here affect existing Strato native settings.</string>
     <string name="experimental_warning_title">Use one change at a time</string>
-    <string name="experimental_warning_summary">These features can cause graphics glitches, crashes or higher temperatures. Default settings are safer; restart the game after changing native options.</string>
+    <string name="experimental_warning_summary">Experimental: may crash or heat device. Restart game.</string>
     <string name="experimental_warning_custom">This game is using global settings. Enable custom game settings first, otherwise changes here will not apply to this game.</string>
     <string name="experimental_performance_title">Performance and memory</string>
     <string name="experimental_driver_title">Driver compatibility</string>
     <string name="experimental_gpu_hacks_title">Accuracy and readback experiments</string>
-    <string name="experimental_direct_import_warning">Only works on proprietary Qualcomm Adreno drivers. Not supported with custom Turnip drivers.</string>
+    <string name="experimental_direct_import_warning">Stock Adreno driver only; not Turnip.</string>
     <string name="experimental_direct_import_turnip">Disabled: direct memory import is not supported with custom Turnip drivers.</string>
     <!-- Settings - GPU -->
     <string name="gpu">GPU</string>
@@ -145,30 +145,30 @@
     <string name="disable_frame_throttling_enabled">Game is allowed to submit frames as fast as possible (Only for benchmarking)\n\n<b>Note:</b> An alternative method is utilized to measure the FPS with this enabled, the figures must not be compared to throttled FPS figures</string>
     <string name="disable_frame_throttling_disabled">Only allow the game to submit frames at the display refresh rate</string>
     <string name="executor_slot_count_scale">Executor Slot Count Scale</string>
-    <string name="executor_slot_count_scale_desc">Scale controlling the maximum number of simultaneous GPU executions (Higher may sometimes perform better but will use more RAM)</string>
+    <string name="executor_slot_count_scale_desc">Parallel GPU work. Higher uses more RAM.</string>
     <string name="executor_flush_threshold">Executor Flush Threshold</string>
-    <string name="executor_flush_threshold_desc">Controls how frequently work is flushed to the GPU</string>
+    <string name="executor_flush_threshold_desc">GPU command flush frequency.</string>
     <string name="use_direct_memory_import">Use Direct Memory Import</string>
     <string name="use_direct_memory_import_desc">May alter performance and stability in some games\n<b>NOTE:</b> This option only works on proprietary Adreno drivers</string>
     <string name="force_max_gpu_clocks">Force Maximum GPU Clocks</string>
-    <string name="force_max_gpu_clocks_desc">Forces the GPU to run at its maximum possible clock speed (May cause excessive heating and power usage)</string>
+    <string name="force_max_gpu_clocks_desc">Higher heat and battery use.</string>
     <string name="force_max_gpu_clocks_desc_unsupported">Your device does not support forcing maximum GPU clocks</string>
     <string name="free_guest_texture_memory">Free Guest Texture Memory</string>
-    <string name="free_guest_texture_memory_desc">Allows guest texture data to be freed from memory when unneeded (Can rarely cause crashes)</string>
+    <string name="free_guest_texture_memory_desc">Save RAM; may cause rare crashes.</string>
     <string name="shader_cache">Disable Shader Cache</string>
     <string name="shader_cache_disabled">Cached shaders won\'t be loaded, will cause stutters</string>
     <string name="shader_cache_enabled">Cached shaders will be loaded, can heavily reduce stuttering</string>
     <!-- Settings - Hacks -->
     <string name="hacks">Hacks</string>
     <string name="enable_fast_gpu_readback">Enable Fast GPU Readback</string>
-    <string name="enable_fast_gpu_readback_enabled">Fast GPU readback is enabled (Will break some games but others will have higher performance)</string>
-    <string name="enable_fast_gpu_readback_disabled">Fast GPU readback is disabled (Ensures highest accuracy)</string>
+    <string name="enable_fast_gpu_readback_enabled">Faster, but may corrupt graphics.</string>
+    <string name="enable_fast_gpu_readback_disabled">Accurate mode (recommended).</string>
     <string name="enable_fast_readback_writes">Enable Fast Readback Writes</string>
     <string name="enable_fast_readback_writes_enabled">Fast readback writes are enabled</string>
-    <string name="enable_fast_readback_writes_disabled">Fast readback writes are disabled</string>
+    <string name="enable_fast_readback_writes_disabled">Fast writes off.</string>
     <string name="disable_subgroup_shuffle">Disable GPU Subgroup Shuffle</string>
     <string name="disable_subgroup_shuffle_enabled">Shader subgroup shuffle operations are disabled, may cause severe graphical issues</string>
-    <string name="disable_subgroup_shuffle_disabled">Shader subgroup shuffle operations are enabled, ensures maximum accuracy</string>
+    <string name="disable_subgroup_shuffle_disabled">Accurate shader operations.</string>
     <!-- Settings - Debug -->
     <string name="debug">Debug</string>
     <string name="log_level">Log Level</string>
