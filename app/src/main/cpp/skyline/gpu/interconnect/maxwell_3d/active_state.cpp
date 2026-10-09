@@ -8,6 +8,7 @@
 #include <soc/gm20b/channel.h>
 #include <soc/gm20b/gmmu.h>
 #include <gpu/buffer_manager.h>
+#include <gpu/render_scale_geometry.h>
 #include <gpu/interconnect/command_executor.h>
 #include <gpu/interconnect/conversion/quads.h>
 #include <gpu/interconnect/common/state_updater.h>
@@ -326,8 +327,8 @@ namespace skyline::gpu::interconnect::maxwell3d {
                         .x = horizontal.xMin
                     },
                     .extent = {
-                        .height = static_cast<uint32_t>(vertical.yMax - vertical.yMin),
-                        .width = static_cast<uint32_t>(horizontal.xMax - horizontal.xMin)
+                        .height = gpu::scale::SafeScissorExtent(vertical.yMin, vertical.yMax),
+                        .width = gpu::scale::SafeScissorExtent(horizontal.xMin, horizontal.xMax)
                     }
                 };
             } else {
