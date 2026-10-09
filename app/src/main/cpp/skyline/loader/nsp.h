@@ -4,6 +4,7 @@
 #pragma once
 
 #include <vfs/nca.h>
+#include <vfs/content_meta.h>
 #include <vfs/rom_filesystem.h>
 #include <vfs/partition_filesystem.h>
 #include <crypto/key_store.h>
@@ -20,9 +21,12 @@ namespace skyline::loader {
         std::shared_ptr<vfs::RomFileSystem> controlRomFs; //!< A shared pointer to the control NCA's RomFS
         std::optional<vfs::NCA> programNca; //!< The main program NCA within the NSP
         std::optional<vfs::NCA> controlNca; //!< The main control NCA within the NSP
+        std::vector<vfs::content_meta::Summary> contentMetadata; //!< Parsed CNMT identities (not installed/mounted)
 
       public:
         NspLoader(const std::shared_ptr<vfs::Backing> &backing, const std::shared_ptr<crypto::KeyStore> &keyStore);
+
+        const std::vector<vfs::content_meta::Summary> &GetContentMetadata() const { return contentMetadata; }
 
         std::vector<u8> GetIcon(language::ApplicationLanguage language) override;
 
