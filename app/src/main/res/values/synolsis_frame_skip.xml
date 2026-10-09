@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="synolsis_frame_skip_title">Presentation frame skipping</string>
-    <string name="synolsis_frame_skip_summary">Skips displayed frames only; it does not speed up game CPU/GPU work. Can cause stuttering or flicker. Off by default.</string>
+    <string name="synolsis_frame_skip_title">Frame skip</string>
+    <string name="synolsis_frame_skip_summary">Skips displayed frames only. May stutter.</string>
     <string-array name="synolsis_frame_skip_entries">
-        <item>Off (recommended)</item>
-        <item>Skip 1 of every 2 frames</item>
-        <item>Skip 2 of every 3 frames</item>
+        <item>Off</item>
+        <item>Skip 1 frame</item>
+        <item>Skip 2 frames</item>
     </string-array>
     <integer-array name="synolsis_frame_skip_values">
         <item>0</item>
@@ -13,12 +13,12 @@
         <item>2</item>
     </integer-array>
     <string name="synolsis_present_mode_title">Vulkan present mode</string>
-    <string name="synolsis_present_mode_summary">Auto, FIFO with VSync, low-latency Mailbox or Immediate (tearing possible). Unsupported modes fall back to FIFO. Restart the game.</string>
+    <string name="synolsis_present_mode_summary">VSync and latency. Restart game.</string>
     <string-array name="synolsis_present_mode_entries">
-        <item>Automatic (Strato default)</item>
+        <item>Automatic</item>
         <item>FIFO (VSync)</item>
-        <item>Mailbox (lower latency)</item>
-        <item>Immediate (no VSync; experimental)</item>
+        <item>Mailbox</item>
+        <item>Immediate</item>
     </string-array>
     <integer-array name="synolsis_present_mode_values">
         <item>0</item>
@@ -26,13 +26,13 @@
         <item>2</item>
         <item>3</item>
     </integer-array>
-    <string name="synolsis_shader_threads_title">Vulkan pipeline compilation threads</string>
-    <string name="synolsis_shader_threads_summary">How many threads compile Vulkan pipelines in the background. Auto follows Strato. More threads can consume RAM and cause stutters.</string>
+    <string name="synolsis_shader_threads_title">Shader threads</string>
+    <string name="synolsis_shader_threads_summary">Threads for Vulkan compilation.</string>
     <string-array name="synolsis_shader_threads_entries">
-        <item>Automatic (Strato)</item>
-        <item>1 thread (compatibility)</item>
-        <item>2 threads (low memory)</item>
-        <item>4 threads (experimental)</item>
+        <item>Automatic</item>
+        <item>1 thread</item>
+        <item>2 threads</item>
+        <item>4 threads</item>
     </string-array>
     <integer-array name="synolsis_shader_threads_values">
         <item>0</item>
