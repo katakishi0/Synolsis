@@ -158,7 +158,7 @@ class SynolsisSettingsHubActivity : AppCompatActivity() {
         }
         column.addView(header)
 
-        fun addCard(titleRes : Int, descRes : Int, iconRes : Int, click : () -> Unit) {
+        fun addCard(titleRes : Int, descRes : Int, iconRes : Int, click : () -> Unit): MaterialCardView {
             val card = MaterialCardView(this).apply {
                 radius = dp(12).toFloat()
                 cardElevation = dp(1).toFloat()
