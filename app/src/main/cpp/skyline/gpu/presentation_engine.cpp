@@ -102,6 +102,19 @@ namespace skyline::gpu {
         std::scoped_lock textureLock(*frame.textureView);
 
         auto texture{frame.textureView->texture};
+        // Observe completed guest frame submissions only. This tracker
+        // retains NO Vulkan image snapshots, so synthetic presentation is
+        // deliberately disabled until a synchronized compute path exists.
+        const auto candidate{frameHistory.Observe({
+            static_cast<std::uint64_t>(frame.id),
+            static_cast<std::int64_t>(util::GetTimeNs()),
+            texture->dimensions.width, texture->dimensions.height,
+            static_cast<std::uint32_t>(*frame.textureView->format),
+            reinterpret_cast<std::uintptr_t>(texture.get())
+        })};
+        if (candidate && (frameHistory.AcceptedPairs() % 120) == 0)
+            LOGD("Observed {} eligible frame-history pairs; frame interpolation output not enabled",
+                 frameHistory.AcceptedPairs());
         // This is *presentation* scaling only. The emulated GPU still renders
         // all game attachments at their original size, and this setting must
         // never be described as an internal resolution or FSR implementation.
@@ -434,6 +447,7 @@ namespace skyline::gpu {
             jSurface = env->NewGlobalRef(newSurface);
 
         vkSwapchain.reset();
+        frameHistory.Reset(); // Surface recreation invalidates old frame identity and size.
         windowTransformApplied = false; // New native window needs fresh transform
 
         if (jSurface) {
