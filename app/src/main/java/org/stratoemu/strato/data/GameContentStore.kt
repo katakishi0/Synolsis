@@ -12,6 +12,7 @@ import java.io.FileOutputStream
 import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.security.MessageDigest
 import java.util.UUID
 
 /**
@@ -32,8 +33,11 @@ object GameContentStore {
         val size: Long,
         val displayName: String = file.name,
         val ncaCount: Int = 0,
-        val cnmtCount: Int = 0
+        val cnmtCount: Int = 0,
+        val sha256: String? = null
     )
+
+    class DuplicatePackageException : IllegalArgumentException("This NSP package is already imported for this game")
 
     private fun metadataFile(file: File) = File(file.parentFile, file.nameWithoutExtension + ".json")
 
@@ -44,7 +48,8 @@ object GameContentStore {
             size = file.length(),
             displayName = metadata?.optString("name")?.takeIf { it.isNotBlank() } ?: file.name,
             ncaCount = metadata?.optInt("nca_count") ?: 0,
-            cnmtCount = metadata?.optInt("cnmt_count") ?: 0
+            cnmtCount = metadata?.optInt("cnmt_count") ?: 0,
+            sha256 = metadata?.optString("sha256")?.takeIf { it.matches(Regex("[a-fA-F0-9]{64}")) }
         )
     }
 
@@ -66,6 +71,28 @@ object GameContentStore {
             ?.sortedByDescending { it.lastModified() }
             ?.map(::loadEntry)
             ?: emptyList()
+
+    /**
+     * Re-hashes a stored NSP without loading it into memory. For V4/V5
+     * imports whose manifests contain no SHA-256, return null (unknown).
+     * This verifies file integrity, NOT Switch signatures or CNMT title IDs.
+     */
+    fun verifyIntegrity(entry: Entry): Boolean? {
+        val expected = entry.sha256 ?: return null
+        val digest = MessageDigest.getInstance("SHA-256")
+        entry.file.inputStream().buffered().use { input ->
+            val buffer = ByteArray(128 * 1024)
+            while (true) {
+                val bytes = input.read(buffer)
+                if (bytes < 0) break
+                if (bytes > 0) digest.update(buffer, 0, bytes)
+            }
+        }
+        return expected.equals(digest.digest().toHex(), ignoreCase = true)
+    }
+
+    private fun ByteArray.toHex(): String =
+        joinToString(separator = "") { "%02x".format(it.toInt() and 0xff) }
 
     fun delete(context: Context, titleId: String, kind: Kind, filename: String): Boolean {
         if (filename != File(filename).name || !filename.endsWith(".nsp", true)) return false
@@ -95,6 +122,7 @@ object GameContentStore {
 
         try {
             var written = 0L
+            val digest = MessageDigest.getInstance("SHA-256")
             context.contentResolver.openInputStream(source)?.use { input ->
                 FileOutputStream(staging).use { raw ->
                     // Stream large NSP archives using a fixed-size buffer to
@@ -109,6 +137,7 @@ object GameContentStore {
                         check(staging.usableSpace > count.toLong() + reserveBytes) {
                             "Not enough free space to import NSP"
                         }
+                        digest.update(buffer, 0, count)
                         output.write(buffer, 0, count)
                     }
                     output.flush()
@@ -118,6 +147,14 @@ object GameContentStore {
             check(written >= 16L) { "NSP file is empty or incomplete" }
 
             val info = validatePfs0(staging)
+            val sha256 = digest.digest().toHex()
+            // Do not store multi-gigabyte copies of the same NSP for one game.
+            // A legacy import without a recorded digest is left untouched.
+            if (list(context, titleId, kind).any {
+                    it.size == written && it.sha256?.equals(sha256, ignoreCase = true) == true
+                }) {
+                throw DuplicatePackageException()
+            }
 
             // This is a verified NSP container, NOT necessarily an update/DLC
             // for this game: encrypted CNMT metadata needs native validation.
@@ -131,13 +168,14 @@ object GameContentStore {
                 .put("cnmt_count", info.second)
                 .put("native_status", "staged_not_mounted")
                 .put("title_id_verified", false)
+                .put("sha256", sha256)
             try {
                 metadataFile(destination).writeText(metadata.toString())
             } catch (error: Exception) {
                 destination.delete()
                 throw error
             }
-            return Entry(destination, written, safeName, info.first, info.second)
+            return Entry(destination, written, safeName, info.first, info.second, sha256)
         } finally {
             if (staging.exists()) staging.delete()
         }
