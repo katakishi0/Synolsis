@@ -118,7 +118,11 @@ namespace skyline::gpu {
         // This is *presentation* scaling only. The emulated GPU still renders
         // all game attachments at their original size, and this setting must
         // never be described as an internal resolution or FSR implementation.
-        const auto percent{*state.settings->vulkanPresentationScalePercent};
+        // Diagnostic Turnip build: disable the experimental final-image
+        // downscale/blit path while isolating flickering black/color tiles.
+        // The setting is intentionally ignored only in this A/B APK.
+        // Guest render targets were never scaled by this option anyway.
+        constexpr u32 percent{100U};
         const auto srcFeatures{gpu.vkPhysicalDevice.getFormatProperties(*texture->format).optimalTilingFeatures};
         const auto dstFeatures{gpu.vkPhysicalDevice.getFormatProperties(
             format::R8G8B8A8Unorm.vkFormat).optimalTilingFeatures};
@@ -458,6 +462,9 @@ namespace skyline::gpu {
             if (!gpu.vkPhysicalDevice.getSurfaceSupportKHR(gpu.vkQueueFamilyIndex, **vkSurface))
                 throw exception("Vulkan Queue doesn't support presentation with surface");
             vkSurfaceCapabilities = gpu.vkPhysicalDevice.getSurfaceCapabilitiesKHR(**vkSurface);
+            if (*state.settings->vulkanPresentationScalePercent != 100U)
+                LOGW("Turnip diagnostic: presentation scale setting temporarily forced to 100% (no final blit resize)");
+
 
             if (swapchainExtent && swapchainFormat)
                 UpdateSwapchain(swapchainFormat, swapchainExtent);
