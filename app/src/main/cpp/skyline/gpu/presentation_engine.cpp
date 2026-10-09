@@ -12,6 +12,7 @@
 #include <kernel/types/KProcess.h>
 #include "presentation_engine.h"
 #include "presentation_scale.h"
+#include <os.h>
 #include "native_window.h"
 #include "texture/format.h"
 
@@ -458,6 +459,22 @@ namespace skyline::gpu {
             if (!gpu.vkPhysicalDevice.getSurfaceSupportKHR(gpu.vkQueueFamilyIndex, **vkSurface))
                 throw exception("Vulkan Queue doesn't support presentation with surface");
             vkSurfaceCapabilities = gpu.vkPhysicalDevice.getSurfaceCapabilitiesKHR(**vkSurface);
+            // Construct real FSR1/temporal compute pipelines exactly once
+            // per Vulkan device. They cannot dispatch until intermediate
+            // VkImages, descriptors and proper barriers are wired up.
+            // On unsupported drivers this must never break game display.
+            if (!computePipelinesAttempted && state.os && state.os->assetFileSystem) {
+                computePipelinesAttempted = true;
+                try {
+                    computePipelines = std::make_unique<packed_compute::PipelineSet>(
+                        gpu.vkDevice, *state.os->assetFileSystem);
+                    LOGI("FSR1 EASU/RCAS + temporal Vulkan pipelines initialized; dispatch remains disabled");
+                } catch (const std::exception &e) {
+                    computePipelines.reset();
+                    LOGW("Optional Vulkan compute module unavailable: {}. Continuing with native presentation.", e.what());
+                }
+            }
+
 
             if (swapchainExtent && swapchainFormat)
                 UpdateSwapchain(swapchainFormat, swapchainExtent);
