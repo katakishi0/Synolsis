@@ -147,7 +147,7 @@ namespace skyline::vfs::content_meta {
         constexpr std::size_t EntrySize{0x38};
         const std::size_t tableStart = HeaderSize + summary->extendedHeaderSize;
 
-        Manifest manifest{.summary = *summary};
+        Manifest manifest{.summary = *summary, .contents = {}};
         manifest.contents.reserve(summary->contentCount);
         std::set<std::array<std::uint8_t, 16>> seenIds;
         for (std::size_t i{}; i < summary->contentCount; ++i) {
