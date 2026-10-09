@@ -10,6 +10,7 @@ using skyline::gpu::scale::Extent;
 using skyline::gpu::scale::Factor;
 using skyline::gpu::scale::ScaleExtent;
 using skyline::gpu::scale::ScaleDimension;
+using skyline::gpu::scale::SafeScissorExtent;
 
 static_assert(ScaleExtent({1280, 720}, Factor::Half) == Extent{640, 360});
 static_assert(ScaleExtent({1280, 720}, Factor::ThreeQuarters) == Extent{960, 540});
@@ -20,6 +21,13 @@ static_assert(ScaleExtent({1, 1}, Factor::Half) == Extent{1, 1});
 static_assert(ScaleExtent({3, 5}, Factor::ThreeQuarters) == Extent{3, 4});
 static_assert(ScaleExtent({0, 720}, Factor::Half) == Extent{0, 360});
 static_assert(ScaleExtent({0, 0}, Factor::Native) == Extent{0, 0});
+static_assert(SafeScissorExtent(0, 1280) == 1280);
+static_assert(SafeScissorExtent(100, 100) == 0);
+static_assert(SafeScissorExtent(200, 100) == 0);
+static_assert(SafeScissorExtent(-5, 15) == 20);
+static_assert(SafeScissorExtent(std::numeric_limits<std::int64_t>::min(),
+                                std::numeric_limits<std::int64_t>::max()) ==
+              std::numeric_limits<std::uint32_t>::max());
 static_assert(ScaleDimension(std::numeric_limits<std::uint32_t>::max(),
                              Factor::Native) == std::numeric_limits<std::uint32_t>::max());
 
