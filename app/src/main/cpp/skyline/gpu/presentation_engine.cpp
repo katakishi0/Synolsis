@@ -123,16 +123,9 @@ namespace skyline::gpu {
         // The setting is intentionally ignored only in this A/B APK.
         // Guest render targets were never scaled by this option anyway.
         constexpr u32 percent{100U};
-        const auto srcFeatures{gpu.vkPhysicalDevice.getFormatProperties(*texture->format).optimalTilingFeatures};
-        const auto dstFeatures{gpu.vkPhysicalDevice.getFormatProperties(
-            format::R8G8B8A8Unorm.vkFormat).optimalTilingFeatures};
-        const auto nativeDstFeatures{gpu.vkPhysicalDevice.getFormatProperties(
-            *frame.textureView->format).optimalTilingFeatures};
-        const bool canBlit{
-            bool(srcFeatures & vk::FormatFeatureFlagBits::eBlitSrc) &&
-            bool(dstFeatures & vk::FormatFeatureFlagBits::eBlitDst) &&
-            bool(nativeDstFeatures & vk::FormatFeatureFlagBits::eBlitDst)
-        };
+        // Conservative Turnip path never requests a scaled Vulkan blit.
+        // Avoid three vkGetPhysicalDeviceFormatProperties queries per frame.
+        constexpr bool canBlit{false};
         const auto desired{presentation_scale::ChooseExtent(
             {texture->dimensions.width, texture->dimensions.height},
             percent,
