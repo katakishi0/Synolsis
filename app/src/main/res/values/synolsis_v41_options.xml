@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="synolsis_auto_low_end_title">Automatic low-end optimization</string>
+    <string name="synolsis_auto_low_end_summary">On game launch, select safe native GPU/RAM settings using available device memory. Changes require a restart; may not increase FPS.</string>
+    <string name="synolsis_memory_guard_title">Low-memory protection</string>
+    <string name="synolsis_memory_guard_summary">Monitor Android memory pressure and prepare safer settings for the next game launch. Does not clear active GPU resources or force garbage collection.</string>
+    <string name="synolsis_low_memory_warning">Low RAM: safe settings prepared for the next launch.</string>
+    <string name="synolsis_auto_profile_applied">Automatic profile for this launch: %1$s</string>
+    <string name="synolsis_drawer_title">Synolsis game menu</string>
+    <string name="synolsis_drawer_subtitle">Swipe from the left edge to open</string>
+    <string name="synolsis_drawer_close">Close menu</string>
+    <string name="synolsis_drawer_open">Open game menu</string>
+    <string name="synolsis_drawer_pause">Pause game</string>
+    <string name="synolsis_drawer_resume">Resume game</string>
+    <string name="synolsis_drawer_controls_hide">Hide on-screen controls</string>
+    <string name="synolsis_drawer_controls_show">Show on-screen controls</string>
+    <string name="synolsis_drawer_fps_show">Show FPS</string>
+    <string name="synolsis_drawer_fps_hide">Hide FPS</string>
+    <string name="synolsis_drawer_settings">Game settings</string>
+    <string name="synolsis_drawer_auto">Optimize for this device</string>
+    <string name="synolsis_drawer_exit">Exit game</string>
+    <string name="synolsis_drawer_auto_next">Optimized settings saved. Restart the game to apply GPU changes.</string>
+    <string name="synolsis_drawer_exit_confirm">Exit the running game? Save your progress first.</string>
+    <string name="synolsis_drawer_restart_note">Graphics and memory settings take effect when you restart the game.</string>
+</resources>
