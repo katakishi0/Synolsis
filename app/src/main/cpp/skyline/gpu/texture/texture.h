@@ -603,7 +603,7 @@ namespace skyline::gpu {
             .aspectMask = vk::ImageAspectFlagBits::eColor,
             .levelCount = VK_REMAINING_MIP_LEVELS,
             .layerCount = VK_REMAINING_ARRAY_LAYERS,
-        });
+        }, bool permitScaledBlit = false);
 
         /**
          * @return If the texture is frequently locked by threads using non-ContextLocks
