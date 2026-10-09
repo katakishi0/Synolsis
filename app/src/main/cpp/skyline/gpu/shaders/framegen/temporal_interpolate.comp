@@ -1,0 +1,39 @@
+#version 450
+// SPDX-License-Identifier: MPL-2.0
+// Copyright (c) 2026 Synolsis Emu contributors
+//
+// Experimental temporal intermediate frame. No hidden 2x simulation FPS:
+// this produces one RGBA frame from TWO previously completed guest frames.
+// A real presenter must wait on both GPU fences and schedule its own display
+// swapchain. Basic temporal blending can ghost and is not optical-flow FSR3.
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+layout(set=0,binding=0) uniform sampler2D previousFrame;
+layout(set=0,binding=1) uniform sampler2D currentFrame;
+layout(set=0,binding=2,rgba8) writeonly uniform image2D generatedFrame;
+
+layout(push_constant) uniform InterpolationParameters {
+    float alpha;
+    uint width;
+    uint height;
+    uint useMotion;
+} pc;
+
+layout(set=0,binding=3) uniform sampler2D motionVectors;
+
+void main() {
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (uint(pixel.x) >= pc.width || uint(pixel.y) >= pc.height)
+        return;
+
+    vec2 uv = (vec2(pixel) + 0.5) / vec2(pc.width,pc.height);
+    float t = clamp(pc.alpha,0.0,1.0);
+    vec2 flow = vec2(0.0);
+    if (pc.useMotion != 0u)
+        flow = clamp(textureLod(motionVectors,uv,0.0).rg,vec2(-0.2),vec2(0.2));
+    // Motion vectors are assumed to be normalized displacement per frame;
+    // only use this when a true game motion pass has produced that texture.
+    vec4 oldColor = textureLod(previousFrame,clamp(uv-flow*t,0.0,1.0),0.0);
+    vec4 newColor = textureLod(currentFrame,clamp(uv+flow*(1.0-t),0.0,1.0),0.0);
+    vec4 outputColor = mix(oldColor,newColor,t);
+    imageStore(generatedFrame,pixel,clamp(outputColor,0.0,1.0));
+}
