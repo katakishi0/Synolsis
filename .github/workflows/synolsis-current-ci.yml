@@ -25,7 +25,7 @@ concurrency:
 
 jobs:
   build:
-    name: V33 Vulkan Acquire + NVDEC/VIC + Horizon SVC Stability ARM64
+    name: V34 Black Screen Presentation and Horizon Yield Diagnostics ARM64
     runs-on: ubuntu-22.04
     timeout-minutes: 150
     env:
@@ -44,7 +44,7 @@ jobs:
         with:
           # Source is checked out at the start of the run, then built from that snapshot.
           # Pin the tested revision, including safe V4 locale migration.
-          ref: 9082f96ccec50692f330eacc7f7fdb8d0199badd
+          ref: 692daa29712652bde23367eff575bcdd14c7c7dd
           submodules: false
 
       - name: Assert full source is checked in
@@ -1093,6 +1093,27 @@ jobs:
           print("PASS: V32 SVC 0x11 and host1x method safety")
           PY
 
+      - name: Verify V34 black-screen probe and hot yield log throttling
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          gpu=Path("app/src/main/cpp/skyline/gpu/presentation_engine.cpp").read_text()
+          svc=Path("app/src/main/cpp/skyline/kernel/svc.cpp").read_text()
+          assert 'Synolsis present begin:' in gpu
+          assert 'Synolsis present fence ready:' in gpu
+          assert 'Synolsis present source:' in gpu
+          assert 'Synolsis present result:' in gpu
+          assert 'vkQueuePresentKHR failed:' in gpu
+          assert 'vk::Result::eErrorOutOfDateKHR' in gpu
+          assert 'swapchainExtent.width = 0;' in gpu
+          assert 'yieldSamples.fetch_add(1, std::memory_order_relaxed)' in svc
+          assert 'YieldWithCoreMigration count={}' in svc
+          assert 'LOGD("Waking any appropriate parked threads and yielding")' not in svc
+          print("PASS: V34 present/fence/Vulkan-result diagnostics and hot SVC logging guard")
+          PY
+
       - name: Compile Android Kotlin frontend before expensive native build
         shell: bash
         run: |
@@ -1171,16 +1192,16 @@ jobs:
             echo "::error::Gradle did not produce an APK"
             exit 1
           fi
-          tag="synolsis-v33-vulkan-acquire-${GITHUB_RUN_NUMBER}"
+          tag="synolsis-v34-black-screen-${GITHUB_RUN_NUMBER}"
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             # Rerunning a build must not fail just because its release exists.
             gh release upload "$tag" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
           else
             gh release create "$tag" "${files[@]}" \
               --repo "$GITHUB_REPOSITORY" \
-              --target "9082f96ccec50692f330eacc7f7fdb8d0199badd" \
-              --title "Synolsis V33 Vulkan Acquire + NVDEC/VIC Compatibility test ${GITHUB_RUN_NUMBER}" \
-              --notes "Experimental Synolsis V33 ARM64: V32 Horizon SVC SignalEvent and Host1x bounds guards; V31 surface format compile repair; treat VK_SUBOPTIMAL_KHR as a valid acquired image, retire old Vulkan swapchain images after idle, rate-limit VIC log spam and reject invalid NVHOST syncpoints. Full guest NVDEC, Nine Sols/NieR graphics fixes, QLauncher HOME, all SVCs and true internal resolution are NOT complete; compare using the same game/driver as V29/V30." \
+              --target "692daa29712652bde23367eff575bcdd14c7c7dd" \
+              --title "Synolsis V34 Black Screen + GPU Presentation Diagnostics ${GITHUB_RUN_NUMBER}" \
+              --notes "Experimental Synolsis V34 ARM64 diagnostic build (based on V33): throttles runaway Horizon yield logging without changing scheduler semantics; logs sampled guest present/fence/copy stages and the actual vkQueuePresentKHR result; handles VK_ERROR_OUT_OF_DATE_KHR by scheduling swapchain recreation. Black-screen and app-crash causes are NOT proven fixed, and full NVDEC/VIC, QLauncher, Nine Sols/NieR compatibility and internal resolution remain incomplete. See docs/SYNOLSIS_V34_BLACK_SCREEN_TRIAGE.md." \
               --prerelease
           fi
           {
