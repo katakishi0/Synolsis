@@ -3,6 +3,7 @@
 #include "../app/src/main/cpp/skyline/gpu/render_scale_geometry.h"
 #include <cassert>
 #include <cstdint>
+#include <initializer_list>
 #include <limits>
 
 using skyline::gpu::scale::Extent;
