@@ -938,7 +938,12 @@ namespace skyline::gpu {
             return gpu.scheduler.Submit([&](vk::raii::CommandBuffer &commandBuffer) {
                 auto sourceBacking{source->GetBacking()};
                 if (source->layout != vk::ImageLayout::eTransferSrcOptimal) {
-                    commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer, {}, {}, {}, vk::ImageMemoryBarrier{
+                    // TopOfPipe cannot make prior shader/color/depth/transfer
+                    // writes available: it has no memory access scope.
+                    // On Turnip this may expose stale or uninitialized
+                    // presentation tiles. Wait for ALL prior GPU writers
+                    // before converting the source to a transfer read.
+                    commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eAllCommands, vk::PipelineStageFlagBits::eTransfer, {}, {}, {}, vk::ImageMemoryBarrier{
                         .image = sourceBacking,
                         .srcAccessMask = vk::AccessFlagBits::eMemoryWrite,
                         .dstAccessMask = vk::AccessFlagBits::eTransferRead,
