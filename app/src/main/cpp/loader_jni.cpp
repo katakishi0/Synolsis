@@ -324,3 +324,34 @@ Java_org_stratoemu_strato_data_GameContentStore_readNativeContentMetadata(
         return nullptr;
     }
 }
+
+
+/**
+ * QLauncher is the system-program title 0100000000001000. A firmware NCA
+ * must come from the user's own Switch; the emulator bundles none.
+ * Validate encrypted headers and a bootable ExeFS rather than trusting the
+ * document filename or a guessed title ID. This does not promise that every
+ * Horizon service needed by QLauncher is implemented.
+ */
+extern "C" JNIEXPORT jboolean JNICALL
+Java_org_stratoemu_strato_SynolsisSettingsHubActivity_validateQLauncherNca(
+    JNIEnv *env, jobject /*this*/, jint fd, jstring keysPath) {
+    skyline::signal::ScopedStackBlocker stackBlocker;
+    if (fd < 0 || !keysPath)
+        return JNI_FALSE;
+    try {
+        auto backing{std::make_shared<skyline::vfs::OsBacking>(fd)};
+        auto keyStore{std::make_shared<skyline::crypto::KeyStore>(
+            skyline::JniString(env, keysPath))};
+        skyline::vfs::NCA nca{std::move(backing), std::move(keyStore)};
+        constexpr skyline::u64 QLauncherProgramId{0x0100000000001000ULL};
+        return nca.header.programId == QLauncherProgramId &&
+               nca.contentType == skyline::vfs::NcaContentType::Program &&
+               nca.exeFs != nullptr &&
+               nca.exeFs->FileExists("rtld") &&
+               nca.exeFs->FileExists("main") &&
+               nca.exeFs->FileExists("main.npdm") ? JNI_TRUE : JNI_FALSE;
+    } catch (const std::exception &) {
+        return JNI_FALSE;
+    }
+}
