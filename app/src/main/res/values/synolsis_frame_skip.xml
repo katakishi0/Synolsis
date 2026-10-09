@@ -1,16 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="synolsis_frame_skip_title">Frame Skip</string>
-    <string name="synolsis_frame_skip_summary">Skips display only; may stutter</string>
+    <string name="synolsis_frame_skip_summary">Display-only skipping; Auto responds to slow host presentation (experimental)</string>
     <string-array name="synolsis_frame_skip_entries">
         <item>Off</item>
         <item>Skip 1</item>
         <item>Skip 2</item>
+        <item>Auto (host presentation pressure)</item>
     </string-array>
     <integer-array name="synolsis_frame_skip_values">
         <item>0</item>
         <item>1</item>
         <item>2</item>
+        <item>3</item>
     </integer-array>
     <string name="synolsis_present_mode_title">VSync mode</string>
     <string name="synolsis_present_mode_summary">Restart game to apply</string>

@@ -32,4 +32,5 @@
     <string name="synolsis_v42_games_folder">Pastas de jogos</string>
     <string name="synolsis_v42_games_folder_desc">Gerenciar diretórios de jogos</string>
     <string name="synolsis_v42_files_desc">Abrir arquivos e registros do aplicativo</string>
+    <string name="synolsis_v42_battery_temperature"> • Bateria %1$.1f °C</string>
 </resources>

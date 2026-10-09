@@ -109,6 +109,7 @@ namespace skyline::gpu {
             LOGI("Synolsis present begin: attempt={} guestFrame={} awaiting guest fence",
                  attempt, frame.id);
         frame.fence.Wait(state.soc->host1x);
+        const auto hostPresentationStartNs = util::GetTimeNs();
         if (traceFrame)
             LOGI("Synolsis present fence ready: attempt={}", attempt);
 
@@ -317,6 +318,10 @@ namespace skyline::gpu {
         } else {
             frameTimestamp = timestamp;
         }
+        // Excludes guest-fence waiting: low guest FPS must not alone trigger auto-skip.
+        const auto hostCostNs = util::GetTimeNs() - hostPresentationStartNs;
+        if (hostCostNs > 0)
+            skipPolicy.ObserveHostPresentCostNs(static_cast<u64>(hostCostNs));
     }
 
     void PresentationEngine::PresentationThread() {

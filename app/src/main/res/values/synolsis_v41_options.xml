@@ -32,4 +32,5 @@
     <string name="synolsis_v42_games_folder">Game folders</string>
     <string name="synolsis_v42_games_folder_desc">Manage game directories</string>
     <string name="synolsis_v42_files_desc">Open application files and logs</string>
+    <string name="synolsis_v42_battery_temperature"> • Battery %1$.1f °C</string>
 </resources>

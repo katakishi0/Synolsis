@@ -71,7 +71,7 @@ namespace skyline {
         // Display
         Setting<bool> forceTripleBuffering; //!< If the presentation engine should always triple buffer even if the swapchain supports double buffering
         Setting<bool> disableFrameThrottling; //!< Allow the guest to submit frames without any blocking calls
-        Setting<u32> presentationFrameSkip; //!< Number of host-present frames to skip between displayed frames (0-2)
+        Setting<u32> presentationFrameSkip; //!< Host frame skip: 0 off, 1/2 fixed, 3 auto host pressure
         Setting<u32> vulkanPresentationScalePercent; //!< Host swapchain scale (50/75/100%), not guest internal resolution
         Setting<u32> vulkanPresentMode; //!< 0 auto, 1 FIFO, 2 MAILBOX, 3 IMMEDIATE; fallback to FIFO
         Setting<u32> shaderCompileThreads; //!< Vulkan pipeline compilation workers, 0=auto, max=4

@@ -60,7 +60,7 @@
         <item>Rápido experimental (leitura e gravação)</item>
     </string-array>
     <string-array name="synolsis_frame_skip_entries">
-        <item>Desligado</item><item>Pular 1</item><item>Pular 2</item>
+        <item>Desligado</item><item>Pular 1</item><item>Pular 2</item><item>Automático (pressão no apresentador)</item>
     </string-array>
     <string-array name="synolsis_present_mode_entries">
         <item>Automático</item><item>FIFO (VSync)</item>

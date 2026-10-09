@@ -386,15 +386,19 @@ class EmulationActivity : AppCompatActivity(), SurfaceHolder.Callback, View.OnTo
                         }
                         updatePerformanceStatistics()
                         // We read the `VmRSS` value from the kernel
-                        ramUsage = File("/proc/self/statm").readLines()[0].split(' ')[1].toLong() * 4096 / 1000000
+                        ramUsage = runCatching {
+                            val pages = File("/proc/self/statm").readText().trim().split(Regex("\\s+"))[1].toLong()
+                            pages * android.system.Os.sysconf(android.system.OsConstants._SC_PAGESIZE) / 1_000_000L
+                        }.getOrDefault(ramUsage)
                         // Native telemetry already contains average frametime
                         // and its deviation; expose them only when explicitly
                         // requested to keep the default HUD compact.
                         text = if (emulationSettings.perfStatsDetails) {
                             String.format(
                                 java.util.Locale.US,
-                                "%d FPS • %d MB • %.1f ms (±%.1f)",
-                                fps, ramUsage, averageFrametime, averageFrametimeDeviation
+                                "%d FPS • %d MB\n%.1f ms (±%.1f)%s",
+                                fps, ramUsage, averageFrametime, averageFrametimeDeviation,
+                                batteryTemperatureLabel()
                             )
                         } else {
                             "$fps FPS • $ramUsage MB"
@@ -446,6 +450,17 @@ class EmulationActivity : AppCompatActivity(), SurfaceHolder.Callback, View.OnTo
         }
 
         executeApplication(intent!!)
+    }
+
+    // Battery thermistor is not GPU or SoC temperature.
+    private fun batteryTemperatureLabel(): String {
+        val tenths = runCatching {
+            registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+                ?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, Int.MIN_VALUE)
+        }.getOrNull()
+        return if (tenths != null && tenths != Int.MIN_VALUE)
+            getString(R.string.synolsis_v42_battery_temperature, tenths / 10f)
+        else ""
     }
 
     private fun currentAndroidMemory() : ActivityManager.MemoryInfo? = runCatching {

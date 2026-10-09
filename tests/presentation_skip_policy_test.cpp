@@ -24,7 +24,7 @@ constexpr bool BasicModes() {
 static_assert(BasicModes());
 int main() {
     PresentationSkipPolicy p;
-    for (unsigned mode=0;mode<8;mode++) {
+    for (unsigned mode=0;mode<3;mode++) {
         p.Reset();
         bool first=p.ShouldPresent(mode);
         assert(first);
@@ -36,4 +36,14 @@ int main() {
         }
         (void)p.ShouldPresent(0);
     }
+    PresentationSkipPolicy automatic;
+    for (unsigned i=0;i<8;++i) automatic.ObserveHostPresentCostNs(28'000'000ULL);
+    assert(automatic.AutomaticSkipped() == 1);
+    assert(automatic.ShouldPresent(3));
+    assert(!automatic.ShouldPresent(3));
+    for (unsigned i=0;i<16;++i) automatic.ObserveHostPresentCostNs(6'000'000ULL);
+    assert(automatic.AutomaticSkipped() == 0);
+    assert(automatic.ShouldPresent(3));
+    automatic.Reset();
+    assert(automatic.AutomaticSkipped() == 0);
 }

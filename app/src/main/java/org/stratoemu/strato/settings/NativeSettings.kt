@@ -65,7 +65,7 @@ data class NativeSettings(
         if (pref.gpuDriver == EmulationSettings.SYSTEM_GPU_DRIVER) "" else GpuDriverHelper.getLibraryName(context, pref.gpuDriver),
         pref.forceTripleBuffering,
         pref.disableFrameThrottling,
-        pref.presentationFrameSkip.coerceIn(0, 2),
+        pref.presentationFrameSkip.coerceIn(0, 3),
         pref.vulkanPresentationScalePercent.takeIf { it == 50 || it == 75 } ?: 100,
         pref.vulkanPresentMode.coerceIn(0, 3),
         pref.shaderCompileThreads.coerceIn(0, 4),
