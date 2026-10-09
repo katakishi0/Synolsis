@@ -44,7 +44,7 @@ jobs:
         with:
           # Source is checked out at the start of the run, then built from that snapshot.
           # Pin the tested revision, including safe V4 locale migration.
-          ref: 64f01b77b7060c5d1a29ca7affe82536dd5a5203
+          ref: 696d81bf28f2490d36a0c46909ccf78e589f5199
           submodules: false
 
       - name: Assert full source is checked in
@@ -417,8 +417,8 @@ jobs:
           for locale in ("values", "values-pt-rBR"):
               for name in ("synolsis_qlauncher.xml", "synolsis_ui_strings.xml", "synolsis_vulkan_output_scale.xml", "synolsis_game_content_strings.xml", "synolsis_content_strings.xml"):
                   ET.parse(Path("app/src/main/res")/locale/name)
-          for locale in ("values", "values-pt-rBR"):
-              parsed=ET.parse(Path("app/src/main/res")/locale/"synolsis_frame_skip.xml").getroot()
+          for locale, resource in (("values", "synolsis_frame_skip.xml"), ("values-pt-rBR", "synolsis_native_controls.xml")):
+              parsed=ET.parse(Path("app/src/main/res")/locale/resource).getroot()
               assert parsed.find(".//string[@name='synolsis_frame_skip_title']") is not None
           assert "constexpr u32 percent{100U};" in cpp
           assert "constexpr bool canBlit{false};" in cpp
@@ -1057,7 +1057,7 @@ jobs:
           else
             gh release create "$tag" "${files[@]}" \
               --repo "$GITHUB_REPOSITORY" \
-              --target "64f01b77b7060c5d1a29ca7affe82536dd5a5203" \
+              --target "696d81bf28f2490d36a0c46909ccf78e589f5199" \
               --title "Synolsis V27 Vulkan + QLauncher + Compact UI test ${GITHUB_RUN_NUMBER}" \
               --notes "Android ARM64 experimental diagnostic APK: additional Vulkan memory ordering for texture readbacks/layout transitions, header-first QLauncher firmware scan, smaller bilingual settings UI. QLauncher still lacks complete Horizon services; true internal resolution, FSR dispatch and frame generation remain unavailable. User-reported V25 flicker fix and FPS improvement are NOT yet verified." \
               --prerelease
