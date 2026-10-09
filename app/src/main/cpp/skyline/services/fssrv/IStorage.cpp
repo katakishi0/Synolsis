@@ -21,7 +21,25 @@ namespace skyline::service::fssrv {
             return result::InvalidSize;
         }
 
-        backing->Read(request.outputBuf.at(0), static_cast<size_t>(offset));
+        // Guest IPC provides an explicit byte count. The old implementation
+        // ignored it and always read the entire outgoing buffer, which could
+        // read past the backing end or expose unwanted bytes. Limit the read
+        // independently to request length, output buffer, and remaining file.
+        if (request.outputBuf.empty())
+            return result::InvalidSize;
+
+        const auto output{request.outputBuf.at(0)};
+        const auto position{static_cast<u64>(offset)};
+        if (position > backing->size)
+            return result::InvalidOffset;
+
+        const auto bytes{std::min({
+            static_cast<u64>(size),
+            static_cast<u64>(output.size()),
+            static_cast<u64>(backing->size - position)
+        })};
+        if (bytes != 0)
+            backing->Read(output.subspan(0, static_cast<size_t>(bytes)), static_cast<size_t>(position));
         return {};
     }
 
