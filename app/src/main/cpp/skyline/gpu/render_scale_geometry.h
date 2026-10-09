@@ -3,6 +3,7 @@
 #pragma once
 
 #include <cstdint>
+#include <limits>
 
 namespace skyline::gpu::scale {
     // Pure render-target geometry. This does not alter guest textures,
@@ -37,5 +38,17 @@ namespace skyline::gpu::scale {
     constexpr Extent ScaleExtent(Extent source, Factor factor) {
         return {ScaleDimension(source.width, factor),
                 ScaleDimension(source.height, factor)};
+    }
+
+    // Maxwell scissor bounds are sometimes inverted, and subtraction before
+    // validation can turn a negative guest rectangle into a huge uint32_t
+    // Vulkan extent. Use a wide intermediate before narrowing.
+    constexpr std::uint32_t SafeScissorExtent(std::int64_t lower, std::int64_t upper) {
+        if (upper <= lower)
+            return 0;
+        const auto diff = static_cast<std::uint64_t>(upper - lower);
+        return diff > std::numeric_limits<std::uint32_t>::max()
+            ? std::numeric_limits<std::uint32_t>::max()
+            : static_cast<std::uint32_t>(diff);
     }
 }
