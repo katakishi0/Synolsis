@@ -99,7 +99,18 @@ namespace skyline::gpu {
         std::unique_lock lock(mutex);
         surfaceCondition.wait(lock, [this]() { return vkSurface.has_value(); });
 
+        // A non-invasive probe to distinguish a guest that has stopped
+        // submitting frames from a Vulkan present that fails or stays black.
+        // Only first four and every 120th frame are logged.
+        static std::atomic<u64> presentAttempts{};
+        const auto attempt{presentAttempts.fetch_add(1, std::memory_order_relaxed) + 1};
+        const bool traceFrame{attempt <= 4 || attempt % 120 == 0};
+        if (traceFrame)
+            LOGI("Synolsis present begin: attempt={} guestFrame={} awaiting guest fence",
+                 attempt, frame.id);
         frame.fence.Wait(state.soc->host1x);
+        if (traceFrame)
+            LOGI("Synolsis present fence ready: attempt={}", attempt);
 
         std::scoped_lock textureLock(*frame.textureView);
 
@@ -196,6 +207,10 @@ namespace skyline::gpu {
         auto &nextImageTexture{images.at(nextImage.second)};
         auto &presentSemaphore{presentSemaphores[nextImage.second]};
 
+        if (traceFrame)
+            LOGI("Synolsis present source: attempt={} extent={}x{} layout={} dstImage={}",
+                 attempt, texture->dimensions.width, texture->dimensions.height,
+                 vk::to_string(texture->layout), nextImage.second);
         texture->SynchronizeHost();
         nextImageTexture->CopyFrom(texture, *acquireSemaphore, *presentSemaphore, swapchainFormat, vk::ImageSubresourceRange{
             .aspectMask = vk::ImageAspectFlagBits::eColor,
@@ -248,16 +263,31 @@ namespace skyline::gpu {
         if ((result = window->perform(window, NATIVE_WINDOW_GET_NEXT_FRAME_ID, &frameId)))
             throw exception("Retrieving the next frame's ID failed with {}", result);
 
+        vk::Result presentResult{};
         {
             std::scoped_lock queueLock{gpu.queueMutex};
-            std::ignore = gpu.vkQueue.presentKHR(vk::PresentInfoKHR{
+            presentResult = gpu.vkQueue.presentKHR(vk::PresentInfoKHR{
                 .swapchainCount = 1,
                 .pSwapchains = &**vkSwapchain,
                 .pImageIndices = &nextImage.second,
                 .waitSemaphoreCount = 1,
                 .pWaitSemaphores = &*presentSemaphore,
-            }); // We don't care about suboptimal images as they are caused by not respecting the transform hint, we handle transformations externally
+            });
         }
+        if (traceFrame || presentResult != vk::Result::eSuccess)
+            LOGI("Synolsis present result: attempt={} result={} image={}",
+                 attempt, vk::to_string(presentResult), nextImage.second);
+        if (presentResult == vk::Result::eErrorOutOfDateKHR) {
+            // The old code ignored this Vulkan WSI error. Recreate on the
+            // next submitted guest frame while allowing the guest's buffer
+            // release callback to run normally.
+            LOGW("Vulkan presentation returned OUT_OF_DATE; scheduling swapchain recreation");
+            swapchainExtent.width = 0;
+            return;
+        }
+        if (presentResult != vk::Result::eSuccess &&
+            presentResult != vk::Result::eSuboptimalKHR)
+            throw exception("vkQueuePresentKHR failed: {}", vk::to_string(presentResult));
 
         timestamp = (timestamp && !*state.settings->disableFrameThrottling) ? timestamp : getMonotonicNsNow(); // We tie FPS to the submission time rather than presentation timestamp, if we don't have the presentation timestamp available or if frame throttling is disabled as we want the maximum measured FPS to not be restricted to the refresh rate
         if (frameTimestamp) {
