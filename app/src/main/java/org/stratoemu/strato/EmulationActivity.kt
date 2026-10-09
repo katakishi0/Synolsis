@@ -362,7 +362,7 @@ class EmulationActivity : AppCompatActivity(), SurfaceHolder.Callback, View.OnTo
         }
 
         binding.perfStats.isGone = !emulationSettings.perfStats
-        if (true) { // Runtime in-game menu can enable the FPS HUD at any time.
+        run { // Runtime in-game menu can enable the FPS HUD at any time.
             if (emulationSettings.disableFrameThrottling)
                 binding.perfStats.setTextColor(getColor(R.color.colorPerfStatsSecondary))
 
@@ -460,8 +460,9 @@ class EmulationActivity : AppCompatActivity(), SurfaceHolder.Callback, View.OnTo
     override fun onTrimMemory(level : Int) {
         super.onTrimMemory(level)
         if (this::emulationSettings.isInitialized && emulationSettings.synolsisMemoryGuard &&
-            (level == TRIM_MEMORY_RUNNING_LOW || level == TRIM_MEMORY_RUNNING_CRITICAL ||
-             level == TRIM_MEMORY_COMPLETE))
+            (level == android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW ||
+             level == android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL ||
+             level == android.content.ComponentCallbacks2.TRIM_MEMORY_COMPLETE))
             prepareLowMemorySettings()
     }
 
