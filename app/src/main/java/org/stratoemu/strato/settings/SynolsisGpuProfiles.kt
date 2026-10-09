@@ -15,6 +15,7 @@ import androidx.preference.TwoStatePreference
  * One operation writes the existing settings that libskyline already reads.
  */
 object SynolsisGpuProfiles {
+    const val ULTRA_LOW_END = "ultra_low_end"
     const val LOW_END = "low_end"
     const val CONSERVATIVE = "conservative"
     const val BALANCED = "balanced"
@@ -31,6 +32,7 @@ object SynolsisGpuProfiles {
         if (totalBytes <= 0 || availableBytes < 0) return null
         val gib = 1024L * 1024L * 1024L
         return when {
+            totalBytes <= 4L * gib || (lowMemory && availableBytes < 400L * 1024L * 1024L) -> ULTRA_LOW_END
             lowMemory || totalBytes <= 6L * gib || availableBytes < totalBytes / 5L -> LOW_END
             totalBytes <= 8L * gib || availableBytes < totalBytes / 3L -> CONSERVATIVE
             else -> BALANCED
@@ -45,6 +47,18 @@ object SynolsisGpuProfiles {
 
     fun apply(settings : EmulationSettings, profile : String) : Boolean {
         when (profile) {
+            ULTRA_LOW_END -> {
+                // A memory-first choice: fewer queued host GPU commands and
+                // only one concurrent shader compile job. Can reduce FPS.
+                settings.isDocked = false
+                settings.executorSlotCountScale = 1
+                settings.executorFlushThreshold = 64
+                settings.shaderCompileThreads = 1
+                settings.freeGuestTextureMemory = true
+                settings.enableFastGpuReadbackHack = false
+                settings.enableFastReadbackWrites = false
+                settings.forceMaxGpuClocks = false
+            }
             LOW_END -> {
                 // Optional resource-conservative preset for devices with
                 // limited RAM. Keep V39 storage-image correctness intact.
