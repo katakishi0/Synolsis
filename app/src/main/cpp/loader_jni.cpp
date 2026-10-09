@@ -3,6 +3,9 @@
 
 #include "skyline/crypto/key_store.h"
 #include "skyline/vfs/nca.h"
+#include "skyline/vfs/ticket.h"
+#include "skyline/vfs/partition_filesystem.h"
+#include "skyline/vfs/content_meta.h"
 #include "skyline/vfs/os_backing.h"
 #include "skyline/vfs/os_filesystem.h"
 #include "skyline/loader/nro.h"
@@ -210,5 +213,113 @@ extern "C" JNIEXPORT void Java_org_stratoemu_strato_preference_FirmwareImportPre
         } catch (const std::exception &) {
             // A single unreadable/unrecognized NCA must not crash firmware import.
         }
+    }
+}
+
+
+/**
+ * Inspects a staged NSP's own decrypted CNMT metadata through JNI, without
+ * requiring it to contain a bootable base application. Regular NspLoader
+ * intentionally rejects standalone updates/DLCs lacking ExeFS and control.
+ *
+ * Returns an array of "type:titleId:applicationId:version" strings, or null
+ * when the file/keys cannot be inspected. This DOES NOT mount or authenticate
+ * updates, import title keys, validate SHA256 records or register AOC.
+ *
+ * The Java-owned fd stays open: OsBacking(fd) defaults to closable=false.
+ */
+extern "C" JNIEXPORT jobjectArray JNICALL
+Java_org_stratoemu_strato_data_GameContentStore_readNativeContentMetadata(
+    JNIEnv *env, jobject /*thiz*/, jint fd, jstring keysPath) {
+    skyline::signal::ScopedStackBlocker stackBlocker;
+    try {
+        if (fd < 0 || keysPath == nullptr)
+            return nullptr;
+
+        auto store{std::make_shared<skyline::crypto::KeyStore>(
+            skyline::JniString(env, keysPath))};
+        auto package{std::make_shared<skyline::vfs::PartitionFileSystem>(
+            std::make_shared<skyline::vfs::OsBacking>(fd))};
+        auto directory{package->OpenDirectory("", {false, true})};
+        if (!directory)
+            return nullptr;
+        const auto entries{directory->Read()};
+        if (entries.size() > 4096)
+            return nullptr;
+
+        // Allow user-supplied NSP tickets, including updates with title-key
+        // rights IDs, to be resolved using the existing Strato KeyStore.
+        for (const auto &entry : entries) {
+            if (!entry.name.ends_with(".tik"))
+                continue;
+            try {
+                skyline::vfs::Ticket ticket{package->OpenFile(entry.name)};
+                skyline::crypto::KeyStore::Key128 titleKey{};
+                std::copy_n(ticket.titleKeyBlock.begin(), titleKey.size(), titleKey.begin());
+                store->PopulateTitleKey(ticket.rightsId, titleKey);
+            } catch (const std::exception &) {
+                // A malformed extra ticket must not invalidate unrelated
+                // valid metadata; the relevant NCA decrypt will still fail.
+            }
+        }
+
+        std::vector<std::string> identities;
+        for (const auto &entry : entries) {
+            // Metadata NCAs in standard NSPs use the .cnmt.nca suffix.
+            // Skip big program/data NCAs to keep imports responsive on 6 GB.
+            if (!entry.name.ends_with(".cnmt.nca"))
+                continue;
+            try {
+                skyline::vfs::NCA nca{package->OpenFile(entry.name), store};
+                if (nca.contentType != skyline::vfs::NcaContentType::Meta || !nca.cnmt)
+                    continue;
+                const auto files{nca.cnmt->OpenDirectory("", {false, true})};
+                if (!files)
+                    continue;
+                for (const auto &file : files->Read()) {
+                    if (!file.name.ends_with(".cnmt"))
+                        continue;
+                    const auto backing{nca.cnmt->OpenFile(file.name)};
+                    if (backing->size < 0x20 || backing->size > (4 * 1024 * 1024))
+                        continue;
+                    std::vector<skyline::u8> bytes(backing->size);
+                    backing->Read(skyline::span(bytes));
+                    const auto manifest{skyline::vfs::content_meta::ParseManifest(
+                        std::span<const skyline::u8>(bytes.data(), bytes.size()))};
+                    if (!manifest)
+                        continue;
+                    const auto &header{manifest->summary};
+                    identities.emplace_back(fmt::format("{:02X}:{:016X}:{:016X}:{}",
+                        static_cast<skyline::u32>(header.type), header.titleId,
+                        header.applicationId, header.titleVersion));
+                    if (identities.size() > 64)
+                        return nullptr;
+                }
+            } catch (const std::exception &) {
+                // Missing keys, bad ticket, malformed NCA or unsupported
+                // metadata remains UNKNOWN on Android, not "verified".
+            }
+        }
+
+        jclass stringClass{env->FindClass("java/lang/String")};
+        if (!stringClass)
+            return nullptr;
+        jobjectArray output{env->NewObjectArray(
+            static_cast<jsize>(identities.size()), stringClass, nullptr)};
+        env->DeleteLocalRef(stringClass);
+        if (!output)
+            return nullptr;
+        for (jsize i{}; i < static_cast<jsize>(identities.size()); ++i) {
+            jstring value{env->NewStringUTF(identities[i].c_str())};
+            if (!value)
+                return nullptr;
+            env->SetObjectArrayElement(output, i, value);
+            env->DeleteLocalRef(value);
+            if (env->ExceptionCheck())
+                return nullptr;
+        }
+        return output;
+    } catch (const std::exception &) {
+        return nullptr;
     }
 }
