@@ -16,7 +16,7 @@
 namespace skyline::vfs {
     using namespace loader;
 
-    NCA::NCA(std::shared_ptr<vfs::Backing> pBacking, std::shared_ptr<crypto::KeyStore> pKeyStore, bool pUseKeyArea) : backing(std::move(pBacking)), keyStore(std::move(pKeyStore)), useKeyArea(pUseKeyArea) {
+    NCA::NCA(std::shared_ptr<vfs::Backing> pBacking, std::shared_ptr<crypto::KeyStore> pKeyStore, bool pUseKeyArea, bool headerOnly) : backing(std::move(pBacking)), keyStore(std::move(pKeyStore)), useKeyArea(pUseKeyArea) {
         header = backing->Read<NcaHeader>();
 
         if (header.magic != util::MakeMagic<u32>("NCA3")) {
@@ -35,6 +35,12 @@ namespace skyline::vfs {
 
         contentType = header.contentType;
         rightsIdEmpty = header.rightsId == crypto::KeyStore::Key128{};
+
+        // Firmware title discovery needs only the encrypted NCA header.
+        // Avoid decrypting ExeFS/RomFS for hundreds of unrelated NCAs:
+        // newer key generations may otherwise abort a valid title scan.
+        if (headerOnly)
+            return;
 
         for (size_t i{}; i < header.sectionHeaders.size(); i++) {
             auto &sectionHeader{header.sectionHeaders.at(i)};
