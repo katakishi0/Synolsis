@@ -37,6 +37,33 @@ namespace skyline::loader {
                     programNca = std::move(nca);
                 else if (nca.contentType == vfs::NcaContentType::Control && nca.romFs != nullptr)
                     controlNca = std::move(nca);
+                else if (nca.contentType == vfs::NcaContentType::Meta && nca.cnmt != nullptr) {
+                    // The metadata NCA has already passed through the ordinary
+                    // encrypted NCA backing. Never inspect ciphertext as CNMT.
+                    // Metadata is advisory here: patch/AOC mounting needs a
+                    // separate content registry and BKTR support.
+                    auto directory{nca.cnmt->OpenDirectory("", {false, true})};
+                    if (!directory)
+                        continue;
+                    for (const auto &metaFile : directory->Read()) {
+                        if (!metaFile.name.ends_with(".cnmt"))
+                            continue;
+
+                        const auto backing{nca.cnmt->OpenFile(metaFile.name)};
+                        if (backing->size < 0x20 || backing->size > (4 * 1024 * 1024))
+                            continue;
+                        std::vector<u8> bytes(backing->size);
+                        backing->Read(span(bytes));
+                        const auto info{vfs::content_meta::Parse(
+                            std::span<const u8>(bytes.data(), bytes.size()))};
+                        if (!info)
+                            continue;
+                        contentMetadata.push_back(*info);
+                        LOGD("NSP CNMT: title=0x{:016X}, app=0x{:016X}, version={}, type=0x{:02X}, entries={} (not mounted)",
+                             info->titleId, info->applicationId, info->titleVersion,
+                             static_cast<u32>(info->type), info->contentCount);
+                    }
+                }
             } catch (const loader_exception &e) {
                 throw loader_exception(e.error);
             } catch (const std::exception &e) {
