@@ -153,6 +153,12 @@
             android:summaryOn="@string/shader_cache_disabled"
             app:key="disable_shader_cache"
             app:title="@string/shader_cache" />
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:summaryOff="@string/synolsis_gpu_fence_antiflicker_off"
+            android:summaryOn="@string/synolsis_gpu_fence_antiflicker_on"
+            app:key="gpu_fence_anti_flicker"
+            app:title="@string/synolsis_gpu_fence_antiflicker_title" />
     </PreferenceCategory>
     <!-- Native-backed experiments are deliberately inline: no navigation or
          extra page tap is required. Per-game category is disabled when
