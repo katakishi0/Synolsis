@@ -959,9 +959,9 @@ namespace skyline::gpu {
         const bool needsBlit{srcFormat != format || dimensionsDiffer};
         const auto availableMipLevels{std::min(levelCount, source->levelCount)};
         const auto availableLayers{std::min(layerCount, source->layerCount)};
-        if (!copy_region_policy::ValidRange(availableMipLevels, subresource.baseMipLevel,
+        if (!texture::copy_region_policy::ValidRange(availableMipLevels, subresource.baseMipLevel,
                                            subresource.levelCount) ||
-            !copy_region_policy::ValidRange(availableLayers, subresource.baseArrayLayer,
+            !texture::copy_region_policy::ValidRange(availableLayers, subresource.baseArrayLayer,
                                            subresource.layerCount)) {
             throw exception("Image copy subresource range is outside source/destination mip or layer bounds");
         }
@@ -1041,21 +1041,21 @@ namespace skyline::gpu {
                     .aspectMask = subresource.aspectMask,
                     .mipLevel = subresource.baseMipLevel,
                     .baseArrayLayer = subresource.baseArrayLayer,
-                    .layerCount = copy_region_policy::RangeCount(availableLayers,
+                    .layerCount = texture::copy_region_policy::RangeCount(availableLayers,
                                                                  subresource.baseArrayLayer,
                                                                  subresource.layerCount),
                     };
-                const auto mipEnd{copy_region_policy::RangeEnd(availableMipLevels,
+                const auto mipEnd{texture::copy_region_policy::RangeEnd(availableMipLevels,
                                                                subresource.baseMipLevel,
                                                                subresource.levelCount)};
                 for (; subresourceLayers.mipLevel < mipEnd; ++subresourceLayers.mipLevel) {
                     // Copy the selected mip dimensions, not the full-sized
                     // base texture. Vulkan blit z offsets refer to image depth,
                     // NOT the array-layer count (layers are separate fields).
-                    const auto srcExtent{copy_region_policy::MipExtent(
+                    const auto srcExtent{texture::copy_region_policy::MipExtent(
                         {source->dimensions.width, source->dimensions.height,
                          source->dimensions.depth}, subresourceLayers.mipLevel)};
-                    const auto dstExtent{copy_region_policy::MipExtent(
+                    const auto dstExtent{texture::copy_region_policy::MipExtent(
                         {dimensions.width, dimensions.height, dimensions.depth},
                         subresourceLayers.mipLevel)};
                     if (needsBlit) {
