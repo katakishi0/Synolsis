@@ -4,6 +4,7 @@
 #pragma once
 
 #include <common.h>
+#include <atomic>
 #include "android_media_decoder.h"
 
 namespace skyline::soc::host1x {
@@ -13,6 +14,7 @@ namespace skyline::soc::host1x {
     class NvDecClass {
       private:
         std::function<void()> opDoneCallback;
+        std::atomic<std::uint64_t> unhandledMethodCount{}; //!< Bounded diagnostics; not a fake decode counter
         AndroidMediaDecoder mediaCodecBackend; //!< Only decoded access-unit pipeline; register parser still pending
 
       public:
