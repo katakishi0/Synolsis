@@ -6,6 +6,7 @@
 package org.stratoemu.strato
 
 import android.annotation.SuppressLint
+import android.app.ActivityManager
 import android.app.PendingIntent
 import android.app.PictureInPictureParams
 import android.app.RemoteAction
@@ -58,6 +59,8 @@ import org.stratoemu.strato.loader.getRomFormat
 import org.stratoemu.strato.settings.AppSettings
 import org.stratoemu.strato.settings.EmulationSettings
 import org.stratoemu.strato.settings.NativeSettings
+import org.stratoemu.strato.settings.SettingsActivity
+import org.stratoemu.strato.settings.SynolsisGpuProfiles
 import org.stratoemu.strato.utils.ByteBufferSerializable
 import org.stratoemu.strato.utils.GpuDriverHelper
 import org.stratoemu.strato.utils.serializable
@@ -120,6 +123,20 @@ class EmulationActivity : AppCompatActivity(), SurfaceHolder.Callback, View.OnTo
     private var desiredRefreshRate = 60f
 
     private var isEmulatorPaused = false
+    private var lowMemoryWarningShown = false
+    private val memoryGuardHandler = Handler(Looper.getMainLooper())
+    private val memoryGuardCheck = object : Runnable {
+        override fun run() {
+            if (isFinishing || isDestroyed || !this@EmulationActivity::emulationSettings.isInitialized) return
+            if (emulationSettings.synolsisMemoryGuard) {
+                val info = currentAndroidMemory()
+                if (info != null && (info.lowMemory || info.availMem < maxOf(280L * 1024L * 1024L, info.totalMem / 10L))) {
+                    prepareLowMemorySettings()
+                }
+                memoryGuardHandler.postDelayed(this, 20_000L)
+            }
+        }
+    }
 
     private lateinit var pictureInPictureParamsBuilder : PictureInPictureParams.Builder
 
@@ -283,11 +300,21 @@ class EmulationActivity : AppCompatActivity(), SurfaceHolder.Callback, View.OnTo
         super.onCreate(savedInstanceState)
         populateAppItem()
         emulationSettings = EmulationSettings.forEmulation(item.titleId ?: item.key())
+        // NativeSettings is snapped only on game launch: choose the memory
+        // profile before that snapshot, never mutate active Vulkan resources.
+        if (emulationSettings.synolsisAutoLowEnd) {
+            currentAndroidMemory()?.let { info ->
+                SynolsisGpuProfiles.applyAutomatic(emulationSettings, info.totalMem, info.availMem, info.lowMemory)
+            }
+        }
 
         requestedOrientation = emulationSettings.orientation
         window.attributes.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
         inputHandler = InputHandler(inputManager, emulationSettings)
         setContentView(binding.root)
+        setupSynolsisDrawer()
+        if (emulationSettings.synolsisMemoryGuard)
+            memoryGuardHandler.postDelayed(memoryGuardCheck, 20_000L)
 
         builtinVibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val vibratorManager = getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
@@ -334,7 +361,8 @@ class EmulationActivity : AppCompatActivity(), SurfaceHolder.Callback, View.OnTo
             }
         }
 
-        if (emulationSettings.perfStats) {
+        binding.perfStats.isGone = !emulationSettings.perfStats
+        if (true) { // Runtime in-game menu can enable the FPS HUD at any time.
             if (emulationSettings.disableFrameThrottling)
                 binding.perfStats.setTextColor(getColor(R.color.colorPerfStatsSecondary))
 
@@ -345,6 +373,10 @@ class EmulationActivity : AppCompatActivity(), SurfaceHolder.Callback, View.OnTo
                         // the emulation view is closed and another game opens.
                         if (this@EmulationActivity.isFinishing || this@EmulationActivity.isDestroyed)
                             return
+                        if (binding.perfStats.isGone) {
+                            postDelayed(this, 1200)
+                            return
+                        }
                         updatePerformanceStatistics()
                         // We read the `VmRSS` value from the kernel
                         ramUsage = File("/proc/self/statm").readLines()[0].split(' ')[1].toLong() * 4096 / 1000000
@@ -409,6 +441,115 @@ class EmulationActivity : AppCompatActivity(), SurfaceHolder.Callback, View.OnTo
         executeApplication(intent!!)
     }
 
+    private fun currentAndroidMemory() : ActivityManager.MemoryInfo? = runCatching {
+        val manager = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        ActivityManager.MemoryInfo().also { manager.getMemoryInfo(it) }
+    }.getOrNull()
+
+    private fun prepareLowMemorySettings() {
+        if (!lowMemoryWarningShown && !isFinishing) {
+            lowMemoryWarningShown = true
+            // These preferences are read by native code on NEXT launch.
+            // Releasing live emulated textures or forcing GC here can crash
+            // the game while Vulkan command buffers still reference them.
+            SynolsisGpuProfiles.apply(emulationSettings, SynolsisGpuProfiles.LOW_END)
+            Toast.makeText(this, R.string.synolsis_low_memory_warning, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    override fun onTrimMemory(level : Int) {
+        super.onTrimMemory(level)
+        if (this::emulationSettings.isInitialized && emulationSettings.synolsisMemoryGuard &&
+            (level == TRIM_MEMORY_RUNNING_LOW || level == TRIM_MEMORY_RUNNING_CRITICAL ||
+             level == TRIM_MEMORY_COMPLETE))
+            prepareLowMemorySettings()
+    }
+
+    private fun refreshSynolsisDrawerLabels() {
+        binding.synolsisDrawerControls.setText(
+            if (binding.onScreenControllerView.isInvisible) R.string.synolsis_drawer_controls_show
+            else R.string.synolsis_drawer_controls_hide)
+        binding.synolsisDrawerStats.setText(
+            if (binding.perfStats.isGone) R.string.synolsis_drawer_fps_show
+            else R.string.synolsis_drawer_fps_hide)
+        binding.synolsisDrawerPause.isEnabled = !isEmulatorPaused
+        binding.synolsisDrawerResume.isEnabled = isEmulatorPaused
+    }
+
+    private fun showSynolsisDrawer() {
+        refreshSynolsisDrawerLabels()
+        binding.synolsisDrawerScrim.isGone = false
+        binding.synolsisDrawerEdge.isGone = true
+        binding.synolsisDrawerHandle.isGone = true
+    }
+
+    private fun hideSynolsisDrawer() {
+        binding.synolsisDrawerScrim.isGone = true
+        binding.synolsisDrawerEdge.isGone = false
+        binding.synolsisDrawerHandle.isGone = false
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
+    private fun setupSynolsisDrawer() {
+        var touchStartX = 0f
+        binding.synolsisDrawerEdge.setOnTouchListener { _, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> { touchStartX = event.rawX; true }
+                MotionEvent.ACTION_UP -> {
+                    if (event.rawX - touchStartX >= 36.toPx ||
+                        abs(event.rawX - touchStartX) < 16.toPx)
+                        showSynolsisDrawer()
+                    true
+                }
+                else -> true
+            }
+        }
+        binding.synolsisDrawerHandle.setOnClickListener { showSynolsisDrawer() }
+        binding.synolsisDrawerDismiss.setOnClickListener { hideSynolsisDrawer() }
+        binding.synolsisDrawerClose.setOnClickListener { hideSynolsisDrawer() }
+        binding.synolsisDrawerPause.setOnClickListener {
+            pauseEmulator()
+            refreshSynolsisDrawerLabels()
+        }
+        binding.synolsisDrawerResume.setOnClickListener {
+            resumeEmulator()
+            hideSynolsisDrawer()
+        }
+        binding.synolsisDrawerControls.setOnClickListener {
+            binding.onScreenControllerView.isInvisible = !binding.onScreenControllerView.isInvisible
+            refreshSynolsisDrawerLabels()
+        }
+        binding.synolsisDrawerStats.setOnClickListener {
+            binding.perfStats.isGone = !binding.perfStats.isGone
+            emulationSettings.perfStats = !binding.perfStats.isGone
+            refreshSynolsisDrawerLabels()
+        }
+        binding.synolsisDrawerAuto.setOnClickListener {
+            emulationSettings.synolsisAutoLowEnd = true
+            val info = currentAndroidMemory()
+            val applied = if (info != null)
+                SynolsisGpuProfiles.applyAutomatic(emulationSettings, info.totalMem, info.availMem, info.lowMemory)
+            else null
+            if (applied == null)
+                SynolsisGpuProfiles.apply(emulationSettings, SynolsisGpuProfiles.LOW_END)
+            Toast.makeText(this, R.string.synolsis_drawer_auto_next, Toast.LENGTH_LONG).show()
+            hideSynolsisDrawer()
+        }
+        binding.synolsisDrawerSettings.setOnClickListener {
+            hideSynolsisDrawer()
+            startActivity(Intent(this, SettingsActivity::class.java).apply {
+                putExtra(AppItemTag, item)
+            })
+        }
+        binding.synolsisDrawerExit.setOnClickListener {
+            MaterialAlertDialogBuilder(this)
+                .setMessage(R.string.synolsis_drawer_exit_confirm)
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton(android.R.string.ok) { _, _ -> returnFromEmulation() }
+                .show()
+        }
+    }
+
     @SuppressWarnings("WeakerAccess")
     fun pauseEmulator() {
         if (isEmulatorPaused) return
@@ -438,7 +579,8 @@ class EmulationActivity : AppCompatActivity(), SurfaceHolder.Callback, View.OnTo
 
         onBackPressedDispatcher.addCallback(object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                returnFromEmulation()
+                if (!binding.synolsisDrawerScrim.isGone) hideSynolsisDrawer()
+                else returnFromEmulation()
             }
         })
     }
@@ -573,6 +715,7 @@ class EmulationActivity : AppCompatActivity(), SurfaceHolder.Callback, View.OnTo
     }
 
     override fun onDestroy() {
+        memoryGuardHandler.removeCallbacks(memoryGuardCheck)
         super.onDestroy()
         shouldFinish = false
 
