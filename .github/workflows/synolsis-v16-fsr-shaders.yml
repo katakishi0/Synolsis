@@ -1,0 +1,41 @@
+name: Synolsis V16 FidelityFX FSR1 EASU RCAS shader validation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/synolsis-v16-fsr-shaders.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compile:
+    name: Compile AMD FSR1 EASU and RCAS Vulkan compute passes
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout pinned FSR1 shader implementation
+        uses: actions/checkout@v4
+        with:
+          ref: a3af3b18f88be5cda8265097e97d4c269ee68905
+          submodules: false
+      - name: Install reference shader compiler
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq glslang-tools spirv-tools
+      - name: Compile EASU and RCAS GLSL into Vulkan SPIR-V
+        run: |
+          bash scripts/build_fsr1_shaders.sh fsr-spv
+          spirv-val --target-env vulkan1.1 fsr-spv/easu.spv
+          spirv-val --target-env vulkan1.1 fsr-spv/rcas.spv
+          echo "Compiled AMD MIT-licensed FSR1 EASU + RCAS shader binaries." >> "$GITHUB_STEP_SUMMARY"
+          echo "Compute pipeline descriptor integration into Synolsis presentation is not yet complete." >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload validated shaders
+        uses: actions/upload-artifact@v4
+        with:
+          name: synolsis-v16-fsr1-vulkan-easu-rcas
+          path: fsr-spv/*.spv
+          if-no-files-found: error
+          retention-days: 14
