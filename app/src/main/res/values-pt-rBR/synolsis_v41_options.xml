@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="synolsis_auto_low_end_title">Otimização automática para aparelhos modestos</string>
+    <string name="synolsis_auto_low_end_summary">Ao iniciar o jogo, seleciona opções seguras de GPU/RAM conforme a memória disponível. Pode não aumentar o FPS.</string>
+    <string name="synolsis_memory_guard_title">Proteção contra pouca memória</string>
+    <string name="synolsis_memory_guard_summary">Monitora a pressão de RAM do Android e prepara opções mais leves para a próxima execução. Não apaga recursos Vulkan em uso nem força limpeza perigosa.</string>
+    <string name="synolsis_low_memory_warning">Pouca RAM: configurações leves preparadas para a próxima execução.</string>
+    <string name="synolsis_auto_profile_applied">Perfil automático desta execução: %1$s</string>
+    <string name="synolsis_drawer_title">Menu do jogo Synolsis</string>
+    <string name="synolsis_drawer_subtitle">Deslize pela borda esquerda para abrir</string>
+    <string name="synolsis_drawer_close">Fechar menu</string>
+    <string name="synolsis_drawer_open">Abrir menu do jogo</string>
+    <string name="synolsis_drawer_pause">Pausar jogo</string>
+    <string name="synolsis_drawer_resume">Retomar jogo</string>
+    <string name="synolsis_drawer_controls_hide">Ocultar controles da tela</string>
+    <string name="synolsis_drawer_controls_show">Mostrar controles da tela</string>
+    <string name="synolsis_drawer_fps_show">Mostrar FPS</string>
+    <string name="synolsis_drawer_fps_hide">Ocultar FPS</string>
+    <string name="synolsis_drawer_settings">Configurações do jogo</string>
+    <string name="synolsis_drawer_auto">Otimizar para este aparelho</string>
+    <string name="synolsis_drawer_exit">Sair do jogo</string>
+    <string name="synolsis_drawer_auto_next">Opções de desempenho salvas. Reinicie o jogo para aplicar as mudanças da GPU.</string>
+    <string name="synolsis_drawer_exit_confirm">Sair do jogo em execução? Salve o progresso antes.</string>
+    <string name="synolsis_drawer_restart_note">Opções de GPU e RAM são aplicadas ao reiniciar o jogo.</string>
+</resources>
