@@ -617,7 +617,7 @@ jobs:
           present_h=(root/"cpp/skyline/gpu/presentation_engine.h").read_text()
           assert "frame.fence.Wait(state.soc->host1x)" in present
           assert "frame.presentCallback()" in present and "vsyncEvent->Signal()" in present
-          assert "presentationFrameCounter++" in present and "presentationFrameCounter" in present_h
+          assert "skipPolicy.ShouldPresent(" in present and "PresentationSkipPolicy skipPolicy;" in present_h
           for mode in ("eFifo","eMailbox","eImmediate"):
               assert "vk::PresentModeKHR::"+mode in present
           profiles=(root/"java/org/stratoemu/strato/settings/SynolsisGpuProfiles.kt").read_text()
