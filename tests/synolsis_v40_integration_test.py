@@ -33,25 +33,22 @@ for token in ("settings.isDocked = false",
               "settings.disableShaderCache = false"):
     assert token in profiles, token
 
-# Only modes wired to the real Vulkan/SPIR-V compiler are shown.
-modes = array("values/synolsis_shader_modes.xml", "synolsis_shader_mode_values")
-pt_modes = array("values-pt-rBR/synolsis_shader_modes.xml", "synolsis_shader_mode_entries")
-assert modes == ["standard", "compat"]
-assert len(pt_modes) == len(modes)
+# V41 intentionally removes the shader mode menu. The Vulkan renderer keeps
+# the proven SPIR-V backend, and the native advanced shuffle switch remains.
 xml = source("app/src/main/res/xml/emulation_preferences.xml")
-assert 'app:key="synolsis_shader_mode"' in xml
+assert 'app:key="synolsis_shader_mode"' not in xml
 assert 'app:key="gpu_fence_anti_flicker"' in xml
 assert 'app:key="synolsis_gpu_preset"' in xml
-assert "GLASM" not in "\n".join(array("values/synolsis_shader_modes.xml", "synolsis_shader_mode_entries"))
-
+assert 'app:key="synolsis_auto_low_end"' in xml
+assert 'app:key="synolsis_memory_guard"' in xml
 for file in ("GlobalSettingsFragment.kt", "GameSettingsFragment.kt"):
-    assert "wireSynolsisShaderMode(" in source(
+    assert "wireSynolsisShaderMode(" not in source(
         f"app/src/main/java/org/stratoemu/strato/settings/{file}")
-assert "settings.disableSubgroupShuffle = true" in profiles
-assert "settings.disableSubgroupShuffle = false" in profiles
+assert "wireSynolsisShaderMode" not in profiles
+assert "chooseAutomaticProfile" in profiles
+assert "applyAutomatic" in profiles
 shader = source("app/src/main/cpp/skyline/gpu/shader_manager.cpp")
 assert "EmitSPIRV(" in shader
-assert "disable_subgroup_shuffle = *state.settings->disableSubgroupShuffle" in shader
 
 # Keep V39 visual fix and V35 boot fix untouched.
 maxwell = source("app/src/main/cpp/skyline/gpu/interconnect/maxwell_3d/pipeline_manager.cpp")
@@ -76,5 +73,5 @@ nca = source("app/src/main/cpp/skyline/vfs/nca.cpp")
 assert "nca_bounds::GetPfsRegion" in nca
 assert "std::make_shared<RegionBacking>(backing, offset, size)" in nca
 assert "sectionHeader.sha256HashInfo.pfs0Size" in nca
-print("PASS V40: low-memory profile, Vulkan SPIR-V modes, QLauncher key/ExeFS diagnostics, "
+print("PASS V41: shader selector removed, automatic low-memory settings, QLauncher diagnostics, "
       "bounded PFS0 and V35/V39 retained")
