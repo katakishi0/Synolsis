@@ -7,6 +7,7 @@ command -v spirv-val >/dev/null || { echo "Missing spirv-val" >&2; exit 1; }
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="${1:-"$ROOT/app/src/main/assets/shaders/synolsis"}"
 mkdir -p "$OUT"
+cd "$ROOT"
 bash "$ROOT/scripts/build_fsr1_shaders.sh" "$OUT"
 glslangValidator -V --target-env vulkan1.1 -S comp \
   "$ROOT/app/src/main/cpp/skyline/gpu/shaders/framegen/temporal_interpolate.comp" \
