@@ -4,6 +4,7 @@
 #pragma once
 
 #include <common.h>
+#include <atomic>
 
 namespace skyline::soc::host1x {
     /**
@@ -12,6 +13,7 @@ namespace skyline::soc::host1x {
     class VicClass {
       private:
         std::function<void()> opDoneCallback;
+        std::atomic<std::uint64_t> unhandledMethodCount{};
 
       public:
         VicClass(std::function<void()> opDoneCallback);
