@@ -315,7 +315,8 @@ jobs:
           nativeSettings=(java/"NativeSettings.kt").read_text()
           settings=(native/"common/android_settings.h").read_text()
           assert "permitScaledBlit" in tex and "permitScaledBlit" in texH
-          assert "if (srcFormat != format || dimensionsDiffer)" in tex
+          assert "const bool needsBlit{srcFormat != format || dimensionsDiffer};" in tex
+          assert "if (needsBlit) {" in tex
           assert "gpu.vkPhysicalDevice.getFormatProperties" in tex
           assert "presentation_scale::ChooseExtent" in present
           assert "presentation_scale::ScaleCrop" in present
