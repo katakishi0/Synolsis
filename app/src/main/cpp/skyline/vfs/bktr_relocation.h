@@ -138,4 +138,86 @@ namespace skyline::vfs::bktr {
             return true;
         }
     };
+
+    struct Subsection {
+        std::uint64_t physicalOffset{};
+        std::uint32_t counter{};
+    };
+
+    struct SubsectionRegion {
+        std::uint64_t physicalOffset{};
+        std::uint64_t size{};
+        std::uint32_t counter{};
+    };
+
+    class SubsectionTable {
+        std::uint64_t physicalSize{};
+        std::vector<Subsection> entries;
+
+        static std::uint32_t Read32(std::span<const std::uint8_t> bytes, std::size_t offset) {
+            std::uint32_t value{};
+            for (std::size_t i{}; i < 4; ++i)
+                value |= static_cast<std::uint32_t>(bytes[offset+i]) << (8*i);
+            return value;
+        }
+        static std::uint64_t Read64(std::span<const std::uint8_t> bytes, std::size_t offset) {
+            std::uint64_t value{};
+            for (std::size_t i{}; i < 8; ++i)
+                value |= static_cast<std::uint64_t>(bytes[offset+i]) << (8*i);
+            return value;
+        }
+
+      public:
+        std::size_t EntryCount() const { return entries.size(); }
+        std::uint64_t Size() const { return physicalSize; }
+
+        static std::optional<SubsectionTable> Parse(std::span<const std::uint8_t> data) {
+            constexpr std::size_t EntrySize{0x10};
+            if (data.size() < BucketSize)
+                return std::nullopt;
+            const auto buckets{static_cast<std::size_t>(Read32(data, 4))};
+            const auto total{Read64(data, 8)};
+            if (!buckets || buckets > MaxBuckets || !total ||
+                buckets > (data.size() - BucketSize) / BucketSize)
+                return std::nullopt;
+            SubsectionTable output;
+            output.physicalSize = total;
+            std::uint64_t last{};
+            for (std::size_t b{}; b < buckets; ++b) {
+                const auto first{Read64(data, BucketEntriesOffset + 8*b)};
+                const auto at{BucketSize * (1+b)};
+                const auto num{static_cast<std::size_t>(Read32(data, at+4))};
+                const auto end{Read64(data, at+8)};
+                if (!num || num > (BucketSize-BucketEntriesOffset)/EntrySize ||
+                    end > total || end <= last || first != last)
+                    return std::nullopt;
+                for (std::size_t i{}; i < num; ++i) {
+                    const auto off{at + BucketEntriesOffset + i*EntrySize};
+                    const auto pos{Read64(data, off)};
+                    const auto ctr{Read32(data, off+0xC)};
+                    if (pos >= end ||
+                        (output.entries.empty() ? pos != 0 : pos <= output.entries.back().physicalOffset) ||
+                        (i == 0 && pos != last))
+                        return std::nullopt;
+                    output.entries.push_back({pos, ctr});
+                }
+                last = end;
+            }
+            return last == total ? std::optional{std::move(output)} : std::nullopt;
+        }
+
+        std::optional<SubsectionRegion> Resolve(std::uint64_t offset) const {
+            if (offset >= physicalSize || entries.empty())
+                return std::nullopt;
+            const auto it{std::upper_bound(entries.begin(), entries.end(), offset,
+                [](std::uint64_t position, const Subsection &entry) {
+                    return position < entry.physicalOffset;
+                })};
+            if (it == entries.begin())
+                return std::nullopt;
+            const auto current{std::prev(it)};
+            const auto next{it == entries.end() ? physicalSize : it->physicalOffset};
+            return SubsectionRegion{offset, next-offset, current->counter};
+        }
+    };
 }
