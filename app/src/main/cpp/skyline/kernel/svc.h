@@ -104,6 +104,12 @@ namespace skyline::kernel::svc {
     void GetCurrentProcessorNumber(const DeviceState &state, SvcContext &ctx);
 
     /**
+     * @brief Signals a writable KEvent and wakes guest waiters.
+     * @url https://switchbrew.org/wiki/SVC#SignalEvent
+     */
+    void SignalEvent(const DeviceState &state, SvcContext &ctx);
+
+    /**
      * @brief Resets a KEvent to its unsignalled state
      * @url https://switchbrew.org/wiki/SVC#ClearEvent
      */
