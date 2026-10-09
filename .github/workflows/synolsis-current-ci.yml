@@ -1,10 +1,10 @@
-name: Synolsis V28 QLauncher Scan and Vulkan Synchronization APK
+name: Synolsis Current ARM64 Core and Vulkan Compatibility APK
 
 on:
   push:
     branches: [main]
     paths:
-      - '.github/workflows/synolsis-v28-core-diagnostics-ci.yml'
+      - '.github/workflows/synolsis-current-ci.yml'
   workflow_dispatch:
     inputs:
       build_type:
@@ -20,12 +20,12 @@ permissions:
   contents: write
 
 concurrency:
-  group: synolsis-v28-core-diagnostics-ci
+  group: synolsis-current-ci
   cancel-in-progress: false
 
 jobs:
   build:
-    name: V28 Texture Sync + QLauncher Diagnostics ARM64
+    name: V31 WSI, Maxwell, SVC and NVDEC Stability ARM64
     runs-on: ubuntu-22.04
     timeout-minutes: 150
     env:
@@ -44,7 +44,7 @@ jobs:
         with:
           # Source is checked out at the start of the run, then built from that snapshot.
           # Pin the tested revision, including safe V4 locale migration.
-          ref: ffea0dfc9c4f0f67e3af729fcf739e3b48d2282f
+          ref: d864e9e26368e229acb494a412892ea2617b3a9d
           submodules: false
 
       - name: Assert full source is checked in
@@ -76,6 +76,52 @@ jobs:
               keys={el.get("name") for el in root}
               assert {"synolsis_qlauncher_firmware_missing","synolsis_qlauncher_unreadable","synolsis_qlauncher_program_invalid"} <= keys
           print("PASS: upload layout, transfer visibility, QLauncher diagnostics, English/pt-BR messages")
+          PY
+
+      - name: Test V30 Maxwell scissor and media decoder types (native C++20)
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++20 -Wall -Wextra -Werror \
+            -Iapp/src/main/cpp/skyline \
+            tests/native/synolsis_v30_geometry_media_types.cpp \
+            -o /tmp/synolsis_v30_geometry_media
+          /tmp/synolsis_v30_geometry_media
+          python3 - <<'PY'
+          from pathlib import Path
+          svc=Path("app/src/main/cpp/skyline/kernel/svc.cpp").read_text()
+          assert "if (!numHandles || numHandles > MaxSyncHandles)" in svc
+          assert "out > state.process->npdm.meta.systemResourceSize" in svc
+          host=Path("app/src/main/cpp/skyline/services/nvdrv/devices/nvhost/host1x_channel.cpp").read_text()
+          assert "handleDesc->size - cmdBuf.offset" in host
+          assert "syncpointId >= soc::host1x::SyncpointCount" in host
+          nvdec=Path("app/src/main/cpp/skyline/soc/host1x/classes/nvdec.cpp").read_text()
+          assert "unhandledMethodCount.fetch_add" in nvdec
+          media=Path("app/src/main/cpp/skyline/soc/host1x/classes/android_media_decoder.cpp").read_text()
+          assert "input.size() > capacity" in media and "StopLocked();" in media
+          settings=Path("app/src/main/java/org/stratoemu/strato/settings/EmulationSettings.kt").read_text()
+          assert "isDocked by sharedPreferences(context, false" in settings
+          print("PASS: V30 C++ geometry/codec types and guarded native source wiring")
+          PY
+
+      - name: Test actual Vulkan WSI capability selection and formatting
+        shell: bash
+        run: |
+          set -euo pipefail
+          c++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic tests/swapchain_policy_test.cpp -o /tmp/synolsis-swapchain-test
+          /tmp/synolsis-swapchain-test
+          python3 - <<'PY'
+          from pathlib import Path
+          cpp=Path("app/src/main/cpp/skyline/gpu/presentation_engine.cpp").read_text()
+          assert '#include "swapchain_policy.h"' in cpp
+          assert "swapchain_policy::ChooseSupportedFlag(" in cpp
+          assert "capabilities.supportedCompositeAlpha" in cpp
+          assert "capabilities.supportedTransforms" in cpp
+          assert "supportsFormat(*format)" in cpp
+          assert "supportsFormat(*format::B8G8R8A8Unorm)" in cpp
+          assert ".preTransform = preTransform" in cpp
+          assert ".compositeAlpha = compositeAlpha" in cpp
+          print("PASS: WSI alpha/transform format guard integrated into production Vulkan swapchain creation")
           PY
 
       - name: Compile and execute native render-scale geometry tests
@@ -1073,16 +1119,16 @@ jobs:
             echo "::error::Gradle did not produce an APK"
             exit 1
           fi
-          tag="synolsis-v28-diagnostics-${GITHUB_RUN_NUMBER}"
+          tag="synolsis-v31-wsi-${GITHUB_RUN_NUMBER}"
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             # Rerunning a build must not fail just because its release exists.
             gh release upload "$tag" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
           else
             gh release create "$tag" "${files[@]}" \
               --repo "$GITHUB_REPOSITORY" \
-              --target "ffea0dfc9c4f0f67e3af729fcf739e3b48d2282f" \
-              --title "Synolsis V28 Vulkan + QLauncher + Compact UI test ${GITHUB_RUN_NUMBER}" \
-              --notes "Android ARM64 experimental V28: valid Vulkan staging texture upload layout and transfer memory barriers, plus bilingual diagnostic errors for firmware QLauncher discovery. Native internal rendering resolution is not implemented; UI remains compact. User-reported flicker/low FPS and full QLauncher Horizon boot are NOT yet verified or solved." \
+              --target "d864e9e26368e229acb494a412892ea2617b3a9d" \
+              --title "Synolsis V31 Vulkan WSI + Core Compatibility test ${GITHUB_RUN_NUMBER}" \
+              --notes "Experimental Synolsis V31: V30 Maxwell scissor/SVC/NVDEC safety and handheld default, plus capability-checked Vulkan swapchain format, transform and composite alpha on Android. CI build does NOT prove fixes for Nine Sols/NieR, complete NVDEC/VIC, missing SVCs or QLauncher. See docs/SYNOLSIS_V31_VULKAN_WSI_TEST_PLAN.md." \
               --prerelease
           fi
           {
