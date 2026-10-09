@@ -4,7 +4,5 @@
     <string name="synolsis_vulkan_output_scale_desc">Fixa em 100% até concluir a resolução interna.</string>
     <string-array name="synolsis_vulkan_output_scale_entries">
         <item>100% — nativo (padrão)</item>
-        <item>75% — indisponível</item>
-        <item>50% — indisponível</item>
     </string-array>
 </resources>
