@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="synolsis_shader_mode_title">Vulkan shader compilation</string>
+    <string name="synolsis_shader_mode_summary">Vulkan requires SPIR-V. GLSL/GLASM require a separate OpenGL renderer. Restart the game.</string>
+    <string-array name="synolsis_shader_mode_entries">
+        <item>SPIR-V standard (recommended)</item>
+        <item>SPIR-V compatibility (disable subgroup shuffle; experimental)</item>
+    </string-array>
+    <string-array name="synolsis_shader_mode_values">
+        <item>standard</item>
+        <item>compat</item>
+    </string-array>
+</resources>
