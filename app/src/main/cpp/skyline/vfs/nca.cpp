@@ -2,9 +2,11 @@
 // Copyright © 2020 Skyline Team and Contributors (https://github.com/skyline-emu/)
 
 #include <crypto/aes_cipher.h>
+#include <limits>
 #include <loader/loader.h>
 
 #include "ctr_encrypted_backing.h"
+#include "bktr_ctr_ex.h"
 #include "region_backing.h"
 #include "partition_filesystem.h"
 #include "nca.h"
@@ -114,8 +116,29 @@ namespace skyline::vfs {
                         bktrSubsections = bktr::SubsectionTable::Parse(
                             std::span<const u8>(subsectionBytes.data(), subsectionBytes.size()));
                         if (bktrSubsections) {
-                            LOGD("Parsed BKTR subsection table with {} CTR-Ex counters; patch merge not yet mounted",
-                                 bktrSubsections->EntryCount());
+                            LOGD("Parsed BKTR subsection table with {} CTR-Ex counters", bktrSubsections->EntryCount());
+                            // Keep the *physical* patch encrypted backing
+                            // separate from romFs. Only an independently
+                            // verified base + relocation overlay can produce
+                            // a usable guest-visible updated RomFS.
+                            if (bktrRelocations && sectionSize <= backing->size - sectionStart &&
+                                sectionSize <= std::numeric_limits<size_t>::max()) {
+                                auto patchSection{std::make_shared<RegionBacking>(
+                                    backing, static_cast<size_t>(sectionStart),
+                                    static_cast<size_t>(sectionSize))};
+                                const auto key{!(rightsIdEmpty || useKeyArea)
+                                    ? GetTitleKey() : GetKeyAreaKey(sectionHeader.encryptionType)};
+                                std::array<u8, 0x10> initialIv{};
+                                const u32 secure{util::SwapEndianness(sectionHeader.secureValue)};
+                                const u32 generation{util::SwapEndianness(sectionHeader.generation)};
+                                std::memcpy(initialIv.data(), &secure, 4);
+                                std::memcpy(initialIv.data() + 4, &generation, 4);
+                                bktrPhysicalSection = std::make_shared<bktr::BktrCtrExBacking>(
+                                    std::move(patchSection),
+                                    std::make_shared<const bktr::SubsectionTable>(*bktrSubsections),
+                                    key, initialIv, sectionStart);
+                                LOGD("BKTR physical CTR-Ex backing ready; virtual/base RomFS merge not yet active");
+                            }
                         }
                     }
                 }
