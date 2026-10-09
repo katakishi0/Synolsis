@@ -25,7 +25,7 @@ concurrency:
 
 jobs:
   build:
-    name: V40 Low-End Profiles, Vulkan Shader Modes and QLauncher NCA ARM64
+    name: V41 In-Game Drawer, Adaptive Low-End Memory and QLauncher Diagnostics ARM64
     runs-on: ubuntu-22.04
     timeout-minutes: 150
     env:
@@ -44,7 +44,7 @@ jobs:
         with:
           # Source is checked out at the start of the run, then built from that snapshot.
           # Pin the tested revision, including safe V4 locale migration.
-          ref: 94712a79ad9ff30e27ee589515408c7db4180681
+          ref: 49bd6ad9d2090dc137557fdbe11b486cfa398416
           submodules: false
 
       - name: Assert full source is checked in
@@ -1263,7 +1263,26 @@ jobs:
           c++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic tests/nca_pfs_bounds_test.cpp -o /tmp/synolsis-v40-pfs-test
           /tmp/synolsis-v40-pfs-test
           python3 tests/synolsis_v40_integration_test.py
-          echo "PASS: V40 NCA PFS0 region, shader modes, low-end preset, QLauncher diagnostics" >> "$GITHUB_STEP_SUMMARY"
+          echo "PASS: V40 NCA PFS0 region, low-end preset, QLauncher diagnostics" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Test V41 active drawer, localized memory controls, removed shader modes and retained core fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tests/synolsis_v41_integration_test.py
+          python3 - <<'PY'
+          from pathlib import Path
+          src=Path("app/src/main/java/org/stratoemu/strato/EmulationActivity.kt").read_text()
+          assert "synolsisDrawerEdge.setOnTouchListener" in src
+          assert "synolsisDrawerResume.setOnClickListener" in src
+          assert "synolsisDrawerSettings.setOnClickListener" in src
+          assert "currentAndroidMemory()" in src
+          assert "memoryGuardHandler.postDelayed" in src
+          assert "Runtime.getRuntime().gc()" not in src
+          assert 'QLauncher Program NCA failed loader validation' in Path("app/src/main/cpp/loader_jni.cpp").read_text()
+          print("PASS: V41 drawer gestures, actual game actions, no unsafe GPU/GC flush on RAM pressure")
+          PY
+          echo "PASS: V41 compact game menu + adaptive low-memory profiles + QLauncher diagnostics" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Compile Android Kotlin frontend before expensive native build
         shell: bash
@@ -1343,16 +1362,16 @@ jobs:
             echo "::error::Gradle did not produce an APK"
             exit 1
           fi
-          tag="synolsis-v40-low-end-qlauncher-${GITHUB_RUN_NUMBER}"
+          tag="synolsis-v41-compact-drawer-${GITHUB_RUN_NUMBER}"
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             # Rerunning a build must not fail just because its release exists.
             gh release upload "$tag" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
           else
             gh release create "$tag" "${files[@]}" \
               --repo "$GITHUB_REPOSITORY" \
-              --target "94712a79ad9ff30e27ee589515408c7db4180681" \
-              --title "Synolsis V40 Low-End Shader Modes and QLauncher NCA ${GITHUB_RUN_NUMBER}" \
-              --notes "Synolsis V40 ARM64: keeps the V39 Maxwell/Kepler storage image compatibility (confirmed by user on NieR with optional GPU fence accuracy OFF), V35 SVC zero-handle boot repair and V37 Vulkan copy fixes. Renames optional GPU fence synchronization and leaves OFF by default. Removes hardcoded 6 GB label; adds low-memory handheld preset and real Vulkan SPIR-V standard/compatibility modes. Repairs NCA ExeFS PFS0 section bounds and differentiates QLauncher missing keys vs invalid ExeFS. HOME menu applet services, GLSL/GLASM backends, full NVDEC/VIC, alternate ASTC decoders and true internal resolution remain incomplete. See docs/SYNOLSIS_V40_LOW_END_SHADER_QLAUNCHER.md." \
+              --target "49bd6ad9d2090dc137557fdbe11b486cfa398416" \
+              --title "Synolsis V41 Compact Game Menu and Adaptive Memory ${GITHUB_RUN_NUMBER}" \
+              --notes "Experimental Synolsis V41 ARM64: keeps user-confirmed V39 Maxwell/Kepler storage-image graphics fix and V35 SVC boot repair. Removes V40 shader mode selector. Adds compact Eden-style left-edge in-game drawer with pause, resume, controls, FPS, per-game settings, automatic profile and exit confirmation. Adds Ultra-low-end preset, optional memory-based auto profile at launch and Android RAM-pressure guard (prepares next-launch settings; does NOT force-delete live Vulkan resources). More precise QLauncher ExeFS/decryption failure logs; actual HOME Menu services and NVDEC-to-MediaCodec/VIC cutscenes remain unimplemented, as do alternative GL backends and true internal resolution. See docs/SYNOLSIS_V41_COMPACT_MENU_LOWMEM_NVDEC_STATUS.md." \
               --prerelease
           fi
           {
