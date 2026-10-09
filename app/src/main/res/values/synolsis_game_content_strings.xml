@@ -20,4 +20,7 @@
     <string name="synolsis_content_checksum_ok">Stored NSP checksum matches. This does not verify the game title.</string>
     <string name="synolsis_content_checksum_failed">NSP integrity check failed: stored file has changed or is damaged.</string>
     <string name="synolsis_content_duplicate">This NSP was already imported for this game.</string>
+    <string name="synolsis_content_cnmt_matched">CNMT owner matches this game (not installed)</string>
+    <string name="synolsis_content_wrong_title">This NSP contains content for a different game. Import it under the matching game instead.</string>
+    <string name="synolsis_content_wrong_kind">The CNMT identifies a different content type. Choose a game update for Updates or an add-on for DLCs.</string>
 </resources>
