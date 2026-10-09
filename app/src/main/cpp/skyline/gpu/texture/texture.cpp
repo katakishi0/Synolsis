@@ -8,6 +8,7 @@
 #include <common/settings.h>
 #include "texture.h"
 #include "copy_region_policy.h"
+#include "storage_image_policy.h"
 #include "layout.h"
 #include "adreno_aliasing.h"
 #include "bc_decoder.h"
@@ -638,10 +639,23 @@ namespace skyline::gpu {
           sampleCount(vk::SampleCountFlagBits::e1),
           flags(gpu.traits.quirks.vkImageMutableFormatCostly ? vk::ImageCreateFlags{} : vk::ImageCreateFlagBits::eMutableFormat),
           usage(vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled) {
-        if ((format->vkAspect & vk::ImageAspectFlagBits::eColor) && !format->IsCompressed())
+        const bool colorImage{static_cast<bool>(format->vkAspect & vk::ImageAspectFlagBits::eColor)};
+        if (colorImage && !format->IsCompressed())
             usage |= vk::ImageUsageFlagBits::eColorAttachment;
         if (format->vkAspect & (vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil))
             usage |= vk::ImageUsageFlagBits::eDepthStencilAttachment;
+
+        // Strato previously created all guest textures WITHOUT eStorage,
+        // while graphics/compute shaders can declare storage images. Ask
+        // Vulkan before enabling it: some Turnip image formats and ASTC/
+        // depth formats cannot be used as storage at all.
+        const auto storageFeatures{
+            gpu.vkPhysicalDevice.getFormatProperties(*format).optimalTilingFeatures
+        };
+        if (texture::storage_image_policy::CanUseStorage(
+                colorImage, format->IsCompressed(),
+                static_cast<bool>(storageFeatures & vk::FormatFeatureFlagBits::eStorageImage)))
+            usage |= vk::ImageUsageFlagBits::eStorage;
 
         auto imageType{guest->GetImageType()};
         if (imageType == vk::ImageType::e2D && dimensions.width == dimensions.height && layerCount >= 6)
