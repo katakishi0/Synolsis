@@ -301,7 +301,10 @@ namespace skyline::gpu {
                     frame.fence.Wait(state.soc->host1x);
                     // Temporal history must not span a dropped display frame.
                     // Do not advertise a generated frame without snapshots.
-                    frameHistory.Reset();
+                    {
+                        std::scoped_lock presentLock{mutex};
+                        frameHistory.Reset();
+                    }
                 } else {
                     PresentFrame(frame);
                 }
@@ -445,7 +448,6 @@ namespace skyline::gpu {
 
         vkSwapchain.reset();
         frameHistory.Reset(); // Surface recreation invalidates old frame identity and size.
-        skipPolicy.Reset(); // Do not carry display-skip phase between surfaces.
         windowTransformApplied = false; // New native window needs fresh transform
 
         if (jSurface) {
