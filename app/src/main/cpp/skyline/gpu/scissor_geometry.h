@@ -35,15 +35,22 @@ namespace skyline::gpu::scissor_geometry {
 
     constexpr Rect ClipToExtent(Rect rect, std::uint32_t width,
                                 std::uint32_t height) {
-        return Intersect(rect, {0, 0, width, height});
+        const auto left{std::clamp<std::int64_t>(rect.left, 0, width)};
+        const auto top{std::clamp<std::int64_t>(rect.top, 0, height)};
+        return {left, top,
+                std::clamp<std::int64_t>(rect.right, left, width),
+                std::clamp<std::int64_t>(rect.bottom, top, height)};
     }
 
     constexpr Rect ClipToPositive(Rect rect) {
         // Vulkan scissor offsets must be >= 0. Preserve the right/bottom
         // edges rather than shifting a negative rectangle into view.
-        return Intersect(rect, {0, 0,
-            std::numeric_limits<std::int32_t>::max(),
-            std::numeric_limits<std::int32_t>::max()});
+        constexpr auto limit{std::numeric_limits<std::int32_t>::max()};
+        const auto left{std::clamp<std::int64_t>(rect.left, 0, limit)};
+        const auto top{std::clamp<std::int64_t>(rect.top, 0, limit)};
+        return {left, top,
+                std::clamp<std::int64_t>(rect.right, left, limit),
+                std::clamp<std::int64_t>(rect.bottom, top, limit)};
     }
 
     struct VulkanScissor {
