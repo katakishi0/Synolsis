@@ -25,7 +25,7 @@ concurrency:
 
 jobs:
   build:
-    name: V31 WSI, Maxwell, SVC and NVDEC Stability ARM64
+    name: V32 Vulkan WSI + Host1x FIFO + SignalEvent Stability ARM64
     runs-on: ubuntu-22.04
     timeout-minutes: 150
     env:
@@ -44,7 +44,7 @@ jobs:
         with:
           # Source is checked out at the start of the run, then built from that snapshot.
           # Pin the tested revision, including safe V4 locale migration.
-          ref: d864e9e26368e229acb494a412892ea2617b3a9d
+          ref: 0a1899cca0bcc7ea8ffc0cbd06908383c34468d2
           submodules: false
 
       - name: Assert full source is checked in
@@ -1041,6 +1041,34 @@ jobs:
           echo "## V5 rollback APK with warm native cache" >> "$GITHUB_STEP_SUMMARY"
           echo "Source code pinned to the same rollback; CCache is build-only." >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Test V32 host1x packet bounds and SVC SignalEvent wiring
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++20 -Wall -Wextra -Werror \
+            -Iapp/src/main/cpp/skyline \
+            tests/native/synolsis_v32_host1x_bounds.cpp \
+            -o /tmp/synolsis_v32_host1x_bounds
+          /tmp/synolsis_v32_host1x_bounds
+          python3 - <<'PY'
+          from pathlib import Path
+          svc=Path("app/src/main/cpp/skyline/kernel/svc.cpp").read_text()
+          hdr=Path("app/src/main/cpp/skyline/kernel/svc.h").read_text()
+          fifo=Path("app/src/main/cpp/skyline/soc/host1x/command_fifo.cpp").read_text()
+          thi=Path("app/src/main/cpp/skyline/soc/host1x/tegra_host_interface.h").read_text()
+          host=Path("app/src/main/cpp/skyline/soc/host1x/classes/host1x.cpp").read_text()
+          assert 'SVC_ENTRY(SignalEvent), // 0x11' in svc
+          assert 'void SignalEvent(const DeviceState &state, SvcContext &ctx)' in svc
+          assert 'void SignalEvent(const DeviceState &state, SvcContext &ctx);' in hdr
+          assert 'object->objectType != type::KType::KEvent' in svc
+          assert fifo.count('requireWords(') >= 4
+          assert 'command_packet::Fits' in fifo and 'command_packet::MaskWords' in fifo
+          assert 'incrSyncpoint.index >= syncpoints.size()' in thi
+          assert 'incrSyncpoint.index >= syncpoints.size()' in host
+          assert 'syncpointId >= syncpoints.size()' in host
+          print("PASS: V32 SVC 0x11 and host1x method safety")
+          PY
+
       - name: Compile Android Kotlin frontend before expensive native build
         shell: bash
         run: |
@@ -1119,16 +1147,16 @@ jobs:
             echo "::error::Gradle did not produce an APK"
             exit 1
           fi
-          tag="synolsis-v31-wsi-${GITHUB_RUN_NUMBER}"
+          tag="synolsis-v32-host1x-svc-${GITHUB_RUN_NUMBER}"
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             # Rerunning a build must not fail just because its release exists.
             gh release upload "$tag" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
           else
             gh release create "$tag" "${files[@]}" \
               --repo "$GITHUB_REPOSITORY" \
-              --target "d864e9e26368e229acb494a412892ea2617b3a9d" \
-              --title "Synolsis V31 Vulkan WSI + Core Compatibility test ${GITHUB_RUN_NUMBER}" \
-              --notes "Experimental Synolsis V31: V30 Maxwell scissor/SVC/NVDEC safety and handheld default, plus capability-checked Vulkan swapchain format, transform and composite alpha on Android. CI build does NOT prove fixes for Nine Sols/NieR, complete NVDEC/VIC, missing SVCs or QLauncher. See docs/SYNOLSIS_V31_VULKAN_WSI_TEST_PLAN.md." \
+              --target "0a1899cca0bcc7ea8ffc0cbd06908383c34468d2" \
+              --title "Synolsis V32 Host1x/SVC + Vulkan WSI Compatibility test ${GITHUB_RUN_NUMBER}" \
+              --notes "Synolsis V32 experimental ARM64: V31 capability-checked Android Vulkan WSI, original Strato baseline compatibility, V30 Maxwell scissor and portable default, plus real Horizon SVC 0x11 SignalEvent, event-handle validation and bounded host1x/VIC/NVDEC method parsing and syncpoint IDs. Full guest NVDEC/VIC playback, graphics bugs for Nine Sols/NieR, other Horizon SVCs, QLauncher and internal resolution are NOT yet proven fixed. See docs/SYNOLSIS_V32_HOST1X_SVC_TEST_PLAN.md." \
               --prerelease
           fi
           {
