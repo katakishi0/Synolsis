@@ -25,7 +25,7 @@ concurrency:
 
 jobs:
   build:
-    name: V34 Black Screen Presentation and Horizon Yield Diagnostics ARM64
+    name: V35 Horizon SVC Zero-Handle Wait and Vulkan Diagnostics ARM64
     runs-on: ubuntu-22.04
     timeout-minutes: 150
     env:
@@ -44,7 +44,7 @@ jobs:
         with:
           # Source is checked out at the start of the run, then built from that snapshot.
           # Pin the tested revision, including safe V4 locale migration.
-          ref: 692daa29712652bde23367eff575bcdd14c7c7dd
+          ref: 8364fd830c35d07b735fa5b9e315e8d3b036cb4f
           submodules: false
 
       - name: Assert full source is checked in
@@ -1114,6 +1114,29 @@ jobs:
           print("PASS: V34 present/fence/Vulkan-result diagnostics and hot SVC logging guard")
           PY
 
+      - name: Verify Horizon SVC 0x18 behavior against Eden Citron and Switchbrew
+        shell: bash
+        run: |
+          set -euo pipefail
+          c++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic tests/wait_synchronization_policy_test.cpp -o /tmp/synolsis-svc-wait-test
+          /tmp/synolsis-svc-wait-test
+          python3 - <<'PY'
+          from pathlib import Path
+          svc=Path("app/src/main/cpp/skyline/kernel/svc.cpp").read_text()
+          wait=svc.split("void WaitSynchronization(",1)[1].split("void CancelSynchronization(",1)[0]
+          assert "wait_synchronization_policy::ValidCount(numHandles)" in wait
+          assert "wait_synchronization_policy::RequiresHandlePointer(numHandles)" in wait
+          assert "if (!numHandles || numHandles > MaxSyncHandles)" not in wait
+          assert "if (waitHandles.empty())" in wait
+          assert "WaitSynchronizationEmpty" in wait
+          assert "result::TimedOut" in wait
+          assert "result::Cancelled" in wait
+          assert "state.scheduler->TimedWaitSchedule" in wait
+          assert "state.scheduler->WaitSchedule(false)" in wait
+          assert "invalid handle count" in wait
+          print("PASS: compiled SVC 0x18 limits test; empty waiter reaches cancellable scheduler and cannot index empty handle array")
+          PY
+
       - name: Compile Android Kotlin frontend before expensive native build
         shell: bash
         run: |
@@ -1192,16 +1215,16 @@ jobs:
             echo "::error::Gradle did not produce an APK"
             exit 1
           fi
-          tag="synolsis-v34-black-screen-${GITHUB_RUN_NUMBER}"
+          tag="synolsis-v35-svc-wait-${GITHUB_RUN_NUMBER}"
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             # Rerunning a build must not fail just because its release exists.
             gh release upload "$tag" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
           else
             gh release create "$tag" "${files[@]}" \
               --repo "$GITHUB_REPOSITORY" \
-              --target "692daa29712652bde23367eff575bcdd14c7c7dd" \
-              --title "Synolsis V34 Black Screen + GPU Presentation Diagnostics ${GITHUB_RUN_NUMBER}" \
-              --notes "Experimental Synolsis V34 ARM64 diagnostic build (based on V33): throttles runaway Horizon yield logging without changing scheduler semantics; logs sampled guest present/fence/copy stages and the actual vkQueuePresentKHR result; handles VK_ERROR_OUT_OF_DATE_KHR by scheduling swapchain recreation. Black-screen and app-crash causes are NOT proven fixed, and full NVDEC/VIC, QLauncher, Nine Sols/NieR compatibility and internal resolution remain incomplete. See docs/SYNOLSIS_V34_BLACK_SCREEN_TRIAGE.md." \
+              --target "8364fd830c35d07b735fa5b9e315e8d3b036cb4f" \
+              --title "Synolsis V35 SVC 0x18 Wait + Black Screen Diagnostics ${GITHUB_RUN_NUMBER}" \
+              --notes "Experimental Synolsis V35 ARM64: correct Horizon SVC 0x18 WaitSynchronization so zero handles perform a cancellable/timed wait rather than returning 0xEE01, protect empty tracing and test 0..64 handle counts. Retains V34 Vulkan present/fence diagnostics. This is a compatibility experiment; no verified fix yet for black-screen NieR/Nine Sols, NVDEC/VIC, QLauncher, or internal resolution. See docs/SYNOLSIS_V35_SVC_0X18_EDEN_CITRON_COMPARISON.md." \
               --prerelease
           fi
           {
