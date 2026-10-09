@@ -31,9 +31,27 @@ namespace skyline::service::nvdrv::device::nvhost {
             return PosixResult::InvalidArgument;
 
         if (!relocs.empty())
-            throw exception("Relocations are unimplemented!");
+            // The relocation path is not implemented; return a guest error
+            // instead of terminating the emulator with a host exception.
+            return PosixResult::InvalidArgument;
 
         std::scoped_lock lock(channelMutex);
+
+        // Validate all gather ranges *before* advancing any guest syncpoints.
+        // NVDEC/VIC command execution remains unimplemented; these checks
+        // prevent malformed/unsupported submits from reading arbitrary RAM.
+        for (const auto &cmdBuf : cmdBufs) {
+            auto handleDesc{core.nvMap.GetHandle(cmdBuf.mem)};
+            if (!handleDesc || !handleDesc->address ||
+                (cmdBuf.offset & 3U) || cmdBuf.offset > handleDesc->size ||
+                static_cast<u64>(cmdBuf.words) * sizeof(u32) >
+                    handleDesc->size - cmdBuf.offset)
+                return PosixResult::InvalidArgument;
+        }
+        for (const auto &incr : syncpointIncrs) {
+            if (incr.syncpointId >= soc::host1x::SyncpointCount)
+                return PosixResult::InvalidArgument;
+        }
 
         for (size_t i{}; i < syncpointIncrs.size(); i++) {
             const auto &incr{syncpointIncrs[i]};
@@ -50,8 +68,7 @@ namespace skyline::service::nvdrv::device::nvhost {
 
         for (const auto &cmdBuf : cmdBufs) {
             auto handleDesc{core.nvMap.GetHandle(cmdBuf.mem)};
-            if (!handleDesc)
-                throw exception("Invalid handle passed for a command buffer!");
+            // Already validated before signalling guest syncpoints.
 
             u64 gatherAddress{handleDesc->address + cmdBuf.offset};
             LOGD("Submit gather, CPU address: 0x{:X}, words: 0x{:X}", gatherAddress, cmdBuf.words);
@@ -68,7 +85,7 @@ namespace skyline::service::nvdrv::device::nvhost {
         LOGD("channelSyncpointIdx: {}", channelSyncpointIdx);
 
         if (channelSyncpointIdx > 0)
-            throw exception("Multiple channel syncpoints are unimplemented!");
+            return PosixResult::InvalidArgument;
 
         u32 id{core::SyncpointManager::ChannelSyncpoints[static_cast<u32>(channelType)]};
         if (!id)
