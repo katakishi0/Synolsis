@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Read access only: the user's already installed firmware directory. -->
+    <external-files-path name="registered_ncas"
+        path="switch/nand/system/Contents/registered/" />
+    <!-- getPublicFilesDir() can fall back to app-internal filesDir. -->
+    <files-path name="internal_registered_ncas"
+        path="switch/nand/system/Contents/registered/" />
+</paths>
