@@ -481,13 +481,34 @@ namespace skyline::kernel::svc {
         ctx.w0 = coreId;
     }
 
+    void SignalEvent(const DeviceState &state, SvcContext &ctx) {
+        KHandle handle{ctx.w0};
+        TRACE_EVENT_FMT("kernel", "SignalEvent 0x{:X}", handle);
+        try {
+            auto object{state.process->GetHandle(handle)};
+            if (object->objectType != type::KType::KEvent) {
+                ctx.w0 = result::InvalidHandle;
+                return;
+            }
+            std::static_pointer_cast<type::KEvent>(object)->Signal();
+            ctx.w0 = Result{};
+        } catch (const std::out_of_range &) {
+            ctx.w0 = result::InvalidHandle;
+        }
+    }
+
     void ClearEvent(const DeviceState &state, SvcContext &ctx) {
         KHandle handle{ctx.w0};
         TRACE_EVENT_FMT("kernel", "ClearEvent 0x{:X}", handle);
         try {
-            std::static_pointer_cast<type::KEvent>(state.process->GetHandle(handle))->ResetSignal();
+            auto object{state.process->GetHandle(handle)};
+            if (object->objectType != type::KType::KEvent) {
+                ctx.w0 = result::InvalidHandle;
+                return;
+            }
+            ctx.w0 = std::static_pointer_cast<type::KEvent>(object)->ResetSignal()
+                ? Result{} : result::InvalidState;
             LOGD("Clearing 0x{:X}", handle);
-            ctx.w0 = Result{};
         } catch (const std::out_of_range &) {
             LOGW("'handle' invalid: 0x{:X}", handle);
             ctx.w0 = result::InvalidHandle;
@@ -1375,7 +1396,7 @@ namespace skyline::kernel::svc {
         SVC_ENTRY(GetThreadCoreMask), // 0x0E
         SVC_ENTRY(SetThreadCoreMask), // 0x0F
         SVC_ENTRY(GetCurrentProcessorNumber), // 0x10
-        SVC_NONE, // 0x11
+        SVC_ENTRY(SignalEvent), // 0x11
         SVC_ENTRY(ClearEvent), // 0x12
         SVC_ENTRY(MapSharedMemory), // 0x13
         SVC_ENTRY(UnmapSharedMemory), // 0x14
