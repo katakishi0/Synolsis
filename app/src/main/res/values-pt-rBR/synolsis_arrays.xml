@@ -56,15 +56,15 @@
         <item>Rápido experimental (leitura e gravação)</item>
     </string-array>
     <string-array name="synolsis_frame_skip_entries">
-        <item>Desligado (recomendado)</item><item>Pular 1 de 2 quadros</item><item>Pular 2 de 3 quadros</item>
+        <item>Desligado</item><item>Pular 1</item><item>Pular 2</item>
     </string-array>
     <string-array name="synolsis_present_mode_entries">
-        <item>Automático (padrão do Strato)</item><item>FIFO (VSync)</item>
-        <item>Mailbox (baixa latência)</item><item>Immediate (sem VSync; experimental)</item>
+        <item>Automático</item><item>FIFO (VSync)</item>
+        <item>Mailbox</item><item>Imediato</item>
     </string-array>
     <string-array name="synolsis_shader_threads_entries">
-        <item>Automático (Strato)</item><item>1 thread (compatibilidade)</item>
-        <item>2 threads (baixo consumo)</item><item>4 threads (experimental)</item>
+        <item>Automático</item><item>1</item>
+        <item>2</item><item>4</item>
     </string-array>
     <string-array name="synolsis_palette_entries">
         <item>Clássico (sistema)</item><item>Azul da meia-noite</item>
