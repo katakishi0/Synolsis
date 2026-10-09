@@ -55,7 +55,7 @@ namespace skyline::soc::host1x {
     bool AndroidMediaDecoder::QueueAccessUnit(std::span<const std::uint8_t> input,
                                                std::int64_t ptsUs, bool codecConfiguration) {
         constexpr std::size_t MaxPacketBytes{8 * 1024 * 1024};
-        if (input.empty() || input.size() > MaxPacketBytes)
+        if (input.empty() || input.size() > MaxPacketBytes || ptsUs < 0)
             return false;
         std::scoped_lock guard{mutex};
         if (!codec)
@@ -65,12 +65,22 @@ namespace skyline::soc::host1x {
             return false;
         std::size_t capacity{};
         auto *buffer{AMediaCodec_getInputBuffer(codec, static_cast<size_t>(index), &capacity)};
-        if (!buffer || input.size() > capacity)
+        if (!buffer || input.size() > capacity) {
+            // Once dequeued, an input slot must not be abandoned. MediaCodec
+            // exposes no input-buffer cancel operation; stop the broken
+            // session rather than leaking an outstanding slot forever.
+            StopLocked();
             return false;
+        }
         std::memcpy(buffer, input.data(), input.size());
         const auto flags{codecConfiguration ? AMEDIACODEC_BUFFER_FLAG_CODEC_CONFIG : 0};
-        return AMediaCodec_queueInputBuffer(codec, static_cast<size_t>(index),
-                                            0, input.size(), static_cast<uint64_t>(ptsUs), flags) == AMEDIA_OK;
+        const auto queued{AMediaCodec_queueInputBuffer(codec, static_cast<size_t>(index),
+                                            0, input.size(), static_cast<uint64_t>(ptsUs), flags)};
+        if (queued != AMEDIA_OK) {
+            StopLocked(); // Do not reuse a codec in an invalid/error state.
+            return false;
+        }
+        return true;
     }
 
     bool AndroidMediaDecoder::Drain(Frame &frame) {
@@ -89,6 +99,13 @@ namespace skyline::soc::host1x {
                 AMediaFormat_getInt32(format, AMEDIAFORMAT_KEY_STRIDE, &rowStride);
                 AMediaFormat_getInt32(format, AMEDIAFORMAT_KEY_SLICE_HEIGHT, &sliceHeight);
                 AMediaFormat_delete(format);
+                if (width < 0 || height < 0 ||
+                    !ValidVideoExtent(static_cast<std::uint32_t>(width),
+                                      static_cast<std::uint32_t>(height))) {
+                    // Unsupported/corrupt dynamic format: never expose
+                    // unbounded output dimensions to guest texture uploads.
+                    StopLocked();
+                }
             }
             return false;
         }
