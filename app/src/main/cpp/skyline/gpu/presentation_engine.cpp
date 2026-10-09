@@ -11,6 +11,7 @@
 #include <loader/loader.h>
 #include <kernel/types/KProcess.h>
 #include "presentation_engine.h"
+#include "presentation_scale.h"
 #include "native_window.h"
 #include "texture/format.h"
 
@@ -101,14 +102,44 @@ namespace skyline::gpu {
         std::scoped_lock textureLock(*frame.textureView);
 
         auto texture{frame.textureView->texture};
-        if (frame.textureView->format != swapchainFormat || texture->dimensions != swapchainExtent)
-            UpdateSwapchain(frame.textureView->format, texture->dimensions);
+        // This is *presentation* scaling only. The emulated GPU still renders
+        // all game attachments at their original size, and this setting must
+        // never be described as an internal resolution or FSR implementation.
+        const auto percent{*state.settings->vulkanPresentationScalePercent};
+        const auto srcFeatures{gpu.vkPhysicalDevice.getFormatProperties(*texture->format).optimalTilingFeatures};
+        const auto dstFeatures{gpu.vkPhysicalDevice.getFormatProperties(
+            *format::R8G8B8A8Unorm).optimalTilingFeatures};
+        const bool canBlit{
+            bool(srcFeatures & vk::FormatFeatureFlagBits::eBlitSrc) &&
+            bool(dstFeatures & vk::FormatFeatureFlagBits::eBlitDst)
+        };
+        const auto desired{presentation_scale::ChooseExtent(
+            {texture->dimensions.width, texture->dimensions.height},
+            percent,
+            {vkSurfaceCapabilities.minImageExtent.width, vkSurfaceCapabilities.minImageExtent.height},
+            {vkSurfaceCapabilities.maxImageExtent.width, vkSurfaceCapabilities.maxImageExtent.height},
+            canBlit)};
+        const texture::Dimensions outputExtent{desired.width, desired.height, texture->dimensions.depth};
+        if (frame.textureView->format != swapchainFormat || outputExtent != swapchainExtent)
+            UpdateSwapchain(frame.textureView->format, outputExtent);
+
+        auto finalCrop{frame.crop};
+        if (finalCrop && outputExtent != texture->dimensions) {
+            const auto scaled{presentation_scale::ScaleCrop(
+                {finalCrop.left, finalCrop.top, finalCrop.right, finalCrop.bottom},
+                {texture->dimensions.width, texture->dimensions.height},
+                {outputExtent.width, outputExtent.height})};
+            finalCrop.left = scaled.left;
+            finalCrop.top = scaled.top;
+            finalCrop.right = scaled.right;
+            finalCrop.bottom = scaled.bottom;
+        }
 
         int result;
-        if (frame.crop && frame.crop != windowCrop) {
-            if ((result = window->perform(window, NATIVE_WINDOW_SET_CROP, &frame.crop)))
-                throw exception("Setting the layer crop to ({}-{})x({}-{}) failed with {}", frame.crop.left, frame.crop.right, frame.crop.top, frame.crop.bottom, result);
-            windowCrop = frame.crop;
+        if (finalCrop && finalCrop != windowCrop) {
+            if ((result = window->perform(window, NATIVE_WINDOW_SET_CROP, &finalCrop)))
+                throw exception("Setting the layer crop to ({}-{})x({}-{}) failed with {}", finalCrop.left, finalCrop.right, finalCrop.top, finalCrop.bottom, result);
+            windowCrop = finalCrop;
         }
 
         if (frame.scalingMode != NativeWindowScalingMode::Freeze && windowScalingMode != frame.scalingMode) {
@@ -149,7 +180,7 @@ namespace skyline::gpu {
             .aspectMask = vk::ImageAspectFlagBits::eColor,
             .levelCount = 1,
             .layerCount = 1,
-        });
+        }, outputExtent != texture->dimensions);
 
         frameFence = nextImageTexture->cycle;
 
