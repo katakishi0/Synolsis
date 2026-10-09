@@ -44,7 +44,7 @@ jobs:
         with:
           # Source is checked out at the start of the run, then built from that snapshot.
           # Pin the tested revision, including safe V4 locale migration.
-          ref: 0a1899cca0bcc7ea8ffc0cbd06908383c34468d2
+          ref: 436112f656252a58a2b75920e7d7939d0f980d22
           submodules: false
 
       - name: Assert full source is checked in
@@ -1154,7 +1154,7 @@ jobs:
           else
             gh release create "$tag" "${files[@]}" \
               --repo "$GITHUB_REPOSITORY" \
-              --target "0a1899cca0bcc7ea8ffc0cbd06908383c34468d2" \
+              --target "436112f656252a58a2b75920e7d7939d0f980d22" \
               --title "Synolsis V32 Host1x/SVC + Vulkan WSI Compatibility test ${GITHUB_RUN_NUMBER}" \
               --notes "Synolsis V32 experimental ARM64: V31 capability-checked Android Vulkan WSI, original Strato baseline compatibility, V30 Maxwell scissor and portable default, plus real Horizon SVC 0x11 SignalEvent, event-handle validation and bounded host1x/VIC/NVDEC method parsing and syncpoint IDs. Full guest NVDEC/VIC playback, graphics bugs for Nine Sols/NieR, other Horizon SVCs, QLauncher and internal resolution are NOT yet proven fixed. See docs/SYNOLSIS_V32_HOST1X_SVC_TEST_PLAN.md." \
               --prerelease
