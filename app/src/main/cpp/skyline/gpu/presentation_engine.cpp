@@ -12,6 +12,7 @@
 #include <kernel/types/KProcess.h>
 #include "presentation_engine.h"
 #include "presentation_scale.h"
+#include "swapchain_policy.h"
 #include <os.h>
 #include "native_window.h"
 #include "texture/format.h"
@@ -426,27 +427,21 @@ namespace skyline::gpu {
         // Strato code always requested INHERIT alpha and implicitly IDENTITY
         // transform even when the WSI advertised neither. These are explicit
         // Vulkan validity requirements (VUID 01279/01280).
-        vk::SurfaceTransformFlagBitsKHR preTransform{vk::SurfaceTransformFlagBitsKHR::eIdentity};
-        if (!(capabilities.supportedTransforms & preTransform)) {
-            preTransform = capabilities.currentTransform;
-            if (!(capabilities.supportedTransforms & preTransform))
-                throw exception("Vulkan surface has no usable pre-transform");
-        }
+        const auto transformFlag{swapchain_policy::ChooseSupportedFlag(
+            static_cast<VkSurfaceTransformFlagsKHR>(capabilities.supportedTransforms),
+            VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
+            static_cast<VkSurfaceTransformFlagBitsKHR>(capabilities.currentTransform))};
+        if (!transformFlag)
+            throw exception("Vulkan surface has no usable pre-transform");
+        const auto preTransform{static_cast<vk::SurfaceTransformFlagBitsKHR>(transformFlag)};
 
-        vk::CompositeAlphaFlagBitsKHR compositeAlpha{vk::CompositeAlphaFlagBitsKHR::eInherit};
-        if (!(capabilities.supportedCompositeAlpha & compositeAlpha)) {
-            for (auto candidate : {
-                     vk::CompositeAlphaFlagBitsKHR::eOpaque,
-                     vk::CompositeAlphaFlagBitsKHR::ePreMultiplied,
-                     vk::CompositeAlphaFlagBitsKHR::ePostMultiplied}) {
-                if (capabilities.supportedCompositeAlpha & candidate) {
-                    compositeAlpha = candidate;
-                    break;
-                }
-            }
-            if (!(capabilities.supportedCompositeAlpha & compositeAlpha))
-                throw exception("Vulkan surface has no supported composite alpha mode");
-        }
+        const auto alphaFlag{swapchain_policy::ChooseSupportedFlag(
+            static_cast<VkCompositeAlphaFlagsKHR>(capabilities.supportedCompositeAlpha),
+            VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR,
+            VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR)};
+        if (!alphaFlag)
+            throw exception("Vulkan surface has no supported composite alpha mode");
+        const auto compositeAlpha{static_cast<vk::CompositeAlphaFlagBitsKHR>(alphaFlag)};
         LOGI("Swapchain WSI: format={} transform={} alpha={} mode={}",
              vk::to_string(static_cast<vk::Format>(*underlyingFormat)),
              vk::to_string(preTransform), vk::to_string(compositeAlpha),
