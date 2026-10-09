@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   compile:
@@ -32,10 +32,14 @@ jobs:
           spirv-val --target-env vulkan1.1 fsr-spv/rcas.spv
           echo "Compiled AMD MIT-licensed FSR1 EASU + RCAS shader binaries." >> "$GITHUB_STEP_SUMMARY"
           echo "Compute pipeline descriptor integration into Synolsis presentation is not yet complete." >> "$GITHUB_STEP_SUMMARY"
-      - name: Upload validated shaders
-        uses: actions/upload-artifact@v4
-        with:
-          name: synolsis-v16-fsr1-vulkan-easu-rcas
-          path: fsr-spv/*.spv
-          if-no-files-found: error
-          retention-days: 14
+      - name: Publish pre-release shader binaries (avoids Actions artifact quota)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="synolsis-v16-fsr1-shaders-${GITHUB_RUN_NUMBER}"
+          gh release create "$tag" fsr-spv/easu.spv fsr-spv/rcas.spv \
+            --repo "$GITHUB_REPOSITORY" \
+            --target a3af3b18f88be5cda8265097e97d4c269ee68905 \
+            --title "Synolsis FSR1 EASU/RCAS - shader-only test ${GITHUB_RUN_NUMBER}" \
+            --notes "AMD MIT-licensed FSR1 EASU and RCAS compute shaders compiled with glslangValidator and spirv-val. This is an intermediate module; NOT yet enabled by the emulator Vulkan presenter." \
+            --prerelease
