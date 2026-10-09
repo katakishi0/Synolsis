@@ -3,6 +3,7 @@
 #pragma once
 
 #include <cstdint>
+#include <initializer_list>
 
 namespace skyline::gpu::swapchain_compatibility {
     // Raw Vulkan KHR flag values. This small pure helper also runs under
