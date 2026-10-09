@@ -46,7 +46,7 @@ namespace skyline::gpu::scale {
     constexpr std::uint32_t SafeScissorExtent(std::int64_t lower, std::int64_t upper) {
         if (upper <= lower)
             return 0;
-        const auto diff = static_cast<std::uint64_t>(upper - lower);
+        const auto diff = static_cast<std::uint64_t>(upper) - static_cast<std::uint64_t>(lower);
         return diff > std::numeric_limits<std::uint32_t>::max()
             ? std::numeric_limits<std::uint32_t>::max()
             : static_cast<std::uint32_t>(diff);
