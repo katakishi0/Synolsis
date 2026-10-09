@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="synolsis_frame_skip_title">Frame Skip</string>
+    <string name="synolsis_frame_skip_summary">Pula só a exibição; pode engasgar</string>
+    <string-array name="synolsis_frame_skip_entries">
+        <item>Desligado</item>
+        <item>Pular 1</item>
+        <item>Pular 2</item>
+    </string-array>
+    <string name="synolsis_present_mode_title">Modo VSync</string>
+    <string name="synolsis_present_mode_summary">Reinicie o jogo para aplicar</string>
+    <string-array name="synolsis_present_mode_entries">
+        <item>Automático</item>
+        <item>FIFO (VSync)</item>
+        <item>Mailbox</item>
+        <item>Imediato</item>
+    </string-array>
+    <string name="synolsis_shader_threads_title">Threads de shaders</string>
+    <string name="synolsis_shader_threads_summary">Automático recomendado</string>
+    <string-array name="synolsis_shader_threads_entries">
+        <item>Automático</item>
+        <item>1</item>
+        <item>2</item>
+        <item>4</item>
+    </string-array>
+</resources>
