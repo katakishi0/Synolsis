@@ -109,9 +109,12 @@ namespace skyline::gpu {
         const auto srcFeatures{gpu.vkPhysicalDevice.getFormatProperties(*texture->format).optimalTilingFeatures};
         const auto dstFeatures{gpu.vkPhysicalDevice.getFormatProperties(
             *format::R8G8B8A8Unorm).optimalTilingFeatures};
+        const auto nativeDstFeatures{gpu.vkPhysicalDevice.getFormatProperties(
+            *frame.textureView->format).optimalTilingFeatures};
         const bool canBlit{
             bool(srcFeatures & vk::FormatFeatureFlagBits::eBlitSrc) &&
-            bool(dstFeatures & vk::FormatFeatureFlagBits::eBlitDst)
+            bool(dstFeatures & vk::FormatFeatureFlagBits::eBlitDst) &&
+            bool(nativeDstFeatures & vk::FormatFeatureFlagBits::eBlitDst)
         };
         const auto desired{presentation_scale::ChooseExtent(
             {texture->dimensions.width, texture->dimensions.height},
