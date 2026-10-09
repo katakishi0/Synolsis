@@ -15,6 +15,7 @@ import androidx.preference.TwoStatePreference
  * One operation writes the existing settings that libskyline already reads.
  */
 object SynolsisGpuProfiles {
+    const val LOW_END = "low_end"
     const val CONSERVATIVE = "conservative"
     const val BALANCED = "balanced"
     const val EXPERIMENTAL = "experimental"
@@ -22,6 +23,19 @@ object SynolsisGpuProfiles {
 
     fun apply(settings : EmulationSettings, profile : String) : Boolean {
         when (profile) {
+            LOW_END -> {
+                // Optional resource-conservative preset for devices with
+                // limited RAM. Keep V39 storage-image correctness intact.
+                // Does not fake additional VRAM or change Switch memory size.
+                settings.isDocked = false
+                settings.executorSlotCountScale = 2
+                settings.executorFlushThreshold = 128
+                settings.shaderCompileThreads = 2
+                settings.freeGuestTextureMemory = true
+                settings.enableFastGpuReadbackHack = false
+                settings.enableFastReadbackWrites = false
+                settings.forceMaxGpuClocks = false
+            }
             CONSERVATIVE -> {
                 settings.executorSlotCountScale = 3
                 settings.executorFlushThreshold = 128
@@ -44,7 +58,7 @@ object SynolsisGpuProfiles {
                 settings.enableFastReadbackWrites = false
             }
             FPS_HACK -> {
-                // Candidate for 6 GB Adreno + Turnip, not a guaranteed FPS
+                // Experimental Turnip readback trade-off, not a guaranteed FPS
                 // unlock. Keep the shader cache and guest safety defaults.
                 settings.executorSlotCountScale = 3
                 settings.executorFlushThreshold = 96
@@ -55,7 +69,7 @@ object SynolsisGpuProfiles {
             else -> return false
         }
         // Keep the native shader cache enabled in every profile, and avoid
-        // enabling dangerous clock/driver hacks on the 6GB Adreno test phone.
+        // enabling dangerous clock/driver hacks on constrained-memory devices.
         settings.disableShaderCache = false
         return true
     }
@@ -67,6 +81,12 @@ internal fun PreferenceFragmentCompat.wireSynolsisGpuProfiles(settings : Emulati
         if (!SynolsisGpuProfiles.apply(settings, newValue as? String ?: "")) {
             false
         } else {
+            findPreference<androidx.preference.TwoStatePreference>("is_docked")?.isChecked =
+                settings.isDocked
+            findPreference<org.stratoemu.strato.preference.IntegerListPreference>("shader_compile_threads")?.value =
+                settings.shaderCompileThreads
+            findPreference<androidx.preference.TwoStatePreference>("force_max_gpu_clocks")?.isChecked =
+                settings.forceMaxGpuClocks
             findPreference<SeekBarPreference>("executor_slot_count_scale")?.value =
                 settings.executorSlotCountScale
             findPreference<SeekBarPreference>("executor_flush_threshold")?.value =
