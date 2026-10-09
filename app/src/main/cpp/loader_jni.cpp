@@ -3,6 +3,7 @@
 
 #include "skyline/crypto/key_store.h"
 #include "skyline/vfs/nca.h"
+#include <algorithm>
 #include "skyline/vfs/ticket.h"
 #include "skyline/vfs/partition_filesystem.h"
 #include "skyline/vfs/content_meta.h"
