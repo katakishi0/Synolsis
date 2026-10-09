@@ -44,7 +44,7 @@ jobs:
         with:
           # Source is checked out at the start of the run, then built from that snapshot.
           # Pin the tested revision, including safe V4 locale migration.
-          ref: ef79f4e1551e92b130548014ecb131d1967e3b9f
+          ref: 20d9598637f917578b7f82aeb7f4df9e906bef92
           submodules: false
 
       - name: Assert full source is checked in
@@ -1171,7 +1171,7 @@ jobs:
           from pathlib import Path
           tex=Path("app/src/main/cpp/skyline/gpu/texture/texture.cpp").read_text()
           segment=tex.split("void Texture::CopyFrom(std::shared_ptr<Texture> source",1)[1].split("bool Texture::ValidateRenderPassUsage",1)[0]
-          assert 'copy_region_policy::ValidRange(availableMipLevels' in segment
+          assert 'texture::copy_region_policy::ValidRange(availableMipLevels' in segment
           assert 'copy_region_policy::ValidRange(availableLayers' in segment
           assert 'copy_region_policy::RangeEnd(availableMipLevels' in segment
           assert 'copy_region_policy::RangeCount(availableLayers' in segment
@@ -1271,7 +1271,7 @@ jobs:
           else
             gh release create "$tag" "${files[@]}" \
               --repo "$GITHUB_REPOSITORY" \
-              --target "ef79f4e1551e92b130548014ecb131d1967e3b9f" \
+              --target "20d9598637f917578b7f82aeb7f4df9e906bef92" \
               --title "Synolsis V37 Vulkan Texture Copy and GPU Coherency ${GITHUB_RUN_NUMBER}" \
               --notes "Experimental Synolsis V37 ARM64: retains V35 SVC fix/V36 debug log sampling; repairs missing Vulkan transfer destination ordering, per-mip copy/blit geometry and range checks; validates blit support even for format conversion. These are real Vulkan correctness changes, NOT a confirmed fix for NieR/Nine Sols corruption on phone. Full guest storage images, NVDEC/VIC, QLauncher and internal resolution remain incomplete. See docs/SYNOLSIS_V37_EDEN_VULKAN_COPY_COMPARISON.md." \
               --prerelease
