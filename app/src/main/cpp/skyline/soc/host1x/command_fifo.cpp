@@ -71,6 +71,13 @@ namespace skyline::soc::host1x {
 
         for (auto entry{gather.begin()}; entry != gather.end(); entry++) {
             ChannelCommandFifoMethodHeader methodHeader{.raw = *entry};
+            // Reject truncated guest command buffers instead of advancing a
+            // pointer outside the gather. A prerequisite for decoding NVDEC.
+            auto nextWord{[&]() -> u32 {
+                if (entry + 1 == gather.end())
+                    throw exception("Truncated Host1x gather: opcode 0x{:X}", static_cast<u8>(methodHeader.opcode));
+                return *++entry;
+            }};
 
             switch (methodHeader.opcode) {
                 case Host1xOpcode::SetClass:
@@ -78,23 +85,23 @@ namespace skyline::soc::host1x {
 
                     for (u32 i{}; i < std::numeric_limits<u8>::digits; i++)
                         if (methodHeader.classMethodMask & (1 << i))
-                            Send(targetClass, methodHeader.methodAddress + i, *++entry);
+                            Send(targetClass, methodHeader.methodAddress + i, nextWord());
 
                     break;
                 case Host1xOpcode::Incr:
                     for (u32 i{}; i < methodHeader.methodCount; i++)
-                        Send(targetClass, methodHeader.methodAddress + i, *++entry);
+                        Send(targetClass, methodHeader.methodAddress + i, nextWord());
 
                     break;
                 case Host1xOpcode::NonIncr:
                     for (u32 i{}; i < methodHeader.methodCount; i++)
-                        Send(targetClass, methodHeader.methodAddress, *++entry);
+                        Send(targetClass, methodHeader.methodAddress, nextWord());
 
                     break;
                 case Host1xOpcode::Mask:
                     for (u32 i{}; i < std::numeric_limits<u16>::digits; i++)
                         if (methodHeader.offsetMask & (1 << i))
-                            Send(targetClass, methodHeader.methodAddress + i, *++entry);
+                            Send(targetClass, methodHeader.methodAddress + i, nextWord());
 
                     break;
                 case Host1xOpcode::Imm:
