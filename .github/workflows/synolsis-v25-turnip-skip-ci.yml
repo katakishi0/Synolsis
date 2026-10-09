@@ -44,7 +44,7 @@ jobs:
         with:
           # Source is checked out at the start of the run, then built from that snapshot.
           # Pin the tested revision, including safe V4 locale migration.
-          ref: ea39f5cbfe113e05886ae5d862cceaf53b76c7a2
+          ref: 9e046391710b11243808934a4fd1b057b068251a
           submodules: false
 
       - name: Assert full source is checked in
@@ -617,7 +617,8 @@ jobs:
           present_h=(root/"cpp/skyline/gpu/presentation_engine.h").read_text()
           assert "frame.fence.Wait(state.soc->host1x)" in present
           assert "frame.presentCallback()" in present and "vsyncEvent->Signal()" in present
-          assert "skipPolicy.ShouldPresent(" in present and "PresentationSkipPolicy skipPolicy;" in present_h
+          assert "skipPolicy.ShouldPresent(" in present, "PresentationFrameSkip policy not called in presenter"
+          assert "PresentationSkipPolicy" in present_h and "skipPolicy;" in present_h, "PresentationFrameSkip policy not retained"
           for mode in ("eFifo","eMailbox","eImmediate"):
               assert "vk::PresentModeKHR::"+mode in present
           profiles=(root/"java/org/stratoemu/strato/settings/SynolsisGpuProfiles.kt").read_text()
@@ -1043,7 +1044,7 @@ jobs:
           else
             gh release create "$tag" "${files[@]}" \
               --repo "$GITHUB_REPOSITORY" \
-              --target "ea39f5cbfe113e05886ae5d862cceaf53b76c7a2" \
+              --target "9e046391710b11243808934a4fd1b057b068251a" \
               --title "Synolsis V25 Turnip flicker + frame skip test ${GITHUB_RUN_NUMBER}" \
               --notes "Android ARM64 diagnostic APK with conservative 100% Vulkan presentation, corrected write->transfer source barrier, resettable Frame Skip 0/1/2 and temporal history invalidation on skipped frames. V24 automatic installed-firmware QLauncher preserved. This does NOT implement FSR dispatch, real frame generation, internal resolution or full Horizon services; no FPS improvement confirmed." \
               --prerelease
