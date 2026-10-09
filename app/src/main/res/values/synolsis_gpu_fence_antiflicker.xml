@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="synolsis_gpu_fence_antiflicker_title">Anti-flicker (GPU fences)</string>
+    <string name="synolsis_gpu_fence_antiflicker_off">Fast GPU callbacks; may flicker in some games.</string>
+    <string name="synolsis_gpu_fence_antiflicker_on">Wait for GPU work before reporting fence completion. May lower FPS.</string>
+</resources>
