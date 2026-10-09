@@ -1057,7 +1057,7 @@ jobs:
           else
             gh release create "$tag" "${files[@]}" \
               --repo "$GITHUB_REPOSITORY" \
-              --target "696d81bf28f2490d36a0c46909ccf78e589f5199" \
+              --target "157d4407fb399a3bd08d5c94c5d4b6e1f0ca3665" \
               --title "Synolsis V27 Vulkan + QLauncher + Compact UI test ${GITHUB_RUN_NUMBER}" \
               --notes "Android ARM64 experimental diagnostic APK: additional Vulkan memory ordering for texture readbacks/layout transitions, header-first QLauncher firmware scan, smaller bilingual settings UI. QLauncher still lacks complete Horizon services; true internal resolution, FSR dispatch and frame generation remain unavailable. User-reported V25 flicker fix and FPS improvement are NOT yet verified." \
               --prerelease
