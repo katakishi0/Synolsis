@@ -11,6 +11,7 @@
 #include "channel.h"
 #include "macro/macro_state.h"
 #include <atomic>
+#include <common/debug_log_sample.h>
 
 namespace skyline::soc::gm20b {
     /**
@@ -383,7 +384,7 @@ namespace skyline::soc::gm20b {
                 if (AsyncLogger::CheckLogLevel(AsyncLogger::LogLevel::Debug)) {
                     static std::atomic<u64> pushbufferLogCount{};
                     const auto n{pushbufferLogCount.fetch_add(1, std::memory_order_relaxed) + 1};
-                    if (n <= 8 || (n & (n - 1)) == 0)
+                    if (skyline::diagnostics::ShouldSample(n))
                         LOGD("Processing pushbuffer: 0x{:X}, Size: 0x{:X}, sample #{}",
                              gpEntry.Address(), +gpEntry.size, n);
                 }
@@ -399,7 +400,7 @@ namespace skyline::soc::gm20b {
                 if (AsyncLogger::CheckLogLevel(AsyncLogger::LogLevel::Debug)) {
                     static std::atomic<u64> finishLogCount{};
                     const auto n{finishLogCount.fetch_add(1, std::memory_order_relaxed) + 1};
-                    if (n <= 8 || (n & (n - 1)) == 0)
+                    if (skyline::diagnostics::ShouldSample(n))
                         LOGD("Finished processing pushbuffer batch (sample #{})", n);
                 }
                 if (channelLocked) {
