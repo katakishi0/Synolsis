@@ -8,6 +8,7 @@
 #include <vfs/npdm.h>
 #include "results.h"
 #include "svc.h"
+#include "wait_synchronization_policy.h"
 
 namespace skyline::kernel::svc {
     void SetHeapSize(const DeviceState &state, SvcContext &ctx) {
@@ -686,16 +687,15 @@ namespace skyline::kernel::svc {
     }
 
     void WaitSynchronization(const DeviceState &state, SvcContext &ctx) {
-        constexpr u8 MaxSyncHandles{0x40}; // The total amount of handles that can be passed to WaitSynchronization
-
         u32 numHandles{ctx.w2};
-        if (numHandles > MaxSyncHandles) {
+        if (!wait_synchronization_policy::ValidCount(numHandles)) {
             // Horizon accepts an empty set of objects for a timed or
             // cancellable wait. OutOfRange applies only above 0x40.
+            LOGW("WaitSynchronization invalid handle count: {}", numHandles);
             ctx.w0 = result::OutOfRange;
             return;
         }
-        if (numHandles && !ctx.x1) {
+        if (wait_synchronization_policy::RequiresHandlePointer(numHandles) && !ctx.x1) {
             ctx.w0 = result::InvalidAddress;
             return;
         }
