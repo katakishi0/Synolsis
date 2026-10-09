@@ -95,8 +95,29 @@ namespace skyline::vfs {
                 bktrRelocations = bktr::RelocationTable::Parse(
                     std::span<const u8>(buffer.data(), buffer.size()));
                 if (bktrRelocations) {
-                    LOGD("Parsed BKTR relocation index with {} entries; waiting for base RomFS and CTR-Ex subsection implementation",
-                         bktrRelocations->EntryCount());
+                    LOGD("Parsed BKTR relocation index with {} entries", bktrRelocations->EntryCount());
+                }
+
+                if (patch.subsectionSize >= bktr::BucketSize &&
+                    patch.subsectionSize <= MaxRelocationTable &&
+                    patch.subsectionOffset <= sectionSize &&
+                    patch.subsectionSize <= sectionSize - patch.subsectionOffset &&
+                    patch.subsectionOffset <= backing->size - sectionStart &&
+                    patch.subsectionSize <= backing->size - sectionStart - patch.subsectionOffset) {
+                    const auto subOffset{static_cast<size_t>(sectionStart + patch.subsectionOffset)};
+                    const auto subSize{static_cast<size_t>(patch.subsectionSize)};
+                    auto subRegion{std::make_shared<RegionBacking>(backing, subOffset, subSize)};
+                    auto subBacking{CreateBacking(sectionHeader, subRegion, subOffset)};
+                    if (subBacking) {
+                        std::vector<u8> subsectionBytes(subSize);
+                        subBacking->Read(span(subsectionBytes));
+                        bktrSubsections = bktr::SubsectionTable::Parse(
+                            std::span<const u8>(subsectionBytes.data(), subsectionBytes.size()));
+                        if (bktrSubsections) {
+                            LOGD("Parsed BKTR subsection table with {} CTR-Ex counters; patch merge not yet mounted",
+                                 bktrSubsections->EntryCount());
+                        }
+                    }
                 }
             } catch (const std::exception &e) {
                 LOGW("Unable to read BKTR relocation metadata: {}", e.what());
