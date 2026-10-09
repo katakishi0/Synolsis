@@ -1,0 +1,141 @@
+name: Pristine Upstream Strato APK Experiment
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/strato-pristine-upstream-compare.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pristine-strato-compare
+  cancel-in-progress: false
+
+jobs:
+  upstream:
+    name: Build upstream source unchanged (all submodules)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 150
+    env:
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_MAXSIZE: 2G
+      CMAKE_C_COMPILER_LAUNCHER: ccache
+      CMAKE_CXX_COMPILER_LAUNCHER: ccache
+    steps:
+      - name: Checkout genuine Strato upstream, source code unchanged
+        uses: actions/checkout@v4
+        with:
+          repository: strato-emu/strato
+          ref: ae1566a48285816a87e81d4aeb40bd2f4e56e60b
+          submodules: recursive
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Validate upstream pin and dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = ae1566a48285816a87e81d4aeb40bd2f4e56e60b
+          test -e .gitmodules
+          test -f app/libraries/boost/LICENSE_1_0.txt
+          test -f app/libraries/oboe/README.md
+          git submodule status --recursive | head -50
+          git status --porcelain
+          echo 'Pristine upstream, no Synolsis or mirrored Strato source patches; only CI packaging changes.' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle with caching and wrapper validation
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
+
+      - name: Install Android SDK/NDK with retry on broken download
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v ccache >/dev/null || ! command -v ninja >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq ccache ninja-build
+          fi
+          mkdir -p "$CCACHE_DIR"
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          test -n "$SDK_ROOT"
+          SDKMGR="$(command -v sdkmanager || true)"
+          if [ -z "$SDKMGR" ]; then
+            SDKMGR="$(find "$SDK_ROOT/cmdline-tools" -type f -path '*/bin/sdkmanager' | sort -V | tail -1)"
+          fi
+          test -n "$SDKMGR"
+
+          install_checked() {
+            local spec="$1"
+            local directory="$2"
+            local marker="$3"
+            if [ -f "$directory/$marker" ]; then
+              echo "Already installed: $spec"
+              return 0
+            fi
+            for attempt in 1 2 3 4; do
+              echo "::group::Installing $spec (attempt $attempt/4)"
+              # SDK archives can occasionally arrive truncated or as an
+              # invalid ZIP from the mirror. Never treat a partial NDK as valid.
+              if "$SDKMGR" --install "$spec" && [ -f "$directory/$marker" ]; then
+                echo "::endgroup::"
+                return 0
+              fi
+              echo "::warning::$spec download or validation failed (attempt $attempt)"
+              echo "::endgroup::"
+              if [ "$attempt" -eq 4 ]; then
+                echo "::error::Failed to install $spec after four attempts"
+                return 1
+              fi
+              rm -rf -- "$HOME/.android/cache"
+              # A failed NDK extract can leave an invalid directory in place.
+              # The directory is under the runner's ephemeral SDK installation.
+              if [ ! -f "$directory/$marker" ] && [ -d "$directory" ]; then
+                rm -rf -- "$directory"
+              fi
+              sleep $((attempt * 8))
+            done
+          }
+
+          install_checked "platforms;android-34" "$SDK_ROOT/platforms/android-34" "android.jar"
+          install_checked "build-tools;34.0.0" "$SDK_ROOT/build-tools/34.0.0" "aapt2"
+          install_checked "ndk;26.1.10909125" "$SDK_ROOT/ndk/26.1.10909125" "source.properties"
+          install_checked "cmake;3.22.1" "$SDK_ROOT/cmake/3.22.1" "bin/cmake"
+          echo "Android SDK/NDK validated after installation"
+
+      - name: Compile original upstream Strato APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x ./gradlew
+          ./gradlew :app:assembleDevReldebug --no-daemon --stacktrace --build-cache
+          test -n "$(find app/build/outputs/apk/dev/reldebug -maxdepth 1 -name '*.apk' -print -quit)"
+
+      - name: Publish source-authentic upstream APK
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(app/build/outputs/apk/dev/reldebug/*.apk)
+          (( ${#files[@]} > 0 ))
+          tag="strato-pristine-upstream-${GITHUB_RUN_NUMBER}"
+          gh release create "$tag" "${files[@]}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target main \
+            --title "Unmodified upstream Strato comparison APK ${GITHUB_RUN_NUMBER}" \
+            --notes "SOURCE IS ORIGINAL UNMODIFIED STRATO ae1566a48285816a87e81d4aeb40bd2f4e56e60b https://github.com/strato-emu/strato/commit/ae1566a48285816a87e81d4aeb40bd2f4e56e60b . GitHub Release tag points to this repository's workflow commit, NOT the external source commit; source is pinned in CI checkout. This older upstream may not support new firmware/encryption. App package org.stratoemu.strato.dev; manually switch to handheld mode for comparable scenes. Diagnostic only; back up saves before installing/uninstalling." \
+            --prerelease
+          for f in "${files[@]}"; do sha256sum "$f"; done
+          echo "Pristine upstream release: https://github.com/${GITHUB_REPOSITORY}/releases/tag/${tag}" >> "$GITHUB_STEP_SUMMARY"
