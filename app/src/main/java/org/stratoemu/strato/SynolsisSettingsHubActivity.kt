@@ -93,25 +93,44 @@ class SynolsisSettingsHubActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val archiveDir = File(getPublicFilesDir(),
                 "switch/nand/system/Contents/registered")
-            val target = withContext(Dispatchers.IO) {
+            // The native scanner returns a safe basename or a diagnostic
+            // marker. Do not treat failures as filenames or silently lose
+            // the actual reason why the installed firmware was rejected.
+            val scan: Pair<File?, Int> = withContext(Dispatchers.IO) {
                 runCatching {
-                    if (!archiveDir.isDirectory) return@runCatching null
-                    val name = findInstalledQLauncherNca(
+                    if (!archiveDir.isDirectory)
+                        return@runCatching Pair<File?, Int>(
+                            null, R.string.synolsis_qlauncher_firmware_missing)
+                    val result = findInstalledQLauncherNca(
                         archiveDir.canonicalPath, "${filesDir.canonicalPath}/keys/")
-                        ?: return@runCatching null
-                    val safeFile = File(archiveDir, name).canonicalFile
+                        ?: return@runCatching Pair<File?, Int>(
+                            null, R.string.synolsis_qlauncher_not_found)
+                    val error = when (result) {
+                        "@qlauncher:firmware" -> R.string.synolsis_qlauncher_firmware_missing
+                        "@qlauncher:unreadable" -> R.string.synolsis_qlauncher_unreadable
+                        "@qlauncher:absent" -> R.string.synolsis_qlauncher_not_found
+                        "@qlauncher:program" -> R.string.synolsis_qlauncher_program_invalid
+                        else -> null
+                    }
+                    if (error != null)
+                        return@runCatching Pair<File?, Int>(null, error)
+                    if (!result.endsWith(".nca") || result.contains('/') ||
+                        result.contains('\\'))
+                        return@runCatching Pair<File?, Int>(
+                            null, R.string.synolsis_qlauncher_not_found)
+                    val safeFile = File(archiveDir, result).canonicalFile
                     if (safeFile.parentFile == archiveDir.canonicalFile && safeFile.isFile)
-                        safeFile else null
-                }.getOrNull()
+                        Pair<File?, Int>(safeFile, 0)
+                    else Pair<File?, Int>(
+                        null, R.string.synolsis_qlauncher_not_found)
+                }.getOrElse {
+                    Pair<File?, Int>(null, R.string.synolsis_qlauncher_not_found)
+                }
             }
+            val target = scan.first
             if (target == null) {
                 Toast.makeText(this@SynolsisSettingsHubActivity,
-                    R.string.synolsis_qlauncher_not_found, Toast.LENGTH_LONG).show()
-                // Manual selection remains an explicit fallback for unusual
-                // firmware layouts; it is no longer the normal boot path.
-                // Avoid automatically opening a manual document picker:
-                // installed firmware should be the normal path. Keep manual
-                // recovery available only by long-pressing the QLauncher card.
+                    scan.second, Toast.LENGTH_LONG).show()
                 return@launch
             }
             runCatching {
