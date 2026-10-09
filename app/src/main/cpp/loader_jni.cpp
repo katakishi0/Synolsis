@@ -355,3 +355,67 @@ Java_org_stratoemu_strato_SynolsisSettingsHubActivity_validateQLauncherNca(
         return JNI_FALSE;
     }
 }
+
+
+/**
+ * Discover the QLauncher Program NCA inside the user's *already imported*
+ * firmware, using the same registered-content directory and KeyStore used
+ * for firmware version and font scanning. No filename guessing and no
+ * bundled firmware. Returns a basename only, so Kotlin must resolve it
+ * under the registered firmware directory before opening it.
+ *
+ * The bootstrap remains experimental: Horizon home-menu services do not
+ * become functional merely because an executable NCA was found.
+ */
+extern "C" JNIEXPORT jstring JNICALL
+Java_org_stratoemu_strato_SynolsisSettingsHubActivity_findInstalledQLauncherNca(
+    JNIEnv *env, jobject /*thiz*/, jstring firmwarePath, jstring keysPath) {
+    skyline::signal::ScopedStackBlocker stackBlocker;
+    if (!firmwarePath || !keysPath)
+        return nullptr;
+
+    constexpr skyline::u64 QLauncherProgramId{0x0100000000001000ULL};
+    try {
+        auto systemArchives{std::make_shared<skyline::vfs::OsFileSystem>(
+            skyline::JniString(env, firmwarePath))};
+        auto keyStore{std::make_shared<skyline::crypto::KeyStore>(
+            skyline::JniString(env, keysPath))};
+        auto directory{systemArchives->OpenDirectory("")};
+        if (!directory)
+            return nullptr;
+        auto entries{directory->Read()};
+        if (entries.size() > 8192)
+            return nullptr;
+
+        // Deterministic order if a firmware dump contains multiple revisions.
+        std::sort(entries.begin(), entries.end(), [](const auto &a, const auto &b) {
+            return a.name < b.name;
+        });
+        for (const auto &entry : entries) {
+            // Never return arbitrary paths, directory traversal or non-NCA
+            // entries from an imported archive.
+            if (!entry.name.ends_with(".nca") ||
+                entry.name.find('/') != std::string::npos ||
+                entry.name.find('\\') != std::string::npos ||
+                entry.name == "." || entry.name == "..")
+                continue;
+            try {
+                auto backing{systemArchives->OpenFile(entry.name)};
+                skyline::vfs::NCA nca{backing, keyStore};
+                if (nca.header.programId != QLauncherProgramId ||
+                    nca.contentType != skyline::vfs::NcaContentType::Program ||
+                    !nca.exeFs || !nca.exeFs->FileExists("rtld") ||
+                    !nca.exeFs->FileExists("main") ||
+                    !nca.exeFs->FileExists("main.npdm"))
+                    continue;
+                return env->NewStringUTF(entry.name.c_str());
+            } catch (const std::exception &) {
+                // A missing key, bad NCA or unrelated firmware content must
+                // not prevent checking the other firmware NCAs.
+            }
+        }
+    } catch (const std::exception &) {
+        // Firmware not imported or cannot be opened.
+    }
+    return nullptr;
+}
