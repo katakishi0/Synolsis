@@ -44,7 +44,7 @@ jobs:
         with:
           # Source is checked out at the start of the run, then built from that snapshot.
           # Pin the tested revision, including safe V4 locale migration.
-          ref: 9a5677d2d0053112d1d7124fe899710fcc6c5756
+          ref: 33b3d24dda53df80f5c58ff9e65cf332ad2f2cdc
           submodules: false
 
       - name: Assert full source is checked in
