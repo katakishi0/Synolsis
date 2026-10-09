@@ -4,12 +4,8 @@
     <string name="synolsis_vulkan_output_scale_desc">Fixed at 100% while internal scaling is unfinished.</string>
     <string-array name="synolsis_vulkan_output_scale_entries">
         <item>100% — native (default)</item>
-        <item>75% — unavailable</item>
-        <item>50% — unavailable</item>
     </string-array>
     <string-array name="synolsis_vulkan_output_scale_values">
         <item>100</item>
-        <item>75</item>
-        <item>50</item>
     </string-array>
 </resources>
