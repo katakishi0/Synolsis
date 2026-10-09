@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="synolsis_shader_mode_title">Compilação de shaders Vulkan</string>
+    <string name="synolsis_shader_mode_summary">O Vulkan usa SPIR-V. GLSL/GLASM exigem outro renderizador OpenGL. Reinicie o jogo.</string>
+    <string-array name="synolsis_shader_mode_entries">
+        <item>SPIR-V padrão (recomendado)</item>
+        <item>SPIR-V compatibilidade (desativar subgroup shuffle; experimental)</item>
+    </string-array>
+</resources>
