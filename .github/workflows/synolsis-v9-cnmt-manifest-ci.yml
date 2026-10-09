@@ -83,7 +83,7 @@ jobs:
           assert "inline std::optional<Summary> Parse" in parser
           assert "content_meta::Parse" in loader
           assert "nca.contentType == vfs::NcaContentType::Meta" in loader
-          assert "contentMetadata.push_back(*info)" in loader
+          assert "contentMetadata.push_back(manifest->summary)" in loader
           assert "GetContentMetadata() const" in header
           assert "contentMetadata" in header
           # Metadata cannot be misreported as installed merely by this parser.
