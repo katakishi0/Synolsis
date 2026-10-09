@@ -48,6 +48,7 @@
         <item>Automática</item><item>Paisagem</item><item>Paisagem invertida</item>
     </string-array>
     <string-array name="synolsis_gpu_preset_entries">
+        <item>Ultra low-end (mínimo de RAM, mais lento)</item>
         <item>Low-end (economizar RAM, portátil)</item>
         <item>Conservador (menos RAM)</item>
         <item>Equilibrado</item>
