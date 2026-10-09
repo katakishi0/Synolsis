@@ -15,6 +15,10 @@ namespace skyline::soc::host1x {
         switch (method) {
             case IncrementSyncpointMethodId: {
                 IncrementSyncpointMethod incrSyncpoint{.raw = argument};
+                if (incrSyncpoint.index >= syncpoints.size()) {
+                    LOGW("Invalid host1x syncpoint {}", incrSyncpoint.index);
+                    break;
+                }
 
                 // incrSyncpoint.condition doesn't matter for Host1x class increments
                 LOGD("Increment syncpoint: {}", incrSyncpoint.index);
@@ -28,6 +32,10 @@ namespace skyline::soc::host1x {
 
             case WaitSyncpoint32MethodId: {
                 u32 syncpointId{static_cast<u8>(argument)};
+                if (syncpointId >= syncpoints.size()) {
+                    LOGW("Invalid host1x wait syncpoint {}", syncpointId);
+                    break;
+                }
                 LOGD("Wait syncpoint: {}, thresh: {}", syncpointId, syncpointPayload);
 
                 syncpoints.at(syncpointId).host.Wait(syncpointPayload, std::chrono::steady_clock::duration::max());

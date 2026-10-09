@@ -52,6 +52,12 @@ namespace skyline::soc::host1x {
             switch (method) {
                 case IncrementSyncpointMethodId: {
                     IncrementSyncpointMethod incrSyncpoint{.raw = argument};
+                    // Older games can submit malformed firmware/NVDEC methods;
+                    // never let std::array::at throw through the host1x thread.
+                    if (incrSyncpoint.index >= syncpoints.size()) {
+                        LOGW("Ignoring out-of-range host1x syncpoint {}", incrSyncpoint.index);
+                        break;
+                    }
 
                     switch (incrSyncpoint.condition) {
                         case IncrementSyncpointMethod::Condition::Immediate:

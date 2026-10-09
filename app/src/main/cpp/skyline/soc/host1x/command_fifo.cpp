@@ -2,6 +2,7 @@
 // Copyright © 2021 Skyline Team and Contributors (https://github.com/skyline-emu/)
 
 #include <common/signal.h>
+#include "command_packet_bounds.h"
 #include <nce.h>
 #include <loader/loader.h>
 #include <kernel/types/KProcess.h>
@@ -71,9 +72,19 @@ namespace skyline::soc::host1x {
 
         for (auto entry{gather.begin()}; entry != gather.end(); entry++) {
             ChannelCommandFifoMethodHeader methodHeader{.raw = *entry};
+            // Host1x packet counts come from guest memory. The original
+            // parser read *++entry without checking the remaining gather,
+            // which could read beyond the mapped buffer and crash Android.
+            auto requireWords{[&](size_t count) {
+                if (!command_packet::Fits(
+                    static_cast<size_t>(gather.end() - (entry + 1)), count))
+                    throw exception("Truncated Host1x gather: opcode 0x{:X}, missing {} payload words",
+                                    static_cast<u8>(methodHeader.opcode), count);
+            }};
 
             switch (methodHeader.opcode) {
                 case Host1xOpcode::SetClass:
+                    requireWords(command_packet::MaskWords(methodHeader.classMethodMask));
                     targetClass = methodHeader.classId;
 
                     for (u32 i{}; i < std::numeric_limits<u8>::digits; i++)
@@ -82,16 +93,19 @@ namespace skyline::soc::host1x {
 
                     break;
                 case Host1xOpcode::Incr:
+                    requireWords(methodHeader.methodCount);
                     for (u32 i{}; i < methodHeader.methodCount; i++)
                         Send(targetClass, methodHeader.methodAddress + i, *++entry);
 
                     break;
                 case Host1xOpcode::NonIncr:
+                    requireWords(methodHeader.methodCount);
                     for (u32 i{}; i < methodHeader.methodCount; i++)
                         Send(targetClass, methodHeader.methodAddress, *++entry);
 
                     break;
                 case Host1xOpcode::Mask:
+                    requireWords(command_packet::MaskWords(methodHeader.offsetMask));
                     for (u32 i{}; i < std::numeric_limits<u16>::digits; i++)
                         if (methodHeader.offsetMask & (1 << i))
                             Send(targetClass, methodHeader.methodAddress + i, *++entry);
