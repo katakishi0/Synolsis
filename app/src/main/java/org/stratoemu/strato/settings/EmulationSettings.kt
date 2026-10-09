@@ -56,6 +56,8 @@ class EmulationSettings private constructor(context : Context, prefName : String
     var executorSlotCountScale by sharedPreferences(context, 6, prefName = prefName)
     var executorFlushThreshold by sharedPreferences(context, 256, prefName = prefName)
     var useDirectMemoryImport by sharedPreferences(context, false, prefName = prefName)
+    // Matches Eden's optional fence-accuracy/antiflicker behavior; opt in for games affected by flicker.
+    var gpuFenceAntiFlicker by sharedPreferences(context, false, prefName = prefName)
     var forceMaxGpuClocks by sharedPreferences(context, false, prefName = prefName)
     var freeGuestTextureMemory by sharedPreferences(context, true, prefName = prefName)
     var disableShaderCache by sharedPreferences(context, false, prefName = prefName)
