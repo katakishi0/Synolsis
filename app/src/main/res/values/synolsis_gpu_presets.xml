@@ -1,12 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string-array name="synolsis_gpu_preset_entries">
-        <item>Conservative (6 GB RAM)</item>
+        <item>Low-end (save RAM, handheld)</item>
+        <item>Conservative (less RAM)</item>
         <item>Balanced</item>
         <item>Experimental (higher memory usage)</item>
         <item>FPS Hack (Adreno/Turnip; experimental)</item>
     </string-array>
     <string-array name="synolsis_gpu_preset_values">
+        <item>low_end</item>
         <item>conservative</item>
         <item>balanced</item>
         <item>experimental</item>
