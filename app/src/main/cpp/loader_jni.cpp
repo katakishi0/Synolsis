@@ -425,14 +425,25 @@ Java_org_stratoemu_strato_SynolsisSettingsHubActivity_findInstalledQLauncherNca(
                 skyline::vfs::NCA program{backing, keyStore};
                 if (!program.exeFs || !program.exeFs->FileExists("rtld") ||
                     !program.exeFs->FileExists("main") ||
-                    !program.exeFs->FileExists("main.npdm"))
+                    !program.exeFs->FileExists("main.npdm")) {
+                    // Preserve a diagnosis in Android's emulator log without
+                    // dumping user keys, paths or NCA contents.
+                    LOGW("QLauncher program found but ExeFS is incomplete: hasExeFs={} hasRtld={} hasMain={} hasNpdm={}",
+                         static_cast<bool>(program.exeFs),
+                         program.exeFs && program.exeFs->FileExists("rtld"),
+                         program.exeFs && program.exeFs->FileExists("main"),
+                         program.exeFs && program.exeFs->FileExists("main.npdm"));
                     continue;
+                }
+                LOGI("QLauncher firmware Program NCA passed ExeFS validation");
                 return env->NewStringUTF(entry.name.c_str());
             } catch (const skyline::loader::loader_exception &error) {
                 // A matching HOME Menu program may need a newer titlekek or
                 // key-area generation than the user installed. Never silently
                 // conflate missing keys with a damaged executable NCA.
                 if (qlauncherCandidate) {
+                    LOGW("QLauncher Program NCA failed loader validation: code={}",
+                         static_cast<unsigned>(error.error));
                     switch (error.error) {
                         case skyline::loader::LoaderResult::MissingHeaderKey:
                         case skyline::loader::LoaderResult::MissingTitleKey:
