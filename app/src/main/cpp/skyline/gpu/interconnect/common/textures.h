@@ -4,6 +4,7 @@
 #pragma once
 
 #include <tsl/robin_map.h>
+#include <unordered_map>
 #include <shader_compiler/shader_info.h>
 #include <gpu/texture/texture.h>
 #include "common.h"
@@ -34,6 +35,9 @@ namespace skyline::gpu::interconnect {
     class Textures {
       private:
         std::shared_ptr<TextureView> nullTextureView{};
+        // Fallback views must themselves have VK_IMAGE_USAGE_STORAGE_BIT and
+        // an identity-component view, unlike the sampled-image null view.
+        std::unordered_map<u64, std::shared_ptr<TextureView>> nullStorageViews;
         dirty::ManualDirtyState<TexturePoolState> texturePool;
 
         tsl::robin_map<TextureImageControl, std::shared_ptr<TextureView>, util::ObjectHash<TextureImageControl>> textureHeaderStore;
@@ -51,6 +55,9 @@ namespace skyline::gpu::interconnect {
         void MarkAllDirty();
 
         TextureView *GetTexture(InterconnectContext &ctx, u32 index, Shader::TextureType shaderType);
+
+        TextureView *GetNullStorageTexture(InterconnectContext &ctx, Shader::TextureType shaderType,
+                                           texture::Format requestedFormat);
 
         Shader::TextureType GetTextureType(InterconnectContext &ctx, u32 index);
     };
