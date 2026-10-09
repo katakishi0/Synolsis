@@ -118,10 +118,13 @@ class GameContentManagerActivity : AppCompatActivity() {
             }
             row.addView(TextView(this).apply {
                 val summary = getString(R.string.synolsis_content_package_summary, entry.displayName, entry.size / 1048576.0, entry.ncaCount, entry.cnmtCount)
-                text = if (entry.sha256 != null) summary + "\n" +
+                val checksum = if (entry.sha256 != null) "\n" +
                     getString(R.string.synolsis_content_checksum_label, entry.sha256.take(12))
-                else summary
-                maxLines = 4
+                else ""
+                val association = if (entry.cnmtOwnerMatched) "\n" +
+                    getString(R.string.synolsis_content_cnmt_matched) else ""
+                text = summary + checksum + association
+                maxLines = 5
                 layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
             })
             if (entry.sha256 != null) {
@@ -195,9 +198,16 @@ class GameContentManagerActivity : AppCompatActivity() {
                             R.string.synolsis_content_duplicate, Toast.LENGTH_LONG).show()
                         refreshList()
                     } else {
+                        val reason = when (e) {
+                            is GameContentStore.WrongTitleException ->
+                                getString(R.string.synolsis_content_wrong_title)
+                            is GameContentStore.WrongContentKindException ->
+                                getString(R.string.synolsis_content_wrong_kind)
+                            else -> e.localizedMessage ?: getString(R.string.synolsis_content_error)
+                        }
                         AlertDialog.Builder(this@GameContentManagerActivity)
                             .setTitle(R.string.synolsis_content_error)
-                            .setMessage(e.localizedMessage ?: getString(R.string.synolsis_content_error))
+                            .setMessage(reason)
                             .setPositiveButton(android.R.string.ok, null).show()
                     }
                 }
