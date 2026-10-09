@@ -183,13 +183,15 @@ namespace skyline::gpu {
 
         frameIndex = (frameIndex + 1) % swapchainImageCount;
 
-        std::pair<vk::Result, u32> nextImage;
-        while (nextImage = vkSwapchain->acquireNextImage(std::numeric_limits<u64>::max(), *acquireSemaphore, {}), nextImage.first != vk::Result::eSuccess) [[unlikely]] {
-            if (nextImage.first == vk::Result::eSuboptimalKHR)
-                surfaceCondition.wait(lock, [this]() { return vkSurface.has_value(); });
-            else
-                throw exception("vkAcquireNextImageKHR returned an unhandled result '{}'", vk::to_string(nextImage.first));
-        }
+        // VK_SUBOPTIMAL_KHR still returns a valid acquired image and signals
+        // acquireSemaphore. Retrying would reuse an already-signaled binary
+        // semaphore, violating Vulkan sync rules on Android/Turnip.
+        const auto nextImage{vkSwapchain->acquireNextImage(
+            std::numeric_limits<u64>::max(), *acquireSemaphore, {})};
+        if (nextImage.first != vk::Result::eSuccess &&
+            nextImage.first != vk::Result::eSuboptimalKHR)
+            throw exception("vkAcquireNextImageKHR returned an unhandled result '{}'",
+                            vk::to_string(nextImage.first));
 
         auto &nextImageTexture{images.at(nextImage.second)};
         auto &presentSemaphore{presentSemaphores[nextImage.second]};
@@ -446,6 +448,15 @@ namespace skyline::gpu {
              vk::to_string(static_cast<vk::Format>(*underlyingFormat)),
              vk::to_string(preTransform), vk::to_string(compositeAlpha),
              vk::to_string(requestedMode));
+
+        if (vkSwapchain) {
+            // Only on a resize/recreation, never every frame: retire old
+            // swapchain images after all device work using them is complete.
+            gpu.vkDevice.waitIdle();
+            for (auto &fence : frameFences)
+                fence.reset();
+            frameIndex = 0;
+        }
 
         vkSwapchain.emplace(gpu.vkDevice, vk::SwapchainCreateInfoKHR{
             .surface = **vkSurface,
