@@ -8,9 +8,9 @@
     <string name="synolsis_content_delete">Excluir</string>
     <string name="synolsis_content_delete_confirm">Excluir este pacote importado?</string>
     <string name="synolsis_content_error">Não foi possível importar ou remover o conteúdo</string>
-    <string name="synolsis_content_staged_success">NSP verificado e armazenado. Ainda não está ativo no jogo emulado.</string>
+    <string name="synolsis_content_staged_success">NSP salvo. Ainda não ativo no jogo.</string>
     <string name="synolsis_content_invalid_title">Este jogo não possui um ID de título válido.</string>
-    <string name="synolsis_content_not_active">Gerenciador experimental: os arquivos NSP são copiados, verificados e guardados para este título. Ainda NÃO são instalados no Switch emulado. Atualizações exigem carregamento de patches CNMT/BKTR, e DLCs exigem montagem AOC. Essas funções estão em desenvolvimento. O conteúdo ainda não altera o jogo.</string>
+    <string name="synolsis_content_not_active">Pacotes NSP são salvos, mas ainda não funcionam no jogo.</string>
     <string name="synolsis_clear_cache_title">Limpar cache de shaders do jogo</string>
     <string name="synolsis_clear_cache_confirm">Excluir os pipelines gráficos armazenados deste jogo para todos os drivers GPU? O jogo deve estar fechado. Pode haver engasgos até o cache ser recompilado.</string>
     <string name="synolsis_clear_cache_result">%1$d arquivos de cache removidos (%2$d MiB)</string>

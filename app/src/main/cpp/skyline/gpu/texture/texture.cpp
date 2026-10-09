@@ -956,21 +956,23 @@ namespace skyline::gpu {
                 }
 
                 auto destinationBacking{GetBacking()};
-                if (layout != vk::ImageLayout::eTransferDstOptimal) {
-                    commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eAllCommands, vk::PipelineStageFlagBits::eAllCommands, {}, {}, {}, vk::ImageMemoryBarrier{
-                        .image = destinationBacking,
-                        .srcAccessMask = vk::AccessFlagBits::eMemoryRead,
-                        .dstAccessMask = vk::AccessFlagBits::eTransferWrite,
-                        .oldLayout = layout,
-                        .newLayout = vk::ImageLayout::eTransferDstOptimal,
-                        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                        .subresourceRange = subresource,
-                        });
+                // V26 diagnostic: a transfer-destination layout alone does
+                // not guarantee prior reads/writes are ordered before the
+                // next copy. Include previous writes even when reusing the
+                // same layout, so alias/recycle paths are synchronized.
+                commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eAllCommands, vk::PipelineStageFlagBits::eTransfer, {}, {}, {}, vk::ImageMemoryBarrier{
+                    .image = destinationBacking,
+                    .srcAccessMask = vk::AccessFlagBits::eMemoryRead | vk::AccessFlagBits::eMemoryWrite,
+                    .dstAccessMask = vk::AccessFlagBits::eTransferWrite,
+                    .oldLayout = layout,
+                    .newLayout = vk::ImageLayout::eTransferDstOptimal,
+                    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                    .subresourceRange = subresource,
+                    });
 
-                    if (layout == vk::ImageLayout::eUndefined)
-                        layout = vk::ImageLayout::eTransferDstOptimal;
-                }
+                if (layout == vk::ImageLayout::eUndefined)
+                    layout = vk::ImageLayout::eTransferDstOptimal;
 
                 vk::ImageSubresourceLayers subresourceLayers{
                     .aspectMask = subresource.aspectMask,
