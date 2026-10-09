@@ -173,3 +173,32 @@ internal fun PreferenceFragmentCompat.wireSynolsisReadbackPrecision(settings : E
         true
     }
 }
+
+/**
+ * Both options are real Vulkan/SPIR-V compilation paths: the compatibility
+ * option toggles the existing shader compiler's disable_subgroup_shuffle
+ * profile bit. GLSL and GLASM outputs cannot be fed to Vulkan pipelines.
+ */
+internal fun PreferenceFragmentCompat.wireSynolsisShaderMode(settings : EmulationSettings) {
+    val selector = findPreference<ListPreference>("synolsis_shader_mode") ?: return
+    val subgroupSwitch = findPreference<TwoStatePreference>("disable_subgroup_shuffle")
+
+    fun selectedMode() = if (settings.disableSubgroupShuffle) "compat" else "standard"
+    if (selector.value != selectedMode())
+        selector.value = selectedMode()
+
+    selector.setOnPreferenceChangeListener { _, newValue ->
+        when (newValue as? String) {
+            "standard" -> settings.disableSubgroupShuffle = false
+            "compat" -> settings.disableSubgroupShuffle = true
+            else -> return@setOnPreferenceChangeListener false
+        }
+        subgroupSwitch?.isChecked = settings.disableSubgroupShuffle
+        true
+    }
+
+    subgroupSwitch?.setOnPreferenceChangeListener { _, newValue ->
+        selector.value = if (newValue == true) "compat" else "standard"
+        true
+    }
+}
