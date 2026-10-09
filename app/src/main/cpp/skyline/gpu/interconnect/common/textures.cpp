@@ -236,6 +236,100 @@ namespace skyline::gpu::interconnect {
         });;
     }
 
+    TextureView *Textures::GetNullStorageTexture(InterconnectContext &ctx,
+                                                  Shader::TextureType shaderType,
+                                                  texture::Format requestedFormat) {
+        if (!requestedFormat)
+            requestedFormat = format::R8G8B8A8Unorm;
+        const u64 key{(static_cast<u64>(shaderType) << 32) |
+                      static_cast<u32>(requestedFormat->vkFormat)};
+        if (auto cached{nullStorageViews.find(key)}; cached != nullStorageViews.end())
+            return cached->second.get();
+
+        // R32_UINT storage images are required by Vulkan; prefer the exact
+        // typed format when the host supports it, and use the required format
+        // only as a last-resort fallback for an unmapped guest image.
+        const auto supportsStorage{[&](texture::Format fmt) {
+            return static_cast<bool>(ctx.gpu.vkPhysicalDevice.getFormatProperties(*fmt)
+                .optimalTilingFeatures & vk::FormatFeatureFlagBits::eStorageImage);
+        }};
+        auto backingFormat{requestedFormat};
+        if (!supportsStorage(backingFormat)) {
+            LOGW("Unsupported null storage format {}, falling back to R32Uint",
+                 vk::to_string(*backingFormat));
+            backingFormat = format::R32Uint;
+        }
+        if (!supportsStorage(backingFormat))
+            throw exception("Host GPU does not support required R32_UINT storage images");
+
+        vk::ImageType imageType{vk::ImageType::e2D};
+        vk::ImageViewType viewType{vk::ImageViewType::e2D};
+        vk::ImageCreateFlags flags{};
+        u32 layers{1};
+        switch (shaderType) {
+            case Shader::TextureType::Color1D:
+                imageType = vk::ImageType::e1D;
+                viewType = vk::ImageViewType::e1D;
+                break;
+            case Shader::TextureType::ColorArray1D:
+                imageType = vk::ImageType::e1D;
+                viewType = vk::ImageViewType::e1DArray;
+                break;
+            case Shader::TextureType::ColorArray2D:
+                viewType = vk::ImageViewType::e2DArray;
+                break;
+            case Shader::TextureType::Color3D:
+                imageType = vk::ImageType::e3D;
+                viewType = vk::ImageViewType::e3D;
+                break;
+            case Shader::TextureType::ColorCube:
+                viewType = vk::ImageViewType::eCube;
+                layers = 6;
+                flags |= vk::ImageCreateFlagBits::eCubeCompatible;
+                break;
+            case Shader::TextureType::ColorArrayCube:
+                viewType = vk::ImageViewType::eCubeArray;
+                layers = 6;
+                flags |= vk::ImageCreateFlagBits::eCubeCompatible;
+                break;
+            default:
+                break;
+        }
+
+        constexpr texture::Dimensions dims{1, 1, 1};
+        constexpr vk::ImageTiling tiling{vk::ImageTiling::eOptimal};
+        constexpr vk::ImageUsageFlags usage{
+            vk::ImageUsageFlagBits::eStorage |
+            vk::ImageUsageFlagBits::eTransferDst |
+            vk::ImageUsageFlagBits::eTransferSrc
+        };
+        auto backing{ctx.gpu.memory.AllocateImage(vk::ImageCreateInfo{
+            .flags = flags,
+            .imageType = imageType,
+            .format = *backingFormat,
+            .extent = dims,
+            .mipLevels = 1,
+            .arrayLayers = layers,
+            .samples = vk::SampleCountFlagBits::e1,
+            .tiling = tiling,
+            .usage = usage,
+            .sharingMode = vk::SharingMode::eExclusive,
+            .queueFamilyIndexCount = 1,
+            .pQueueFamilyIndices = &ctx.gpu.vkQueueFamilyIndex,
+            .initialLayout = vk::ImageLayout::eUndefined,
+        })};
+        auto nullTexture{std::make_shared<Texture>(ctx.gpu, std::move(backing),
+                                dims, backingFormat, vk::ImageLayout::eUndefined,
+                                tiling, flags, usage, 1, layers)};
+        nullTexture->TransitionLayout(vk::ImageLayout::eGeneral);
+        auto view{nullTexture->GetView(viewType, vk::ImageSubresourceRange{
+            .aspectMask = vk::ImageAspectFlagBits::eColor,
+            .levelCount = 1,
+            .layerCount = layers,
+        }, backingFormat, vk::ComponentMapping{})};
+        return nullStorageViews.emplace(key, std::move(view)).first->second.get();
+    }
+
     TextureView *Textures::GetTexture(InterconnectContext &ctx, u32 index, Shader::TextureType shaderType) {
         auto textureHeaders{texturePool.UpdateGet(ctx).textureHeaders};
         if (textureHeaderCache.size() != textureHeaders.size()) {
