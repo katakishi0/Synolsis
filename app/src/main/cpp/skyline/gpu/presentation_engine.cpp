@@ -12,6 +12,7 @@
 #include <kernel/types/KProcess.h>
 #include "presentation_engine.h"
 #include "presentation_scale.h"
+#include "surface_policy.h"
 #include <os.h>
 #include "native_window.h"
 #include "texture/format.h"
@@ -403,6 +404,24 @@ namespace skyline::gpu {
                 throw exception("Swapchain does not support required FIFO present mode");
         }
 
+        // Some Android/Turnip surfaces advertise only OPAQUE composite
+        // alpha or a non-identity pre-transform. Hardcoding INHERIT and
+        // Vulkan's implicit IDENTITY can violate swapchain VUIDs and lead
+        // to undefined rendering results. Keep the Android buffer transform
+        // in charge when identity is supported.
+        const auto transformBits{surface_policy::ChoosePreTransform(
+            static_cast<u32>(capabilities.supportedTransforms),
+            static_cast<u32>(capabilities.currentTransform))};
+        const auto alphaBits{surface_policy::ChooseCompositeAlpha(
+            static_cast<u32>(capabilities.supportedCompositeAlpha))};
+        if (!transformBits || !alphaBits)
+            throw exception("Vulkan surface did not advertise a usable transform/alpha mode");
+        const auto preTransform{static_cast<vk::SurfaceTransformFlagBitsKHR>(transformBits)};
+        const auto compositeAlpha{static_cast<vk::CompositeAlphaFlagBitsKHR>(alphaBits)};
+        LOGD("Swapchain capabilities: current={}, transform={}, compositeAlpha={}",
+             vk::to_string(capabilities.currentTransform),
+             vk::to_string(preTransform), vk::to_string(compositeAlpha));
+
         vkSwapchain.emplace(gpu.vkDevice, vk::SwapchainCreateInfoKHR{
             .surface = **vkSurface,
             .minImageCount = minImageCount,
@@ -412,7 +431,8 @@ namespace skyline::gpu {
             .imageArrayLayers = 1,
             .imageUsage = presentUsage,
             .imageSharingMode = vk::SharingMode::eExclusive,
-            .compositeAlpha = vk::CompositeAlphaFlagBitsKHR::eInherit,
+            .preTransform = preTransform,
+            .compositeAlpha = compositeAlpha,
             .presentMode = requestedMode,
             .clipped = true,
         });
