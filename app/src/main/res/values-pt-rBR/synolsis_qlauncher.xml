@@ -1,8 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
   <string name="synolsis_qlauncher_title">QLauncher</string>
-  <string name="synolsis_qlauncher_desc">Menu HOME (experimental) · Segure para escolher NCA</string>
+  <string name="synolsis_qlauncher_desc">Menu HOME (experimental)</string>
   <string name="synolsis_qlauncher_bad_nca">NCA inválida ou chaves ausentes.</string>
-  <string name="synolsis_qlauncher_not_found">QLauncher não encontrado. Verifique firmware e chaves. Segure para escolher NCA.</string>
+  <string name="synolsis_qlauncher_not_found">QLauncher não está neste firmware.</string>
   <string name="synolsis_qlauncher_open_failed">Não foi possível abrir o QLauncher do firmware instalado.</string>
+  <string name="synolsis_qlauncher_firmware_missing">Instale o firmware primeiro.</string>
+  <string name="synolsis_qlauncher_unreadable">Não foi possível ler as NCAs. Verifique as chaves.</string>
+  <string name="synolsis_qlauncher_program_invalid">NCA do QLauncher não pôde ser aberta.</string>
 </resources>
