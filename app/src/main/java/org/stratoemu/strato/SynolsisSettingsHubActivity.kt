@@ -7,7 +7,20 @@
  */
 package org.stratoemu.strato
 
+import android.content.ClipData
 import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.stratoemu.strato.data.AppItem
+import org.stratoemu.strato.data.AppItemTag
+import org.stratoemu.strato.loader.AppEntry
+import org.stratoemu.strato.loader.LoaderResult
+import org.stratoemu.strato.loader.RomFormat
 import android.os.Bundle
 import android.view.Gravity
 import android.view.ViewGroup
@@ -29,6 +42,45 @@ import kotlin.math.roundToInt
  * Strato classes and SharedPreferences.
  */
 class SynolsisSettingsHubActivity : AppCompatActivity() {
+    private external fun validateQLauncherNca(fd: Int, keysPath: String): Boolean
+
+    private val qlauncherPicker = registerForActivityResult(
+        ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+        if (uri == null) return@registerForActivityResult
+
+        lifecycleScope.launch {
+            val valid = withContext(Dispatchers.IO) {
+                runCatching {
+                    contentResolver.openFileDescriptor(uri, "r")?.use { descriptor ->
+                        validateQLauncherNca(
+                            descriptor.fd, "${filesDir.canonicalPath}/keys/")
+                    } ?: false
+                }.getOrDefault(false)
+            }
+            if (!valid) {
+                Toast.makeText(this@SynolsisSettingsHubActivity,
+                    R.string.synolsis_qlauncher_bad_nca, Toast.LENGTH_LONG).show()
+                return@launch
+            }
+            runCatching {
+                contentResolver.takePersistableUriPermission(
+                    uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+
+            val app = AppItem(AppEntry(
+                getString(R.string.synolsis_qlauncher_title),
+                null, "0100000000001000", "Nintendo", null,
+                RomFormat.NCA, uri, LoaderResult.Success))
+            startActivity(Intent(this@SynolsisSettingsHubActivity, EmulationActivity::class.java).apply {
+                data = uri
+                clipData = ClipData.newRawUri("QLauncher firmware NCA", uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                putExtra(AppItemTag, app)
+                putExtra(EmulationActivity.ReturnToMainTag, true)
+            })
+        }
+    }
+
     private fun dp(value : Int) = (resources.displayMetrics.density * value).roundToInt()
 
     private fun openSettings(section : String, key : String? = null) {
@@ -131,7 +183,12 @@ class SynolsisSettingsHubActivity : AppCompatActivity() {
         addCard(R.string.synolsis_hub_about, R.string.synolsis_hub_about_desc, R.drawable.ic_settings) {
             openSettings(SettingsActivity.SECTION_ABOUT)
         }
-        // QLauncher will be shown here only after the native system-applet
-        // bootstrap and missing-service handling are implemented and tested.
+        // Experimental executable bootstrap from the user's *own* QLauncher
+        // program NCA. Native loader validates its real title ID/ExeFS.
+        // Remaining Horizon applet services can still prevent menu startup.
+        addCard(R.string.synolsis_qlauncher_title,
+                R.string.synolsis_qlauncher_desc, R.drawable.ic_play) {
+            qlauncherPicker.launch(arrayOf("*/*"))
+        }
     }
 }
