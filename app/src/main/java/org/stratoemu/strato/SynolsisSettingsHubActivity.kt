@@ -110,6 +110,10 @@ class SynolsisSettingsHubActivity : AppCompatActivity() {
                         "@qlauncher:unreadable" -> R.string.synolsis_qlauncher_unreadable
                         "@qlauncher:absent" -> R.string.synolsis_qlauncher_not_found
                         "@qlauncher:program" -> R.string.synolsis_qlauncher_program_invalid
+                        "@qlauncher:exefs" -> R.string.synolsis_qlauncher_exefs_missing
+                        "@qlauncher:rtld" -> R.string.synolsis_qlauncher_rtld_missing
+                        "@qlauncher:main" -> R.string.synolsis_qlauncher_main_missing
+                        "@qlauncher:npdm" -> R.string.synolsis_qlauncher_npdm_missing
                         "@qlauncher:keys" -> R.string.synolsis_qlauncher_program_keys_missing
                         else -> null
                     }

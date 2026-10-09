@@ -80,7 +80,14 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
         if (!intent.hasExtra(AppItemTag)) {
             supportActionBar?.title = when (intent.getStringExtra(EXTRA_SYNOLSIS_SECTION)) {
                 SECTION_APPEARANCE -> getString(R.string.synolsis_hub_theme)
-                SECTION_CONTENT -> getString(R.string.synolsis_hub_data)
+                SECTION_CONTENT -> when (intent.getStringExtra("synolsis_target_preference")) {
+                    "firmware" -> getString(R.string.synolsis_hub_firmware)
+                    "prod_keys" -> getString(R.string.synolsis_v42_prod_keys)
+                    "title_keys" -> getString(R.string.synolsis_v42_title_keys)
+                    "save_data_manager" -> getString(R.string.synolsis_v42_saves)
+                    "search_location" -> getString(R.string.synolsis_v42_games_folder)
+                    else -> getString(R.string.synolsis_hub_data)
+                }
                 SECTION_CONTROLS -> getString(R.string.synolsis_hub_controls)
                 SECTION_ABOUT -> getString(R.string.synolsis_hub_about)
                 else -> getString(R.string.synolsis_hub_advanced)

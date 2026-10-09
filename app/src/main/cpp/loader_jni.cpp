@@ -395,6 +395,8 @@ Java_org_stratoemu_strato_SynolsisSettingsHubActivity_findInstalledQLauncherNca(
         size_t archiveCount{};
         bool programFound{};
         bool programKeyMissing{};
+        // Record one meaningful failure stage, without logging keys or paths.
+        const char *missingProgramComponent{};
 
         // Deterministic order if a firmware dump contains multiple revisions.
         std::sort(entries.begin(), entries.end(), [](const auto &a, const auto &b) {
@@ -428,6 +430,10 @@ Java_org_stratoemu_strato_SynolsisSettingsHubActivity_findInstalledQLauncherNca(
                     !program.exeFs->FileExists("main.npdm")) {
                     // Preserve a diagnosis in Android's emulator log without
                     // dumping user keys, paths or NCA contents.
+                    if (!program.exeFs) missingProgramComponent = "@qlauncher:exefs";
+                    else if (!program.exeFs->FileExists("rtld")) missingProgramComponent = "@qlauncher:rtld";
+                    else if (!program.exeFs->FileExists("main")) missingProgramComponent = "@qlauncher:main";
+                    else missingProgramComponent = "@qlauncher:npdm";
                     LOGW("QLauncher program found but ExeFS is incomplete: hasExeFs={} hasRtld={} hasMain={} hasNpdm={}",
                          static_cast<bool>(program.exeFs),
                          program.exeFs && program.exeFs->FileExists("rtld"),
@@ -463,7 +469,8 @@ Java_org_stratoemu_strato_SynolsisSettingsHubActivity_findInstalledQLauncherNca(
         // NCA is absent, damaged, or encrypted with unavailable keys.
         if (programKeyMissing)
             return env->NewStringUTF(MissingProgramKeys);
-        return env->NewStringUTF(programFound ? InvalidProgram :
+        return env->NewStringUTF(programFound ?
+            (missingProgramComponent ? missingProgramComponent : InvalidProgram) :
             (archiveCount && !readableHeaders ? UnreadableFirmware : MissingProgram));
     } catch (const std::exception &) {
         return env->NewStringUTF(MissingFirmware);
