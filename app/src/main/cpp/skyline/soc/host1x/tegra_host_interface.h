@@ -52,6 +52,10 @@ namespace skyline::soc::host1x {
             switch (method) {
                 case IncrementSyncpointMethodId: {
                     IncrementSyncpointMethod incrSyncpoint{.raw = argument};
+                    if (incrSyncpoint.index >= SyncpointCount) {
+                        LOGW("Invalid NVDEC/VIC THI syncpoint id {}", incrSyncpoint.index);
+                        break;
+                    }
 
                     switch (incrSyncpoint.condition) {
                         case IncrementSyncpointMethod::Condition::Immediate:
