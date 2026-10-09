@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="synolsis_qlauncher_title">QLauncher — experimental system menu</string>
+  <string name="synolsis_qlauncher_desc">Choose QLauncher Program NCA from your own firmware. Native title and ExeFS are checked before boot. The menu may fail if Horizon services are missing.</string>
+  <string name="synolsis_qlauncher_bad_nca">This is not a valid QLauncher Program NCA, or compatible keys are missing.</string>
+</resources>
