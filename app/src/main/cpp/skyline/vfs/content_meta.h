@@ -2,7 +2,12 @@
 // Copyright © 2026 Synolsis Emu contributors
 #pragma once
 
+#include <array>
+#include <algorithm>
 #include <cstddef>
+#include <set>
+#include <string>
+#include <vector>
 #include <cstdint>
 #include <limits>
 #include <optional>
@@ -100,5 +105,78 @@ namespace skyline::vfs::content_meta {
             .contentMetaCount = metaCount,
             .extendedHeaderSize = extSize
         };
+    }
+
+    // Per-entry data from nn::ncm::ContentInfo. Each referenced NCA is
+    // identified by its 128-bit content ID, not by an untrusted file label.
+    struct ContentRecord {
+        std::array<std::uint8_t, 32> sha256{};
+        std::array<std::uint8_t, 16> contentId{};
+        std::uint64_t size{}; // 48-bit serialized little-endian length
+        std::uint8_t type{};
+        std::uint8_t idOffset{};
+
+        std::string NcaFilename() const {
+            constexpr char hex[] = "0123456789abcdef";
+            std::string name;
+            name.reserve(36);
+            for (auto byte : contentId) {
+                name.push_back(hex[byte >> 4]);
+                name.push_back(hex[byte & 0xF]);
+            }
+            name += ".nca";
+            return name;
+        }
+    };
+
+    struct Manifest {
+        Summary summary;
+        std::vector<ContentRecord> contents;
+    };
+
+    // Reads each content table entry after Parse has verified the CNMT
+    // header and table bounds. Never scans outside the decrypted input.
+    // This is a manifest inspection, NOT installation, authenticity
+    // verification, BKTR emulation or AOC service registration.
+    inline std::optional<Manifest> ParseManifest(std::span<const std::uint8_t> bytes) {
+        const auto summary = Parse(bytes);
+        if (!summary || summary->contentCount > 2048)
+            return std::nullopt;
+
+        constexpr std::size_t HeaderSize{0x20};
+        constexpr std::size_t EntrySize{0x38};
+        const std::size_t tableStart = HeaderSize + summary->extendedHeaderSize;
+
+        Manifest manifest{.summary = *summary};
+        manifest.contents.reserve(summary->contentCount);
+        std::set<std::array<std::uint8_t, 16>> seenIds;
+        for (std::size_t i{}; i < summary->contentCount; ++i) {
+            const auto offset = tableStart + i * EntrySize;
+            // Parse already checked the entire table length, but defend
+            // against a future change to the header parser.
+            if (offset > bytes.size() || bytes.size() - offset < EntrySize)
+                return std::nullopt;
+
+            ContentRecord entry{};
+            std::copy_n(bytes.begin() + offset, entry.sha256.size(), entry.sha256.begin());
+            std::copy_n(bytes.begin() + offset + 0x20, entry.contentId.size(), entry.contentId.begin());
+            for (std::size_t b{}; b < 6; ++b)
+                entry.size |= std::uint64_t(bytes[offset + 0x30 + b]) << (8 * b);
+            entry.type = bytes[offset + 0x36];
+            entry.idOffset = bytes[offset + 0x37];
+
+            if (entry.size == 0 ||
+                std::all_of(entry.contentId.begin(), entry.contentId.end(),
+                            [](std::uint8_t b) { return b == 0; }) ||
+                !seenIds.insert(entry.contentId).second)
+                return std::nullopt;
+            manifest.contents.push_back(entry);
+        }
+
+        return manifest;
+    }
+
+    inline bool BelongsToApplication(const Manifest &manifest, std::uint64_t applicationId) {
+        return applicationId != 0 && manifest.summary.applicationId == applicationId;
     }
 }
