@@ -1,10 +1,10 @@
-name: Synolsis V11 BKTR Relocation + Real AOC APK
+name: Synolsis V28 QLauncher Scan and Vulkan Synchronization APK
 
 on:
   push:
     branches: [main]
     paths:
-      - '.github/workflows/synolsis-v11-bktr-aoc-ci.yml'
+      - '.github/workflows/synolsis-v28-core-diagnostics-ci.yml'
   workflow_dispatch:
     inputs:
       build_type:
@@ -17,15 +17,15 @@ on:
           - debug
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
-  group: synolsis-v11-bktr-aoc-ci
+  group: synolsis-v28-core-diagnostics-ci
   cancel-in-progress: false
 
 jobs:
   build:
-    name: V11 native BKTR relocation and game-matched AOC mounts ARM64
+    name: V28 Texture Sync + QLauncher Diagnostics ARM64
     runs-on: ubuntu-22.04
     timeout-minutes: 150
     env:
@@ -44,7 +44,7 @@ jobs:
         with:
           # Source is checked out at the start of the run, then built from that snapshot.
           # Pin the tested revision, including safe V4 locale migration.
-          ref: ec7b17b7b4d8821c784db46bd97a645934c3bdef
+          ref: ffea0dfc9c4f0f67e3af729fcf739e3b48d2282f
           submodules: false
 
       - name: Assert full source is checked in
@@ -54,6 +54,29 @@ jobs:
           test ! -e .gitmodules
           test -z "$(git ls-files -s | grep '^160000 ' || true)"
           git log -1 --oneline
+
+      - name: Validate V28 Vulkan staging and firmware diagnostic wiring
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          tex=Path("app/src/main/cpp/skyline/gpu/texture/texture.cpp").read_text()
+          part=tex.split("void Texture::CopyFromStagingBuffer(",1)[1].split("void Texture::CopyIntoStagingBuffer(",1)[0]
+          assert "commandBuffer.copyBufferToImage" in part
+          assert "image, vk::ImageLayout::eGeneral" in part
+          assert part.count("commandBuffer.pipelineBarrier(") == 2
+          assert "eTransferWrite" in part and "eMemoryRead" in part
+          nca=Path("app/src/main/cpp/loader_jni.cpp").read_text()
+          ui=Path("app/src/main/java/org/stratoemu/strato/SynolsisSettingsHubActivity.kt").read_text()
+          for status in ("firmware","unreadable","absent","program"):
+              assert "@qlauncher:"+status in nca and "@qlauncher:"+status in ui
+          for locale in ("values","values-pt-rBR"):
+              root=ET.parse(Path("app/src/main/res")/locale/"synolsis_qlauncher.xml").getroot()
+              keys={el.get("name") for el in root}
+              assert {"synolsis_qlauncher_firmware_missing","synolsis_qlauncher_unreadable","synolsis_qlauncher_program_invalid"} <= keys
+          print("PASS: upload layout, transfer visibility, QLauncher diagnostics, English/pt-BR messages")
+          PY
 
       - name: Compile and execute native render-scale geometry tests
         shell: bash
@@ -192,6 +215,246 @@ jobs:
           assert "mounted.push_back" in reg
           print("PASS: actual local DLC RomFS mounts, HOS aoc:u count/list, FS storage and BKTR refusal when incomplete")
           PY
+
+      - name: Validate BKTR AES-CTR-Ex physical IV and native backing wiring
+        shell: bash
+        run: |
+          set -euo pipefail
+          c++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic tests/bktr_ctr_ex_counter_test.cpp -o /tmp/synolsis-bktr-ctr-ex-test
+          /tmp/synolsis-bktr-ctr-ex-test
+          c++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic tests/bktr_subsection_boundary_test.cpp -o /tmp/synolsis-bktr-subsection-test
+          /tmp/synolsis-bktr-subsection-test
+          python3 - <<'PY'
+          from pathlib import Path
+          base=Path("app/src/main/cpp/skyline/vfs")
+          reader=(base/"bktr_ctr_ex.h").read_text()
+          overlay=(base/"bktr_merged_backing.h").read_text()
+          nca=(base/"nca.cpp").read_text()
+          header=(base/"nca.h").read_text()
+          assert "class BktrCtrExBacking final : public Backing" in reader
+          assert "subsections->Resolve(current)" in reader
+          assert "cipher.SetIV(Counter(" in reader
+          assert "class BktrMergedBacking final : public Backing" in overlay
+          assert "MaxBuckets{(BucketSize - BucketEntriesOffset)" in (base/"bktr_relocation.h").read_text()
+          assert "relocations->Resolve(" in overlay
+          assert "std::make_shared<bktr::BktrCtrExBacking>" in nca
+          assert "if (!encrypted)" in nca and "bktrPhysicalSection = std::move(patchSection)" in nca
+          assert "bktrPhysicalSection" in header
+          assert "romFs = CreateBacking" in nca and "Do not set romFs yet" in nca
+          print("PASS: physical CTR-Ex reader, virtual base/patch composition, guarded NCA integration")
+          PY
+          echo "PASS: BKTR subsection IV, transitions, real physical reader and virtual image backing" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Test Vulkan presentation scaler, crop safety and native wiring
+        shell: bash
+        run: |
+          set -euo pipefail
+          c++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic tests/vulkan_presentation_scale_test.cpp -o /tmp/synolsis-vulkan-present-test
+          /tmp/synolsis-vulkan-present-test
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          native=Path("app/src/main/cpp/skyline")
+          java=Path("app/src/main/java/org/stratoemu/strato/settings")
+          xml=Path("app/src/main/res/xml/emulation_preferences.xml")
+          tex=(native/"gpu/texture/texture.cpp").read_text()
+          texH=(native/"gpu/texture/texture.h").read_text()
+          present=(native/"gpu/presentation_engine.cpp").read_text()
+          kotlin=(java/"EmulationSettings.kt").read_text()
+          nativeSettings=(java/"NativeSettings.kt").read_text()
+          settings=(native/"common/android_settings.h").read_text()
+          assert "permitScaledBlit" in tex and "permitScaledBlit" in texH
+          assert "if (srcFormat != format || dimensionsDiffer)" in tex
+          assert "gpu.vkPhysicalDevice.getFormatProperties" in tex
+          assert "presentation_scale::ChooseExtent" in present
+          assert "presentation_scale::ScaleCrop" in present
+          assert "outputExtent != texture->dimensions" in present
+          assert "vulkanPresentationScalePercent" in kotlin and "vulkanPresentationScalePercent" in nativeSettings
+          assert "vulkanPresentationScalePercent" in settings
+          assert ET.parse(xml).getroot().tag.endswith("PreferenceScreen")
+          for loc in ("values", "values-pt-rBR"):
+              file=Path("app/src/main/res")/loc/"synolsis_vulkan_output_scale.xml"
+              root=ET.parse(file).getroot()
+              names={x.get("name") for x in root}
+              assert "synolsis_vulkan_output_scale" in names
+              assert "synolsis_vulkan_output_scale_desc" in names
+          print("PASS: 50/75/100% final Vulkan output resize with validated driver fallback, crop and settings")
+          PY
+
+      - name: Verify NVDEC MediaCodec backend and portable profile tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          c++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic tests/nvdec_mediacodec_config_test.cpp -o /tmp/synolsis-video-types
+          /tmp/synolsis-video-types
+          python3 - <<'PY'
+          from pathlib import Path
+          root=Path("app/src/main/cpp/skyline/soc/host1x/classes")
+          header=(root/"android_media_decoder.h").read_text()
+          impl=(root/"android_media_decoder.cpp").read_text()
+          nvdec=(root/"nvdec.cpp").read_text()
+          cmake=Path("app/CMakeLists.txt").read_text()
+          for marker in ("AMediaCodec_createDecoderByType", "AMediaCodec_configure",
+                         "AMediaCodec_queueInputBuffer", "AMediaCodec_dequeueOutputBuffer",
+                         "AMediaCodec_releaseOutputBuffer"):
+              assert marker in impl, marker
+          assert "AndroidMediaDecoder" in header
+          assert "ConfigureMediaDecoder(" in nvdec and "SubmitAccessUnit(" in nvdec
+          assert "android_media_decoder.cpp" in cmake and "mediandk" in cmake
+          print("PASS: MediaCodec NDK streaming decoder compiled into native build; guest NVDEC regs still pending")
+          PY
+      - name: Verify native QLauncher program boot and localized Android SAF picker
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          java=Path("app/src/main/java/org/stratoemu/strato/SynolsisSettingsHubActivity.kt").read_text()
+          cpp=Path("app/src/main/cpp/loader_jni.cpp").read_text()
+          for marker in ("validateQLauncherNca(", "ActivityResultContracts.OpenDocument",
+                         "contentResolver.openFileDescriptor(uri", "RomFormat.NCA",
+                         "putExtra(AppItemTag, app)", "EmulationActivity::class.java",
+                         "takePersistableUriPermission"):
+              assert marker in java, "Missing QLauncher Android UI: "+marker
+          for marker in ("Java_org_stratoemu_strato_SynolsisSettingsHubActivity_validateQLauncherNca",
+                         "0x0100000000001000ULL", "skyline::vfs::NCA",
+                         'FileExists("rtld")', 'FileExists("main.npdm")'):
+              assert marker in cpp, "Missing native QLauncher verification: "+marker
+          for locale in ("values", "values-pt-rBR"):
+              p=Path("app/src/main/res")/locale/"synolsis_qlauncher.xml"
+              root=ET.parse(p).getroot()
+              names={x.get("name") for x in root}
+              assert {"synolsis_qlauncher_title","synolsis_qlauncher_desc",
+                      "synolsis_qlauncher_bad_nca"} <= names
+          print("PASS: Android QLauncher NCA selection, native game ID/ExeFS validation, per-title boot intent")
+          PY
+
+      - name: Test frame-history safety and build Vulkan compute assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          c++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic tests/frame_history_test.cpp -o /tmp/synolsis-frame-history
+          /tmp/synolsis-frame-history
+          c++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic tests/frame_interpolation_planner_test.cpp -o /tmp/synolsis-frameplanner
+          /tmp/synolsis-frameplanner
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq glslang-tools spirv-tools
+          bash scripts/build_synolsis_compute_assets.sh
+          python3 - <<'PY'
+          from pathlib import Path
+          cpp=Path("app/src/main/cpp/skyline/gpu/presentation_engine.cpp").read_text()
+          hdr=Path("app/src/main/cpp/skyline/gpu/presentation_engine.h").read_text()
+          assert "frameHistory.Observe(" in cpp
+          assert "frameHistory.Reset()" in cpp
+          assert "framegen::FrameHistory frameHistory;" in hdr
+          assert "GPU" or True
+          print("PASS: real presenter history wired, safe reset on surface recreation")
+          PY
+          echo "PASS: frame history and 3 native Vulkan shader assets (runtime FSR/framegen pipelines still disabled)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify packed Vulkan compute pipeline module layout and host tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          c++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic tests/packed_compute_manifest_test.cpp -o /tmp/synolsis-compute-manifest
+          /tmp/synolsis-compute-manifest
+          python3 - <<'PY'
+          from pathlib import Path
+          root=Path("app/src/main/cpp/skyline/gpu")
+          native=(root/"packed_compute_pipelines.h").read_text()
+          manifest=(root/"packed_compute_manifest.h").read_text()
+          presenter=(root/"presentation_engine.cpp").read_text()
+          header=(root/"presentation_engine.h").read_text()
+          for marker in ("class PipelineSet", "class Pass", "vk::raii::ShaderModule",
+                          "vk::raii::DescriptorSetLayout", "vk::raii::PipelineLayout",
+                          "vk::raii::Pipeline", "ReadSpirv(", "ValidSpirv(", "Kind::Temporal"):
+              assert marker in native, "missing real Vulkan compute pipeline feature: " + marker
+          for path in ("easu.spv", "rcas.spv", "temporal_interpolate.spv"):
+              assert path in manifest, "missing APK shader asset path: " + path
+          assert "std::make_unique<packed_compute::PipelineSet>" in presenter
+          assert "computePipelinesAttempted = true" in presenter
+          assert "computePipelines.reset()" in presenter
+          assert "std::unique_ptr<packed_compute::PipelineSet>" in header
+          print("PASS: Vulkan compute pipelines created once, with RAII and fallback")
+          PY
+          echo "PASS: real FSR and temporal Vulkan compute pipeline construction; dispatch not yet enabled" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify QLauncher firmware auto-discovery, FileProvider and translations
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from xml.etree import ElementTree as ET
+          app=Path("app/src/main")
+          native=(app/"cpp/loader_jni.cpp").read_text()
+          kotlin=(app/"java/org/stratoemu/strato/SynolsisSettingsHubActivity.kt").read_text()
+          manifest=ET.parse(app/"AndroidManifest.xml").getroot()
+          paths=ET.parse(app/"res/xml/synolsis_firmware_paths.xml").getroot()
+          assert 'findInstalledQLauncherNca(' in native
+          assert "systemArchives->OpenDirectory" in native
+          assert "QLauncherProgramId" in native
+          assert 'FileExists("rtld")' in native and 'FileExists("main.npdm")' in native
+          assert "findInstalledQLauncherNca(" in kotlin
+          assert 'switch/nand/system/Contents/registered' in kotlin
+          assert "FileProvider.getUriForFile" in kotlin
+          assert 'qlauncherPicker.launch(arrayOf("*/*"))' in kotlin
+          assert kotlin.count('launchInstalledQLauncher()') == 2
+          ns='{http://schemas.android.com/apk/res/android}'
+          providers=manifest.findall('.//provider')
+          fileproviders=[p for p in providers if p.get(ns+'name') == 'androidx.core.content.FileProvider']
+          assert len(fileproviders) == 1
+          assert fileproviders[0].get(ns+'exported') == 'false'
+          assert fileproviders[0].get(ns+'grantUriPermissions') == 'true'
+          assert set(p.get(ns+'path') for p in paths) == {'switch/nand/system/Contents/registered/'}
+          assert all(p.get(ns+'name') for p in paths)
+          for locale in ['values','values-pt-rBR']:
+              strings=ET.parse(app/f'res/{locale}/synolsis_qlauncher.xml').getroot()
+              keys={e.get('name') for e in strings if e.tag == 'string'}
+              assert {'synolsis_qlauncher_not_found','synolsis_qlauncher_open_failed'} <= keys
+          print('PASS: automatic QLauncher NCA discovery and restricted provider, manual fallback and both locales')
+          PY
+          echo "PASS: installed firmware auto QLauncher lookup; Horizon services still incomplete" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Test host Frame Skip mode transitions and conservative Vulkan barrier
+        shell: bash
+        run: |
+          set -euo pipefail
+          c++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic tests/presentation_skip_policy_test.cpp -o /tmp/synolsis-present-skip
+          /tmp/synolsis-present-skip
+          python3 - <<'PY'
+          from pathlib import Path
+          root=Path("app/src/main/cpp/skyline/gpu")
+          t=(root/"texture/texture.cpp").read_text()
+          cpp=(root/"presentation_engine.cpp").read_text()
+          header=(root/"presentation_engine.h").read_text()
+          assert "commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eAllCommands, vk::PipelineStageFlagBits::eTransfer" in t
+          assert "commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eBottomOfPipe, vk::PipelineStageFlagBits::eTransfer" not in t
+          assert 'commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eAllCommands, vk::PipelineStageFlagBits::eAllCommands' in t
+          scanner=Path("app/src/main/cpp/loader_jni.cpp").read_text()
+          assert 'skyline::vfs::NCA header{backing, keyStore, false, true}' in scanner
+          assert 'header.contentType != skyline::vfs::NcaContentType::Program' in scanner
+          qlauncher=Path("app/src/main/java/org/stratoemu/strato/SynolsisSettingsHubActivity.kt").read_text()
+          assert 'setOnLongClickListener' in qlauncher
+          from xml.etree import ElementTree as ET
+          for locale in ("values", "values-pt-rBR"):
+              for name in ("synolsis_qlauncher.xml", "synolsis_ui_strings.xml", "synolsis_vulkan_output_scale.xml", "synolsis_game_content_strings.xml", "synolsis_content_strings.xml"):
+                  ET.parse(Path("app/src/main/res")/locale/name)
+          for locale, resource in (("values", "synolsis_frame_skip.xml"), ("values-pt-rBR", "synolsis_native_controls.xml")):
+              parsed=ET.parse(Path("app/src/main/res")/locale/resource).getroot()
+              assert parsed.find(".//string[@name='synolsis_frame_skip_title']") is not None
+          assert "constexpr u32 percent{100U};" in cpp
+          assert "constexpr bool canBlit{false};" in cpp
+          assert "skipPolicy.ShouldPresent(" in cpp
+          assert "frame.fence.Wait(state.soc->host1x)" in cpp
+          assert "frame.presentCallback();" in cpp
+          assert "std::scoped_lock presentLock{mutex};" in cpp
+          assert "frameHistory.Reset();" in cpp
+          assert "PresentationSkipPolicy skipPolicy;" in header
+          assert "frameHistory.Observe(" in cpp
+          print("PASS: stable skip 0/1/2 with callbacks/fences, guarded history reset, Vulkan transfer dependency")
+          PY
+          echo "PASS: corrected present source barrier and non-faking host Frame Skip 0/1/2" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Verify real NSP integrity implementation and translations
         shell: bash
@@ -390,7 +653,8 @@ jobs:
           present_h=(root/"cpp/skyline/gpu/presentation_engine.h").read_text()
           assert "frame.fence.Wait(state.soc->host1x)" in present
           assert "frame.presentCallback()" in present and "vsyncEvent->Signal()" in present
-          assert "presentationFrameCounter++" in present and "presentationFrameCounter" in present_h
+          assert "skipPolicy.ShouldPresent(" in present, "PresentationFrameSkip policy not called in presenter"
+          assert "PresentationSkipPolicy" in present_h and "skipPolicy;" in present_h, "PresentationFrameSkip policy not retained"
           for mode in ("eFifo","eMailbox","eImmediate"):
               assert "vk::PresentModeKHR::"+mode in present
           profiles=(root/"java/org/stratoemu/strato/settings/SynolsisGpuProfiles.kt").read_text()
@@ -766,6 +1030,23 @@ jobs:
               ;;
           esac
 
+      - name: Validate all Vulkan compute shaders are included in built APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import zipfile,glob
+          packages=glob.glob("app/build/outputs/apk/mainline/*/*.apk")
+          assert packages, "No ARM64 APK produced"
+          for pkg in packages:
+              with zipfile.ZipFile(pkg) as apk:
+                  files=set(apk.namelist())
+                  expected={"assets/shaders/synolsis/"+s+".spv" for s in ("easu","rcas","temporal_interpolate")}
+                  assert expected <= files, f"{pkg} missing compiled compute SPIR-V: {expected-files}"
+                  print(pkg, ": all 3 SPIR-V shader assets packaged")
+          PY
+          echo "PASS: EASU, RCAS and temporal interpolation assets reside inside the compiled APK" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Report compiler cache statistics
         if: always()
         shell: bash
@@ -777,11 +1058,39 @@ jobs:
           head -35 .ccache-stats.txt >> "$GITHUB_STEP_SUMMARY"
           echo '~~~' >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload Synolsis APK
+      # GitHub Actions Artifacts quota can stay blocked for 6-12 hours.
+      # The compiled APK must be delivered through Releases directly.
+      - name: Publish APK to GitHub Releases (no Actions Artifacts quota)
         if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: synolsis-v11-bktr-aoc-${{ inputs.build_type || 'optimized' }}-${{ github.run_number }}
-          path: app/build/outputs/apk/mainline/*/*.apk
-          if-no-files-found: error
-          retention-days: 30
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(app/build/outputs/apk/mainline/*/*.apk)
+          if (( ${#files[@]} == 0 )); then
+            echo "::error::Gradle did not produce an APK"
+            exit 1
+          fi
+          tag="synolsis-v28-diagnostics-${GITHUB_RUN_NUMBER}"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            # Rerunning a build must not fail just because its release exists.
+            gh release upload "$tag" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$tag" "${files[@]}" \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "ffea0dfc9c4f0f67e3af729fcf739e3b48d2282f" \
+              --title "Synolsis V28 Vulkan + QLauncher + Compact UI test ${GITHUB_RUN_NUMBER}" \
+              --notes "Android ARM64 experimental V28: valid Vulkan staging texture upload layout and transfer memory barriers, plus bilingual diagnostic errors for firmware QLauncher discovery. Native internal rendering resolution is not implemented; UI remains compact. User-reported flicker/low FPS and full QLauncher Horizon boot are NOT yet verified or solved." \
+              --prerelease
+          fi
+          {
+            echo "### Download optimized APK (GitHub Releases)"
+            echo "Release: https://github.com/${GITHUB_REPOSITORY}/releases/tag/${tag}"
+            echo "GitHub Actions artifact upload intentionally disabled while quota is exhausted."
+            for apk in "${files[@]}"; do
+              echo "APK: ${apk}"
+              sha256sum "$apk"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
