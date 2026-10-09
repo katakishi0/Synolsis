@@ -163,15 +163,15 @@ class SynolsisSettingsHubActivity : AppCompatActivity() {
         }
         val column = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(8), dp(8), dp(8), dp(20))
+            setPadding(dp(6), dp(6), dp(6), dp(16))
         }
         scroll.addView(column)
         setContentView(scroll)
 
         val header = TextView(this).apply {
             text = getString(R.string.synolsis_hub_title)
-            textSize = 24f
-            setPadding(dp(16), dp(12), dp(16), dp(12))
+            textSize = 22f
+            setPadding(dp(10), dp(8), dp(10), dp(8))
             setOnClickListener { finish() }
             isClickable = true
             contentDescription = getString(R.string.synolsis_hub_back)
@@ -180,7 +180,7 @@ class SynolsisSettingsHubActivity : AppCompatActivity() {
 
         fun addCard(titleRes : Int, descRes : Int, iconRes : Int, click : () -> Unit): MaterialCardView {
             val card = MaterialCardView(this).apply {
-                radius = dp(12).toFloat()
+                radius = dp(10).toFloat()
                 cardElevation = dp(1).toFloat()
                 isClickable = true
                 isFocusable = true
@@ -188,7 +188,7 @@ class SynolsisSettingsHubActivity : AppCompatActivity() {
                 layoutParams = LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.WRAP_CONTENT
-                ).apply { setMargins(dp(8), dp(4), dp(8), dp(4)) }
+                ).apply { setMargins(dp(6), dp(3), dp(6), dp(3)) }
             }
             val inner = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
@@ -198,8 +198,8 @@ class SynolsisSettingsHubActivity : AppCompatActivity() {
             val icon = ImageView(this).apply {
                 setImageResource(iconRes)
                 imageTintList = ContextCompat.getColorStateList(this@SynolsisSettingsHubActivity, android.R.color.white)
-                layoutParams = LinearLayout.LayoutParams(dp(28), dp(28)).apply {
-                    marginEnd = dp(12)
+                layoutParams = LinearLayout.LayoutParams(dp(24), dp(24)).apply {
+                    marginEnd = dp(10)
                 }
                 contentDescription = null // The whole card has title+description.
             }
@@ -211,12 +211,12 @@ class SynolsisSettingsHubActivity : AppCompatActivity() {
             }
             labels.addView(TextView(this).apply {
                 text = getString(titleRes)
-                textSize = 16f
+                textSize = 14f
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
             })
             labels.addView(TextView(this).apply {
                 text = getString(descRes)
-                textSize = 12f
+                textSize = 11f
                 setPadding(0, dp(2), 0, 0)
             })
             inner.addView(labels, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
