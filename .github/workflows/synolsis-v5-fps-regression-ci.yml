@@ -30,8 +30,10 @@ jobs:
     timeout-minutes: 150
     env:
       CCACHE_DIR: ${{ github.workspace }}/.ccache
-      CCACHE_MAXSIZE: 1G
+      CCACHE_MAXSIZE: 2G
       CCACHE_COMPRESS: 'true'
+      CCACHE_COMPRESSLEVEL: '6'
+      CCACHE_COMPILERCHECK: content
       CCACHE_BASEDIR: ${{ github.workspace }}
       CCACHE_NOHASHDIR: 'true'
       CMAKE_C_COMPILER_LAUNCHER: ccache
@@ -523,16 +525,22 @@ jobs:
           install_checked "cmake;3.22.1" "$SDK_ROOT/cmake/3.22.1" "bin/cmake"
           echo "Android SDK/NDK validated after installation"
 
-      - name: Restore compiler cache
+      - name: Restore proven 2GiB native compiler cache
         uses: actions/cache@v4
         with:
           path: .ccache
-          key: synolsis-ui-ccache-v1-${{ runner.os }}-${{ github.run_id }}
+          # Keep the unique save key but share a compatible warm-cache prefix
+          # with the verified 93.22% hit-rate V5 run (#37865518302).
+          key: synolsis-v5-2gcache-ndk26-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
-            synolsis-ui-ccache-v1-${{ runner.os }}-
-            synolsis-ccache-v1-${{ runner.os }}-
-            adreno-experimental-ccache-v1-${{ runner.os }}-
-            strato-ccache-v1-${{ runner.os }}-
+            synolsis-v5-2gcache-ndk26-${{ runner.os }}-
+
+      - name: Reset CCache statistics before compilation
+        shell: bash
+        run: |
+          ccache --zero-stats
+          echo "## V5 rollback APK with warm native cache" >> "$GITHUB_STEP_SUMMARY"
+          echo "Source code pinned to the same rollback; CCache is build-only." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Compile Android Kotlin frontend before expensive native build
         shell: bash
@@ -569,9 +577,16 @@ jobs:
               ;;
           esac
 
-      - name: Report compiler cache stats
+      - name: Report compiler cache statistics
         if: always()
-        run: command -v ccache >/dev/null && ccache --show-stats || true
+        shell: bash
+        run: |
+          command -v ccache >/dev/null || exit 0
+          ccache --show-stats | tee .ccache-stats.txt
+          echo '### Native cache reuse' >> "$GITHUB_STEP_SUMMARY"
+          echo '~~~' >> "$GITHUB_STEP_SUMMARY"
+          head -35 .ccache-stats.txt >> "$GITHUB_STEP_SUMMARY"
+          echo '~~~' >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload Synolsis APK
         if: success()
