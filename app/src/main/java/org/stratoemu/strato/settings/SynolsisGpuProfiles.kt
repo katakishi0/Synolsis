@@ -21,6 +21,28 @@ object SynolsisGpuProfiles {
     const val EXPERIMENTAL = "experimental"
     const val FPS_HACK = "fps_hack"
 
+    /**
+     * Choose an existing safe native profile before the game starts.
+     * Prefer usable RAM over nominal device class to avoid fixed 6 GB rules.
+     * A null result means Android did not expose reliable memory information.
+     * No profile can release in-flight guest Vulkan allocations mid-game.
+     */
+    fun chooseAutomaticProfile(totalBytes: Long, availableBytes: Long, lowMemory: Boolean): String? {
+        if (totalBytes <= 0 || availableBytes < 0) return null
+        val gib = 1024L * 1024L * 1024L
+        return when {
+            lowMemory || totalBytes <= 6L * gib || availableBytes < totalBytes / 5L -> LOW_END
+            totalBytes <= 8L * gib || availableBytes < totalBytes / 3L -> CONSERVATIVE
+            else -> BALANCED
+        }
+    }
+
+    fun applyAutomatic(settings: EmulationSettings, totalBytes: Long, availableBytes: Long, lowMemory: Boolean): String? {
+        if (!settings.synolsisAutoLowEnd) return null
+        val choice = chooseAutomaticProfile(totalBytes, availableBytes, lowMemory) ?: return null
+        return choice.takeIf { apply(settings, it) }
+    }
+
     fun apply(settings : EmulationSettings, profile : String) : Boolean {
         when (profile) {
             LOW_END -> {
