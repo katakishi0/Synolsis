@@ -113,5 +113,29 @@ namespace skyline::vfs::bktr {
                 return std::nullopt;
             return Region{entry->fromPatch, physical, length};
         }
+        // Reconstruct a virtual RomFS interval from *already decrypted*
+        // base and patch byte images. This is not the NCA on-disk CTR-Ex
+        // path; callers must decrypt each patch subsection correctly.
+        bool ReadDecrypted(std::span<const std::uint8_t> base,
+                           std::span<const std::uint8_t> patch,
+                           std::span<std::uint8_t> output,
+                           std::uint64_t virtualOffset) const {
+            if (virtualOffset > virtualSize ||
+                output.size() > virtualSize - virtualOffset)
+                return false;
+            std::size_t written{};
+            while (written < output.size()) {
+                auto segment{Resolve(virtualOffset + written, base.size(), patch.size())};
+                if (!segment)
+                    return false;
+                const auto count{static_cast<std::size_t>(
+                    std::min<std::uint64_t>(segment->size, output.size() - written))};
+                const auto source{segment->fromPatch ? patch : base};
+                std::copy_n(source.begin() + static_cast<std::size_t>(segment->sourceOffset),
+                            count, output.begin() + written);
+                written += count;
+            }
+            return true;
+        }
     };
 }
