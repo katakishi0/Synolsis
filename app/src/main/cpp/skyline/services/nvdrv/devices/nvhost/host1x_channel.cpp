@@ -88,9 +88,9 @@ namespace skyline::service::nvdrv::device::nvhost {
             return PosixResult::InvalidArgument;
 
         u32 id{core::SyncpointManager::ChannelSyncpoints[static_cast<u32>(channelType)]};
-        if (!id) {
-            // A channel without an assigned syncpoint is a guest-visible
-            // invalid request, not a reason to terminate the emulator.
+        if (!id || id >= soc::host1x::SyncpointCount) {
+            // Never hand an invalid syncpoint back to the guest; downstream
+            // host1x code indexes a fixed-size array with this ID.
             return PosixResult::InvalidArgument;
         }
 
