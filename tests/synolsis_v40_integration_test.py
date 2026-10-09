@@ -18,7 +18,7 @@ def array(res, key):
 # Feature labels must not imply a particular physical RAM amount.
 presets = array("values/synolsis_gpu_presets.xml", "synolsis_gpu_preset_entries")
 values = array("values/synolsis_gpu_presets.xml", "synolsis_gpu_preset_values")
-pt = array("values-pt-rBR/synolsis_gpu_presets.xml", "synolsis_gpu_preset_entries")
+pt = array("values-pt-rBR/synolsis_arrays.xml", "synolsis_gpu_preset_entries")
 assert len(presets) == len(values) == len(pt) == 5
 assert values[0] == "low_end"
 assert all("6 GB" not in text and "6GB" not in text for text in presets + pt)
