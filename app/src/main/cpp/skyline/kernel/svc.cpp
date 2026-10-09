@@ -325,7 +325,16 @@ namespace skyline::kernel::svc {
         } else {
             switch (in) {
                 case yieldWithCoreMigration: {
-                    LOGD("Waking any appropriate parked threads and yielding");
+                    // Busy guest yield loops can invoke this SVC tens of
+                    // thousands of times per second. Logging each iteration
+                    // produced 169k log entries in a single black-screen
+                    // report, harming CPU throughput and masking real errors.
+                    // Keep scheduling semantics unchanged; sample only at
+                    // powers of two to diagnose runaway guest threads.
+                    static std::atomic<u64> yieldSamples{};
+                    const auto sample{yieldSamples.fetch_add(1, std::memory_order_relaxed) + 1};
+                    if (sample <= 4 || (sample & (sample - 1)) == 0)
+                        LOGD("YieldWithCoreMigration count={} (rate-limited)", sample);
                     TRACE_EVENT("kernel", "YieldWithCoreMigration");
                     state.scheduler->WakeParkedThread();
                     state.scheduler->Rotate();
