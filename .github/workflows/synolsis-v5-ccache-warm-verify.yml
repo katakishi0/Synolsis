@@ -544,10 +544,11 @@ jobs:
           ccache --zero-stats
           echo "## V5 CCache experiment" >> "$GITHUB_STEP_SUMMARY"
           echo "Comparison: identical pinned V5 sources, compiler_check=content and 2 GiB C++ cache." >> "$GITHUB_STEP_SUMMARY"
-          echo "Cache restore key: ${{ steps.native_cache.outputs.cache-matched-key }}" >> "$GITHUB_STEP_SUMMARY"
-          if [[ "${{ steps.native_cache.outputs.cache-matched-key }}" != synolsis-v5-2gcache-ndk26-* ]]; then
-            echo "::warning::The previous 2GiB CCache experiment was not restored; this run is not a valid warm-cache benchmark."
-          fi
+          # The action's matched-key expression was blank on a successful
+          # restore in run #37865518302. Do not incorrectly flag that as
+          # no cache; the authoritative proof is CCache's own hit statistics
+          # and the restore-key recorded by actions/cache in its step logs.
+          echo "Cache restoration: see actions/cache step logs; actual reuse is measured below." >> "$GITHUB_STEP_SUMMARY"
           ccache --show-config | grep -E 'cache_dir|base_dir|max_size|compiler_check|compression' || true
 
       - name: Compile Android Kotlin frontend before expensive native build
