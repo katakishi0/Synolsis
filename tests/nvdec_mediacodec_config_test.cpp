@@ -17,5 +17,5 @@ static_assert(!ValidVideoExtent(4096,4096));
 int main() {
     for(unsigned w=16;w<4097;w+=127)
         for(unsigned h=16;h<4097;h+=127)
-            assert(ValidVideoExtent(w,h) == (unsigned long long(w)*h<=4096ULL*2160ULL));
+            assert(ValidVideoExtent(w,h) == (static_cast<unsigned long long>(w)*h<=4096ULL*2160ULL));
 }
