@@ -375,6 +375,10 @@ Java_org_stratoemu_strato_SynolsisSettingsHubActivity_findInstalledQLauncherNca(
         return nullptr;
 
     constexpr skyline::u64 QLauncherProgramId{0x0100000000001000ULL};
+    constexpr const char *MissingFirmware{"@qlauncher:firmware"};
+    constexpr const char *UnreadableFirmware{"@qlauncher:unreadable"};
+    constexpr const char *MissingProgram{"@qlauncher:absent"};
+    constexpr const char *InvalidProgram{"@qlauncher:program"};
     try {
         auto systemArchives{std::make_shared<skyline::vfs::OsFileSystem>(
             skyline::JniString(env, firmwarePath))};
@@ -382,10 +386,13 @@ Java_org_stratoemu_strato_SynolsisSettingsHubActivity_findInstalledQLauncherNca(
             skyline::JniString(env, keysPath))};
         auto directory{systemArchives->OpenDirectory("")};
         if (!directory)
-            return nullptr;
+            return env->NewStringUTF(MissingFirmware);
         auto entries{directory->Read()};
-        if (entries.size() > 8192)
-            return nullptr;
+        if (entries.empty() || entries.size() > 8192)
+            return env->NewStringUTF(MissingFirmware);
+        size_t readableHeaders{};
+        size_t archiveCount{};
+        bool programFound{};
 
         // Deterministic order if a firmware dump contains multiple revisions.
         std::sort(entries.begin(), entries.end(), [](const auto &a, const auto &b) {
@@ -399,15 +406,18 @@ Java_org_stratoemu_strato_SynolsisSettingsHubActivity_findInstalledQLauncherNca(
                 entry.name.find('\\') != std::string::npos ||
                 entry.name == "." || entry.name == "..")
                 continue;
+            ++archiveCount;
             try {
                 auto backing{systemArchives->OpenFile(entry.name)};
                 // Firmware 22/23 dumps may contain many system NCAs with
                 // encryption keys we cannot decode. Inspect the NCA header
                 // first: only the matching Program needs ExeFS decryption.
                 skyline::vfs::NCA header{backing, keyStore, false, true};
+                ++readableHeaders;
                 if (header.header.programId != QLauncherProgramId ||
                     header.contentType != skyline::vfs::NcaContentType::Program)
                     continue;
+                programFound = true;
                 skyline::vfs::NCA program{backing, keyStore};
                 if (!program.exeFs || !program.exeFs->FileExists("rtld") ||
                     !program.exeFs->FileExists("main") ||
@@ -419,8 +429,12 @@ Java_org_stratoemu_strato_SynolsisSettingsHubActivity_findInstalledQLauncherNca(
                 // not prevent checking the other firmware NCAs.
             }
         }
+        // Distinguish a missing HOME Menu title from missing keys or an
+        // unreadable matching NCA. An installed firmware version alone does
+        // not prove that the QLauncher Program NCA was present in that ZIP.
+        return env->NewStringUTF(programFound ? InvalidProgram :
+            (archiveCount && !readableHeaders ? UnreadableFirmware : MissingProgram));
     } catch (const std::exception &) {
-        // Firmware not imported or cannot be opened.
+        return env->NewStringUTF(MissingFirmware);
     }
-    return nullptr;
 }
