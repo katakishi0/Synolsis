@@ -14,6 +14,7 @@ namespace skyline::soc::host1x {
         AMediaCodec_delete(codec);
         codec = nullptr;
         width = height = colorFormat = rowStride = sliceHeight = 0;
+        cropLeft = cropTop = cropRight = cropBottom = 0;
     }
 
     AndroidMediaDecoder::~AndroidMediaDecoder() {
@@ -55,6 +56,9 @@ namespace skyline::soc::host1x {
             if (configured == AMEDIA_OK && AMediaCodec_start(codec) == AMEDIA_OK) {
                 width = static_cast<std::int32_t>(w);
                 height = static_cast<std::int32_t>(h);
+                cropLeft = cropTop = 0;
+                cropRight = width - 1;
+                cropBottom = height - 1;
                 LOGI("NVDEC Android decoder configured: {}x{} requestedNV12={}",
                      width, height, attempt == 0);
                 return true;
@@ -123,8 +127,27 @@ namespace skyline::soc::host1x {
                 // until a device exposes a different documented layout.
                 if (rowStride <= 0) rowStride = width;
                 if (sliceHeight <= 0) sliceHeight = height;
-                LOGI("NVDEC Android decoded output format: {}x{} color=0x{:X} stride={} sliceHeight={}",
-                     width, height, colorFormat, rowStride, sliceHeight);
+                // Android reports a *visible* crop inclusive of right/bottom
+                // while the byte buffer may retain padded stride/slice rows.
+                // Only accept a fully specified crop within coded dimensions.
+                std::int32_t left{}, top{}, right{}, bottom{};
+                const bool hasCrop =
+                    AMediaFormat_getInt32(format, AMEDIAFORMAT_KEY_CROP_LEFT, &left) &&
+                    AMediaFormat_getInt32(format, AMEDIAFORMAT_KEY_CROP_TOP, &top) &&
+                    AMediaFormat_getInt32(format, AMEDIAFORMAT_KEY_CROP_RIGHT, &right) &&
+                    AMediaFormat_getInt32(format, AMEDIAFORMAT_KEY_CROP_BOTTOM, &bottom);
+                if (hasCrop && left >= 0 && top >= 0 && right >= left &&
+                    bottom >= top && right < width && bottom < height) {
+                    cropLeft = left; cropTop = top;
+                    cropRight = right; cropBottom = bottom;
+                } else {
+                    cropLeft = cropTop = 0;
+                    cropRight = width - 1;
+                    cropBottom = height - 1;
+                }
+                LOGI("NVDEC Android decoded output format: {}x{} color=0x{:X} stride={} sliceHeight={} crop=({},{})-({},{})",
+                     width, height, colorFormat, rowStride, sliceHeight,
+                     cropLeft, cropTop, cropRight, cropBottom);
                 AMediaFormat_delete(format);
                 if (width < 0 || height < 0 ||
                     !ValidVideoExtent(static_cast<std::uint32_t>(width),
@@ -151,11 +174,17 @@ namespace skyline::soc::host1x {
         if (valid) {
             frame.data.assign(buffer + info.offset, buffer + info.offset + info.size);
             frame.ptsUs = info.presentationTimeUs;
-            frame.width = width;
-            frame.height = height;
+            frame.width = cropRight - cropLeft + 1;
+            frame.height = cropBottom - cropTop + 1;
+            frame.cropLeft = cropLeft;
+            frame.cropTop = cropTop;
             frame.colorFormat = colorFormat;
             frame.rowStride = rowStride;
             frame.sliceHeight = sliceHeight;
+            // Unknown/odd 4:2:0 crop origins cannot be safely sampled as
+            // chroma pairs by VIC, so do not hand those frames to the guest.
+            valid = frame.width > 0 && frame.height > 0 &&
+                    (cropLeft & 1) == 0 && (cropTop & 1) == 0;
         }
         AMediaCodec_releaseOutputBuffer(codec, static_cast<size_t>(index), false);
         return valid;
