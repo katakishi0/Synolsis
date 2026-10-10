@@ -1,0 +1,38 @@
+name: Synolsis V44 Host1x Register Research Tests
+on:
+  push:
+    branches:
+      - feature/synolsis-v44-nvdec-render-target-research
+    paths:
+      - 'app/src/main/cpp/skyline/soc/host1x/classes/nvdec*'
+      - 'tests/synolsis_nvdec_register_state_test.cpp'
+      - '.github/workflows/synolsis-v44-nvdec-register-tests.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  register-state-host-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Check out V44 research branch
+        uses: actions/checkout@v4
+      - name: Compile and execute bounds-checked NVDEC register test
+        shell: bash
+        run: |
+          set -euo pipefail
+          c++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic tests/synolsis_nvdec_register_state_test.cpp -o /tmp/synolsis-nvdec-register-state
+          /tmp/synolsis-nvdec-register-state
+      - name: Ensure no fake video decoding or syncpoint completion is advertised
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          nvdec=Path('app/src/main/cpp/skyline/soc/host1x/classes/nvdec.cpp').read_text()
+          for token in ('registerState.Write(method, argument)', 'GuestBitstreamAddress()', 'NVDEC execute requested'):
+              assert token in nvdec or token in Path('app/src/main/cpp/skyline/soc/host1x/classes/nvdec_register_state.h').read_text()
+          assert 'mediaCodecBackend.QueueAccessUnit(' in nvdec
+          assert 'mediaCodecBackend.QueueAccessUnit(' not in nvdec.split('void NvDecClass::CallMethod',1)[1].split('bool NvDecClass::Configure',1)[0]
+          print('PASS: register parser present; guest memory decode remains explicitly unimplemented')
+          PY
