@@ -13,4 +13,6 @@
   <string name="synolsis_qlauncher_rtld_missing">QLauncher não tem rtld. Agora tentamos iniciar pelo main.nso de forma experimental; serviços HOME ainda podem falhar.</string>
   <string name="synolsis_qlauncher_main_missing">ExeFS do QLauncher montado, mas falta main. Confira o log e a origem do firmware.</string>
   <string name="synolsis_qlauncher_npdm_missing">ExeFS do QLauncher montado, mas falta main.npdm. Confira o log e a origem do firmware.</string>
+  <string name="synolsis_qlauncher_provider_failed">QLauncher: não foi possível compartilhar o arquivo do firmware com o emulador. Confira o FileProvider no log.</string>
+  <string name="synolsis_qlauncher_activity_failed">QLauncher: o Android não conseguiu abrir a tela de emulação. Consulte a exceção de inicialização no log.</string>
 </resources>
