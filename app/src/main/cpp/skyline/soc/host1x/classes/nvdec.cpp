@@ -103,10 +103,12 @@ namespace skyline::soc::host1x {
             // Drain output to keep MediaCodec progressing while the VIC
             // consumer is not connected. Deliberately do NOT report video
             // as presented to the guest or signal fake completion.
-            if (mediaCodecBackend.Drain(frame) &&
-                (decodedAccessUnits <= 4 || (decodedAccessUnits % 120) == 0))
-                LOGI("NVDEC produced Android frame: {}x{} format={} bytes={} (VIC output pending)",
-                     frame.width, frame.height, frame.colorFormat, frame.data.size());
+            if (mediaCodecBackend.Drain(frame)) {
+                if (decodedAccessUnits <= 4 || (decodedAccessUnits % 120) == 0)
+                    LOGI("NVDEC decoded Android frame: {}x{} format={} bytes={} (waiting for VIC)",
+                         frame.width, frame.height, frame.colorFormat, frame.data.size());
+                readyFrame = std::move(frame); // bounded single-frame handoff
+            }
         } catch (const std::exception &e) {
             reject("guest-memory-read-failed");
             LOGW("NVDEC guest stream reader rejected command: {}", e.what());
@@ -144,6 +146,11 @@ namespace skyline::soc::host1x {
     }
 
     bool NvDecClass::TryGetDecodedFrame(AndroidMediaDecoder::Frame &frame) {
+        if (readyFrame) {
+            frame = std::move(*readyFrame);
+            readyFrame.reset();
+            return true;
+        }
         return mediaCodecBackend.Drain(frame);
     }
 }
