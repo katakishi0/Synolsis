@@ -29,45 +29,77 @@ namespace skyline::soc::host1x {
         StopLocked();
     }
 
-    bool AndroidMediaDecoder::Start(VideoCodec video, std::uint32_t w, std::uint32_t h) {
+    bool AndroidMediaDecoder::Start(VideoCodec video, std::uint32_t w, std::uint32_t h,
+                                    DecoderMode mode) {
         std::scoped_lock guard{mutex};
         StopLocked();
         const auto mime{AndroidMime(video)};
         if (mime.empty() || !ValidVideoExtent(w, h))
             return false;
-        // Guest VIC currently supports only explicit planar (0x13) or
-        // semi-planar (0x15) CPU output. Prefer the latter when the Android
-        // decoder supports it, then retry without a forced color format.
-        // Never pretend COLOR_FormatYUV420Flexible (0x7F420888) has a known
-        // plane/pixel stride: that still requires image-plane metadata.
-        for (int attempt = 0; attempt < 2; ++attempt) {
-            codec = AMediaCodec_createDecoderByType(mime.data());
-            if (!codec)
-                return false;
-            AMediaFormat *format{AMediaFormat_new()};
-            if (!format) {
-                StopLocked();
-                return false;
-            }
-            AMediaFormat_setString(format, AMEDIAFORMAT_KEY_MIME, mime.data());
-            AMediaFormat_setInt32(format, AMEDIAFORMAT_KEY_WIDTH, static_cast<std::int32_t>(w));
-            AMediaFormat_setInt32(format, AMEDIAFORMAT_KEY_HEIGHT, static_cast<std::int32_t>(h));
-            if (attempt == 0)
-                AMediaFormat_setInt32(format, AMEDIAFORMAT_KEY_COLOR_FORMAT, 0x15);
-            const auto configured{AMediaCodec_configure(codec, format, nullptr, nullptr, 0)};
-            AMediaFormat_delete(format);
-            if (configured == AMEDIA_OK && AMediaCodec_start(codec) == AMEDIA_OK) {
-                width = static_cast<std::int32_t>(w);
-                height = static_cast<std::int32_t>(h);
-                cropLeft = cropTop = 0;
-                cropRight = width - 1;
-                cropBottom = height - 1;
-                LOGI("NVDEC Android decoder configured: {}x{} requestedNV12={}",
-                     width, height, attempt == 0);
-                return true;
-            }
-            StopLocked();
+
+        // Android mediacodec names are optional device-specific services.
+        // Auto: Android chooses the decoder.
+        // HardwarePreferred: first try known vendor decoders, then system.
+        // SoftwareAndroid: explicit Android software AVC only; no silent
+        // fallback that misleadingly uses a hardware decoder.
+        // Hybrid: system chosen decoder followed by software if configure
+        // or start fails. This is not mid-frame switching.
+        struct Candidate { const char *name; bool system; };
+        std::vector<Candidate> candidates;
+        const bool h264{video == VideoCodec::H264};
+        if (mode == DecoderMode::HardwarePreferred && h264) {
+            for (const char *name : {
+                "c2.qti.avc.decoder", "c2.qcom.avc.decoder",
+                "OMX.qcom.video.decoder.avc", "c2.mtk.avc.decoder",
+                "OMX.MTK.VIDEO.DECODER.AVC", "c2.exynos.avc.decoder",
+                "OMX.Exynos.AVC.Decoder"
+            }) candidates.push_back({name, false});
         }
+        if (mode != DecoderMode::SoftwareAndroid)
+            candidates.push_back({"system-auto", true});
+        if (h264 && (mode == DecoderMode::SoftwareAndroid || mode == DecoderMode::Hybrid)) {
+            candidates.push_back({"c2.android.avc.decoder", false});
+            candidates.push_back({"OMX.google.h264.decoder", false});
+        }
+        if (candidates.empty()) {
+            LOGW("NVDEC selected software codec mode is unavailable for this video format");
+            return false;
+        }
+
+        for (const auto &candidate : candidates) {
+            for (int attempt = 0; attempt < 2; ++attempt) {
+                codec = candidate.system
+                    ? AMediaCodec_createDecoderByType(mime.data())
+                    : AMediaCodec_createCodecByName(candidate.name);
+                if (!codec) break;
+                AMediaFormat *format{AMediaFormat_new()};
+                if (!format) {
+                    StopLocked();
+                    return false;
+                }
+                AMediaFormat_setString(format, AMEDIAFORMAT_KEY_MIME, mime.data());
+                AMediaFormat_setInt32(format, AMEDIAFORMAT_KEY_WIDTH, static_cast<std::int32_t>(w));
+                AMediaFormat_setInt32(format, AMEDIAFORMAT_KEY_HEIGHT, static_cast<std::int32_t>(h));
+                if (attempt == 0)
+                    AMediaFormat_setInt32(format, AMEDIAFORMAT_KEY_COLOR_FORMAT, 0x15);
+                const auto configured{AMediaCodec_configure(codec, format, nullptr, nullptr, 0)};
+                AMediaFormat_delete(format);
+                if (configured == AMEDIA_OK && AMediaCodec_start(codec) == AMEDIA_OK) {
+                    width = static_cast<std::int32_t>(w);
+                    height = static_cast<std::int32_t>(h);
+                    cropLeft = cropTop = 0;
+                    cropRight = width - 1;
+                    cropBottom = height - 1;
+                    LOGI("Synolsis NVDEC selected Android codec={} mode={} output={}x{} requestNV12={}",
+                         candidate.name, static_cast<std::uint32_t>(mode),
+                         width, height, attempt == 0);
+                    return true;
+                }
+                StopLocked();
+            }
+        }
+        LOGW("Synolsis NVDEC no Android MediaCodec decoder accepted mode={} {}x{}",
+             static_cast<std::uint32_t>(mode), w, h);
         return false;
     }
 
