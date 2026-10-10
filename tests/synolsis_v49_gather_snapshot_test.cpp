@@ -33,4 +33,12 @@ int main() {
     assert(snapshot.Capture(accepted));
     assert(snapshot.Buffers()[0].size()==MaximumWords);
     assert(snapshot.Buffers()[0][0]==0xFACE);
+    std::array<std::uint32_t,1> extra{1};
+    const std::array<std::span<const std::uint32_t>,2> totalTooLarge{maximum,extra};
+    assert(!snapshot.Capture(totalTooLarge));
+    assert(snapshot.Buffers().size()==1);
+    assert(snapshot.Buffers()[0][0]==0xFACE);
+    const std::array<std::span<const std::uint32_t>,1> empty{std::span<const std::uint32_t>{}};
+    assert(snapshot.Capture(empty));
+    assert(snapshot.Buffers().size()==1 && snapshot.Buffers()[0].empty());
 }
