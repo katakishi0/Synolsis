@@ -61,6 +61,20 @@ class GlobalSettingsFragment : PreferenceFragmentCompat() {
                     if (item.key != categoryToKeep)
                         preferenceScreen.removePreference(item)
                 }
+                // The Saves entry must open only its own import/export preference.
+                // Firmware remains the single entry for firmware, prod.keys and title.keys.
+                val focused = requireActivity().intent
+                    .getStringExtra("synolsis_target_preference")
+                    ?.takeIf { section == SettingsActivity.SECTION_CONTENT && it == "save_data_manager" }
+                if (focused != null) {
+                    val category = findPreference<PreferenceCategory>("category_content")
+                    if (category != null) {
+                        for (index in category.preferenceCount - 1 downTo 0) {
+                            if (category.getPreference(index).key != focused)
+                                category.removePreference(category.getPreference(index))
+                        }
+                    }
+                }
             }
             SettingsActivity.SECTION_CONTROLS ->
                 addPreferencesFromResource(R.xml.input_preferences)
