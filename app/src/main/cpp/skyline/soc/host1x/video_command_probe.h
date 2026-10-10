@@ -62,12 +62,16 @@ namespace skyline::soc::host1x::video_probe {
             }
         }
 
-      public:
+      private:
+        // Syntax parsing is a separate pass from device dispatch. A truncated
+        // packet must never dispatch its valid prefix to NVDEC or VIC.
+        // This parser runs once in a private copy (validation), then in the
+        // real instance only after the entire packet is known well-formed.
         // This intentionally does not follow Restart/Gather GPU addresses.
         // Such opcodes require separate validated SMMU resolution.
         template<typename Sink>
-        bool Inspect(std::span<const std::uint32_t> words, Summary &out,
-                     Sink &&sink) {
+        bool InspectParsed(std::span<const std::uint32_t> words, Summary &out,
+                           Sink &&sink) {
             std::size_t pos{};
             std::uint32_t targetClass{1};
             const auto take = [&](std::size_t count) -> bool {
@@ -122,6 +126,22 @@ namespace skyline::soc::host1x::video_probe {
                 }
             }
             return true;
+        }
+
+      public:
+        template<typename Sink>
+        bool Inspect(std::span<const std::uint32_t> words, Summary &out,
+                     Sink &&sink) {
+            VideoCommandProbe validation = *this;
+            Summary checked = out;
+            if (!validation.InspectParsed(words, checked,
+                    [](std::uint32_t, std::uint32_t, std::uint32_t) {})) {
+                // Do not alter state, counters, or guest hardware on a
+                // malformed packet. Only report that validation rejected it.
+                out.truncatedOrUnsupported = true;
+                return false;
+            }
+            return InspectParsed(words, out, sink);
         }
 
         bool Inspect(std::span<const std::uint32_t> words, Summary &out) {
