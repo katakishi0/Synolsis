@@ -46,16 +46,16 @@ assert "settings.disableShaderCache = false" in profile
 layout = ET.fromstring(load("app/src/main/res/layout/emu_activity.xml"))
 ids = {v for node in layout.iter() for k,v in node.attrib.items() if k.endswith("id")}
 for name in ("synolsis_drawer_scrim","synolsis_drawer_edge",
-             "synolsis_drawer_handle","synolsis_drawer_panel",
+             "synolsis_drawer_edge_right","synolsis_drawer_panel",
              "synolsis_drawer_pause","synolsis_drawer_resume",
              "synolsis_drawer_controls","synolsis_drawer_stats",
-             "synolsis_drawer_settings","synolsis_drawer_auto",
-             "synolsis_drawer_exit","synolsis_drawer_close"):
+             "synolsis_drawer_settings","synolsis_drawer_exit",
+             "synolsis_performance_graph"):
     assert any(s.endswith("/"+name) for s in ids), name
 activity = load("app/src/main/java/org/stratoemu/strato/EmulationActivity.kt")
-for token in ("private fun setupSynolsisDrawer()", "private fun showSynolsisDrawer()",
+for token in ("private fun setupSynolsisDrawer()", "private fun showSynolsisDrawer(fromRight:",
               "private fun hideSynolsisDrawer()", "pauseEmulator()", "resumeEmulator()",
-              "synolsisDrawerSettings.setOnClickListener", "synolsisDrawerAuto.setOnClickListener",
+              "synolsisDrawerSettings.setOnClickListener", "installSwipe(binding.synolsisDrawerEdgeRight, true)",
               "override fun onTrimMemory(level : Int)",
               "SynolsisGpuProfiles.applyAutomatic", "memoryGuardHandler.removeCallbacks"):
     assert token in activity, token
@@ -72,4 +72,4 @@ kepler = load("app/src/main/cpp/skyline/gpu/interconnect/kepler_compute/pipeline
 assert "vk::DescriptorType::eStorageImage" in maxwell
 assert "vk::DescriptorType::eStorageImage" in kepler
 assert "wait_synchronization_policy::ValidCount(numHandles)" in load("app/src/main/cpp/skyline/kernel/svc.cpp")
-print("PASS V41: compact in-game drawer, active controls, removed shader modes, auto RAM profiles and V39/V35 preserved")
+print("PASS V43 regression: swipe-only drawer, removed shader modes, native RAM profiles and V39/V35 preserved")
