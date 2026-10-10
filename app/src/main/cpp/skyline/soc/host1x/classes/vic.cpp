@@ -5,6 +5,7 @@
 #include <soc.h>
 #include <gpu/texture/layout.h>
 #include <utility>
+#include <atomic>
 
 namespace skyline::soc::host1x {
     VicClass::VicClass(std::function<void()> callback, const DeviceState &deviceState,
@@ -145,8 +146,14 @@ namespace skyline::soc::host1x {
             if (!output.chroma.empty())
                 state.soc->smmu.Write(static_cast<u32>(chromaAddress), output.chroma.data(),
                                       static_cast<u32>(output.chroma.size()));
-            LOGD("VIC wrote decoded frame to guest memory: {}x{} format=0x{:X} blockKind={}",
-                 surface.width, surface.height, surface.format, surface.blockKind);
+            // Device-only proof point: distinguish decoded MediaCodec frames
+            // from actual guest surface writes. Do not log addresses/pixels.
+            static std::atomic<std::uint64_t> completedVideoSurfaces{};
+            const auto completed{completedVideoSurfaces.fetch_add(1, std::memory_order_relaxed) + 1};
+            if (completed <= 5 || (completed % 120) == 0)
+                LOGI("Synolsis NVDEC/VIC guest frame write #{}: {}x{} fmt=0x{:X} tiled={} ptsUs={} decodedBytes={}",
+                     completed, surface.width, surface.height, surface.format,
+                     surface.blockKind != 0, frame.ptsUs, frame.data.size());
         } catch (const std::exception &e) {
             reject("vic-memory-or-format-error");
             LOGW("VIC frame bridge rejected guest buffers: {}", e.what());
