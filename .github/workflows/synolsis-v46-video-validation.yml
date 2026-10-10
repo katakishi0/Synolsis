@@ -1,0 +1,52 @@
+name: Synolsis V46 - Atomic NVDEC and VIC Guest Command Validation
+on:
+  push:
+    paths:
+      - '.github/workflows/synolsis-v46-video-validation.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+
+jobs:
+  guest-video-policy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout isolated V46 video fixes
+        uses: actions/checkout@v4
+        with:
+          ref: feature/synolsis-v46-video-command-atomic-validation
+          persist-credentials: false
+          submodules: false
+      - name: Run host-only video protocol regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          c++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic \
+            -Iapp/src/main/cpp tests/synolsis_v44_video_command_probe_test.cpp \
+            -o /tmp/v44video
+          /tmp/v44video
+          c++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic \
+            -Iapp/src/main/cpp tests/synolsis_v46_atomic_video_dispatch_test.cpp \
+            -o /tmp/v46video
+          /tmp/v46video
+      - name: Verify safety contract and preserve Vulkan baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          root=Path("app/src/main/cpp/skyline")
+          video=(root/"soc/host1x/video_command_probe.h").read_text()
+          assert "VideoCommandProbe validation = *this;" in video
+          assert "if (!validation.InspectParsed(words, checked," in video
+          assert "out.truncatedOrUnsupported = true;" in video
+          assert "return InspectParsed(words, out, sink);" in video
+          native=(root/"services/nvdrv/devices/nvhost/host1x_channel.cpp").read_text()
+          assert "DispatchVideoGather(gather, videoSummary)" in native
+          for name in ("maxwell_3d","kepler_compute"):
+              text=(root/f"gpu/interconnect/{name}/pipeline_manager.cpp").read_text()
+              assert "vk::DescriptorType::eStorageImage" in text
+          assert "wait_synchronization_policy::ValidCount(numHandles)" in (root/"kernel/svc.cpp").read_text()
+          print("PASS: atomic video method validation and V35/V39 core preserved")
+          PY
