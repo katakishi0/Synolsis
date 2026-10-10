@@ -22,9 +22,20 @@ namespace skyline::soc::host1x {
                 LOGW("NVDEC guest frame unavailable: reason={} count={}", reason, n);
         }};
 
-        if (nvdec_guest::TranslateCodec(registers.Value(nvdec_guest::CodecMethod)) !=
-            nvdec_guest::Codec::H264) {
-            reject("codec-not-yet-supported");
+        const auto guestCodec{nvdec_guest::TranslateCodec(
+            registers.Value(nvdec_guest::CodecMethod))};
+        if (guestCodec == nvdec_guest::Codec::VP9) {
+            // Device logs V54 show codec=0x9 in NieR:Automata cutscenes.
+            // Android MediaCodec VP9 requires a valid VP9 uncompressed and
+            // compressed header and reference-frame context. The Switch
+            // guest provides Tegra NVDEC picture/entropy state instead of
+            // a ready-to-decode IVF/WebM access unit. Do not hand arbitrary
+            // guest bytes to MediaCodec or falsely report a decoded frame.
+            reject("vp9-guest-picture-header-reconstruction-not-implemented");
+            return;
+        }
+        if (guestCodec != nvdec_guest::Codec::H264) {
+            reject("unsupported-guest-video-codec");
             return;
         }
         if (!state.soc) {
