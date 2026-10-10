@@ -240,7 +240,7 @@ class GameContentManagerActivity : AppCompatActivity() {
             installButton.isEnabled = true
             result.fold(
                 onSuccess = {
-                    Toast.makeText(this, R.string.synolsis_content_staged_success, Toast.LENGTH_LONG).show()
+                    Toast.makeText(this@GameContentManagerActivity, R.string.synolsis_content_staged_success, Toast.LENGTH_LONG).show()
                     refreshList()
                 },
                 onFailure = { error ->
@@ -250,7 +250,7 @@ class GameContentManagerActivity : AppCompatActivity() {
                         is GameContentStore.DuplicatePackageException -> getString(R.string.synolsis_content_duplicate)
                         else -> error.localizedMessage ?: getString(R.string.synolsis_content_error)
                     }
-                    MaterialAlertDialogBuilder(this)
+                    MaterialAlertDialogBuilder(this@GameContentManagerActivity)
                         .setTitle(R.string.synolsis_content_error)
                         .setMessage(message)
                         .setPositiveButton(android.R.string.ok, null).show()
