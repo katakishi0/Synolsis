@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "smmu.h"
 #include "host1x/syncpoint.h"
 #include "host1x/command_fifo.h"
 
@@ -18,6 +19,7 @@ namespace skyline::soc::host1x {
         SyncpointSet syncpoints;
         std::array<ChannelCommandFifo, ChannelCount> channels;
 
-        Host1x(const DeviceState &state) : channels{util::MakeFilledArray<ChannelCommandFifo, ChannelCount>(state, syncpoints)} {}
+        Host1x(const DeviceState &state, SMMU &smmu)
+            : channels{util::MakeFilledArray<ChannelCommandFifo, ChannelCount>(state, syncpoints, smmu)} {}
     };
 }
