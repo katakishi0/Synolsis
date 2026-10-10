@@ -7,6 +7,7 @@
 #include <atomic>
 #include <optional>
 #include "android_media_decoder.h"
+#include "decoded_frame_queue.h"
 #include "nvdec_guest_stream.h"
 
 namespace skyline::soc::host1x {
@@ -30,7 +31,7 @@ namespace skyline::soc::host1x {
         std::atomic<u32> lastCodecId{};
         std::atomic<std::uint64_t> executeCount{};
         AndroidMediaDecoder mediaCodecBackend;
-        std::optional<AndroidMediaDecoder::Frame> readyFrame; //!< At most one decoded frame pending VIC
+        video_frame_queue::BoundedFrames<AndroidMediaDecoder::Frame> readyFrames; //!< <=2 frames, <=48 MiB, VIC presentation order
 
       public:
         NvDecClass(std::function<void()> opDoneCallback, const DeviceState &state);

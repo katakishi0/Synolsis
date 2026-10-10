@@ -106,7 +106,7 @@ namespace skyline::soc::host1x {
                 }
                 decoderWidth = params.width;
                 decoderHeight = params.height;
-                readyFrame.reset();
+                readyFrames.Clear();
                 if (!hasHeaders && !mediaCodecBackend.QueueAccessUnit(
                         std::span<const std::uint8_t>(config.packet.data(), config.packet.size()),
                         0, true)) {
@@ -134,7 +134,11 @@ namespace skyline::soc::host1x {
                 if (decodedAccessUnits <= 4 || (decodedAccessUnits % 120) == 0)
                     LOGI("NVDEC decoded Android frame: {}x{} format={} bytes={} (waiting for VIC)",
                          frame.width, frame.height, frame.colorFormat, frame.data.size());
-                readyFrame = std::move(frame); // bounded single-frame handoff
+                // Preserve two pending decoded frames (bounded by 48 MiB),
+                // rather than replacing the unconsumed picture on every NVDEC
+                // execute. This is not a substitute for guest video fences.
+                if (!readyFrames.Push(std::move(frame)))
+                    reject("decoded-frame-buffer-too-large");
             }
         } catch (const std::exception &e) {
             reject("guest-memory-read-failed");
@@ -173,9 +177,8 @@ namespace skyline::soc::host1x {
     }
 
     bool NvDecClass::TryGetDecodedFrame(AndroidMediaDecoder::Frame &frame, i64 waitUs) {
-        if (readyFrame) {
-            frame = std::move(*readyFrame);
-            readyFrame.reset();
+        if (auto ready = readyFrames.Take()) {
+            frame = std::move(*ready);
             return true;
         }
         return mediaCodecBackend.Drain(frame, waitUs);
