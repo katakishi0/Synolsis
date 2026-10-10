@@ -65,7 +65,6 @@ jobs:
             rm -- "$wrapper"
           fi
       - uses: gradle/actions/setup-gradle@v4
-      - uses: android-actions/setup-android@v3
       - name: Install exact Android native toolchain
         shell: bash
         run: |
@@ -73,8 +72,15 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq ccache ninja-build
           mkdir -p "$CCACHE_DIR"
-          sdkmanager --install "platforms;android-34" "build-tools;34.0.0" "ndk;26.1.10909125" "cmake;3.22.1"
-          test -f "$ANDROID_HOME/ndk/26.1.10909125/source.properties"
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          test -n "$SDK_ROOT"
+          SDKMGR="$(command -v sdkmanager || true)"
+          if [ -z "$SDKMGR" ]; then
+            SDKMGR="$(find "$SDK_ROOT/cmdline-tools" -type f -path '*/bin/sdkmanager' | sort -V | tail -1)"
+          fi
+          test -x "$SDKMGR"
+          "$SDKMGR" --install "platforms;android-34" "build-tools;34.0.0" "ndk;26.1.10909125" "cmake;3.22.1"
+          test -f "$SDK_ROOT/ndk/26.1.10909125/source.properties"
       - name: Compile frontend and full native ARM64 APK without publishing
         shell: bash
         run: |
