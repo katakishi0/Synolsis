@@ -23,7 +23,9 @@ assert 'VIC output pending' not in decoder
 vic = source(base+"classes/vic.cpp")
 for word in ('decoder.TryGetDecodedFrame(frame)', 'vic_output::PackLinearNv12',
              'state.soc->smmu.Write', 'vic_output::SupportedSurface',
-             'vic-output-surfaces-unmapped'):
+             'vic-output-surfaces-unmapped',
+             'gpu::texture::CopyPitchToBlockLinear',
+             'gpu::texture::GetBlockLinearLayerSize'):
     assert word in vic
 assert 'framegen::FrameHistory' in source("app/src/main/cpp/skyline/gpu/presentation_engine.h")
 for path in ("maxwell_3d", "kepler_compute"):
