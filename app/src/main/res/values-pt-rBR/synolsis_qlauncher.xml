@@ -13,4 +13,5 @@
   <string name="synolsis_qlauncher_rtld_missing">QLauncher não tem rtld. Agora tentamos iniciar pelo main.nso de forma experimental; serviços HOME ainda podem falhar.</string>
   <string name="synolsis_qlauncher_main_missing">ExeFS do QLauncher montado, mas falta main. Confira o log e a origem do firmware.</string>
   <string name="synolsis_qlauncher_npdm_missing">ExeFS do QLauncher montado, mas falta main.npdm. Confira o log e a origem do firmware.</string>
+    <string name="synolsis_qlauncher_provider_failed">Falha ao disponibilizar o QLauncher pelo provedor interno. Consulte o log SynolsisQLauncher.</string>
 </resources>
