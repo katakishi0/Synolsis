@@ -111,18 +111,14 @@ class AppDialog : BottomSheetDialogFragment() {
         // installed data until native CNMT/BKTR/DLC mounting is available.
         val contentTitleId = item.titleId?.takeIf { it.matches(Regex("[0-9a-fA-F]{16}")) }
         val validContentTitle = contentTitleId != null
-        binding.gameInstallUpdate.isEnabled = validContentTitle
-        binding.gameInstallDlc.isEnabled = validContentTitle
-        fun openGameContent(category: String) {
-            val titleId = contentTitleId ?: return // NRO/homebrew may have no title ID
+        binding.gameInstallContent.isEnabled = validContentTitle
+        binding.gameInstallContent.setOnClickListener {
+            val titleId = contentTitleId ?: return@setOnClickListener
             startActivity(Intent(requireContext(), GameContentManagerActivity::class.java).apply {
                 putExtra(GameContentManagerActivity.EXTRA_TITLE_ID, titleId)
                 putExtra(GameContentManagerActivity.EXTRA_GAME_TITLE, item.title)
-                putExtra(GameContentManagerActivity.EXTRA_CATEGORY, category)
             })
         }
-        binding.gameInstallUpdate.setOnClickListener { openGameContent("updates") }
-        binding.gameInstallDlc.setOnClickListener { openGameContent("dlc") }
         binding.synolsisClearGameCache.isEnabled = validContentTitle
         binding.synolsisClearGameCache.setOnClickListener {
             val titleId = contentTitleId ?: return@setOnClickListener
