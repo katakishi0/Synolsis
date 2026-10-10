@@ -62,6 +62,8 @@ class EmulationSettings private constructor(context : Context, prefName : String
     var vulkanPresentationScalePercent by sharedPreferences(context, 100, prefName = prefName)
     var vulkanPresentMode by sharedPreferences(context, 0, prefName = prefName)
     var shaderCompileThreads by sharedPreferences(context, 0, prefName = prefName)
+    // NVDEC Android decoding: 0 auto, 1 hardware preferred, 2 software, 3 hybrid fallback.
+    var nvdecMode by sharedPreferences(context, 0, prefName = prefName)
     // Automatic native-backed profile selection before emulation launches.
     var synolsisAutoLowEnd by sharedPreferences(context, false, prefName = prefName)
     // Proactive Android memory-pressure warnings; no unsafe cache deletion.
