@@ -139,11 +139,51 @@ class SynolsisSettingsHubActivity : AppCompatActivity() {
                     scan.second, Toast.LENGTH_LONG).show()
                 return@launch
             }
-            val uri = try {
-                FileProvider.getUriForFile(this@SynolsisSettingsHubActivity,
-                    "${packageName}.synolsis.firmware", target)
-            } catch (failure: Exception) {
-                Log.e("Synolsis-QLauncher", "Firmware FileProvider failed", failure)
+            // The user-installed NAND may be under a public app files
+            // directory that is not covered by FileProvider external-files-path.
+            // When that happens, stage only the verified Program NCA inside
+            // a private, grantable cache root; never broaden provider access
+            // to all of external storage or pass file:// URIs to Android 14.
+            val share = withContext(Dispatchers.IO) {
+                runCatching {
+                    FileProvider.getUriForFile(this@SynolsisSettingsHubActivity,
+                        "${packageName}.synolsis.firmware", target)
+                }.recoverCatching { initialError ->
+                    Log.w("Synolsis-QLauncher",
+                        "Installed firmware path is outside FileProvider roots; staging private read-only copy", initialError)
+                    val bytes = target.length()
+                    val stageDir = File(cacheDir, "synolsis/qlauncher")
+                    require(bytes > 0L && bytes <= 512L * 1024L * 1024L) {
+                        "Invalid or oversized QLauncher Program NCA"
+                    }
+                    require(stageDir.isDirectory || stageDir.mkdirs()) {
+                        "Cannot create firmware sharing cache"
+                    }
+                    require(stageDir.usableSpace > bytes + 32L * 1024L * 1024L) {
+                        "Insufficient free storage for firmware sharing cache"
+                    }
+                    val tmp = File(stageDir, "home_program.nca.partial")
+                    val staged = File(stageDir, "home_program.nca")
+                    try {
+                        target.inputStream().buffered().use { input ->
+                            tmp.outputStream().buffered().use { output ->
+                                input.copyTo(output)
+                            }
+                        }
+                        check(tmp.length() == bytes) { "Incomplete NCA staging copy" }
+                        if (staged.exists() && !staged.delete()) {
+                            error("Cannot replace old QLauncher cache copy")
+                        }
+                        check(tmp.renameTo(staged)) { "Cannot finalize QLauncher cache" }
+                    } finally {
+                        if (tmp.exists()) tmp.delete()
+                    }
+                    FileProvider.getUriForFile(this@SynolsisSettingsHubActivity,
+                        "${packageName}.synolsis.firmware", staged)
+                }
+            }
+            val uri = share.getOrElse { failure ->
+                Log.e("Synolsis-QLauncher", "Firmware FileProvider and cache staging failed", failure)
                 Toast.makeText(this@SynolsisSettingsHubActivity,
                     R.string.synolsis_qlauncher_provider_failed, Toast.LENGTH_LONG).show()
                 return@launch
