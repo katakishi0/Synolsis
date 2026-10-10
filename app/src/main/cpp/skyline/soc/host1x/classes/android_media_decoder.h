@@ -13,6 +13,9 @@
 #include "media_decoder_types.h"
 
 namespace skyline::soc::host1x {
+    enum class DecoderMode : std::uint32_t {
+        Auto = 0, HardwarePreferred = 1, SoftwareAndroid = 2, Hybrid = 3
+    };
     // A real Android MediaCodec Access Unit decoder using CPU output buffers.
     //
     // This is an isolated decoder backend, not yet wired to guest NVDEC
@@ -53,7 +56,8 @@ namespace skyline::soc::host1x {
         AndroidMediaDecoder &operator=(const AndroidMediaDecoder &) = delete;
         ~AndroidMediaDecoder();
 
-        bool Start(VideoCodec format, std::uint32_t width, std::uint32_t height);
+        bool Start(VideoCodec format, std::uint32_t width, std::uint32_t height,
+                   DecoderMode mode = DecoderMode::Auto);
         void Stop();
 
         // input is an already extracted compressed access unit (NAL/VPx
