@@ -10,7 +10,7 @@
   <string name="synolsis_qlauncher_program_invalid">O QLauncher foi encontrado, mas seu ExeFS está incompleto ou ilegível. Confira no log os módulos ExeFS ausentes ou uma possível incompatibilidade com o leitor NCA.</string>
   <string name="synolsis_qlauncher_program_keys_missing">QLauncher encontrado, mas faltam as chaves para descriptografar essa versão do firmware. Importe prod.keys compatível do seu console.</string>
   <string name="synolsis_qlauncher_exefs_missing">QLauncher encontrado, mas o ExeFS não pôde ser montado. Confira o log; o leitor de NCA/firmware pode ser incompatível.</string>
-  <string name="synolsis_qlauncher_rtld_missing">ExeFS do QLauncher montado, mas falta rtld. Confira o log e a origem do firmware.</string>
+  <string name="synolsis_qlauncher_rtld_missing">QLauncher não tem rtld. Agora tentamos iniciar pelo main.nso de forma experimental; serviços HOME ainda podem falhar.</string>
   <string name="synolsis_qlauncher_main_missing">ExeFS do QLauncher montado, mas falta main. Confira o log e a origem do firmware.</string>
   <string name="synolsis_qlauncher_npdm_missing">ExeFS do QLauncher montado, mas falta main.npdm. Confira o log e a origem do firmware.</string>
 </resources>
