@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string-array name="synolsis_v55_nvdec_modes" translatable="false">
-        <item>Automático (Android)</item>
-        <item>Priorizar hardware (MediaCodec)</item>
-        <item>Software Android (CPU)</item>
-        <item>Híbrido (alternativa software)</item>
+        <item>Auto (Android)</item>
+        <item>Hardware preferred (MediaCodec)</item>
+        <item>Android software (CPU)</item>
+        <item>Hybrid (software fallback)</item>
     </string-array>
     <string-array name="synolsis_v55_nvdec_values" translatable="false">
         <item>0</item><item>1</item><item>2</item><item>3</item>
