@@ -13,4 +13,7 @@
   <string name="synolsis_qlauncher_rtld_missing">QLauncher não tem rtld. Agora tentamos iniciar pelo main.nso de forma experimental; serviços HOME ainda podem falhar.</string>
   <string name="synolsis_qlauncher_main_missing">ExeFS do QLauncher montado, mas falta main. Confira o log e a origem do firmware.</string>
   <string name="synolsis_qlauncher_npdm_missing">ExeFS do QLauncher montado, mas falta main.npdm. Confira o log e a origem do firmware.</string>
+  <string name="synolsis_qlauncher_provider_failed">O Android não conseguiu compartilhar a NCA do HOME Menu. Verifique os caminhos do FileProvider.</string>
+  <string name="synolsis_qlauncher_uri_unreadable">A NCA do HOME Menu foi encontrada, mas o Android não conseguiu abrir seu URI.</string>
+  <string name="synolsis_qlauncher_activity_failed">A NCA estava legível, mas o Android não conseguiu iniciar a emulação. Confira SynolsisQLauncher no Logcat.</string>
 </resources>
