@@ -4,12 +4,13 @@
  */
 package org.stratoemu.strato
 
-import android.app.AlertDialog
+import android.content.res.ColorStateList
+import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
+import android.text.TextUtils
 import android.view.Gravity
 import android.view.ViewGroup
-import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -18,6 +19,9 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.color.MaterialColors
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -25,11 +29,8 @@ import org.stratoemu.strato.data.GameContentStore
 import kotlin.math.roundToInt
 
 /**
- * Game-specific, actual NSP package storage/management.
- *
- * Important: Do NOT display "installed and active". The current native
- * Strato NspLoader / aocsrv cannot mount updates or DLCs yet. These files
- * remain safely staged until native CNMT/BKTR/AOC integration is complete.
+ * Minimal game add-on screen matching the black, single-action UX reference.
+ * Verified packages are staged only; no claims of native BKTR/AOC mounting.
  */
 class GameContentManagerActivity : AppCompatActivity() {
     companion object {
@@ -39,16 +40,16 @@ class GameContentManagerActivity : AppCompatActivity() {
     }
 
     private lateinit var titleId: String
-    private lateinit var kind: GameContentStore.Kind
     private lateinit var listContainer: LinearLayout
-    private lateinit var importButton: Button
+    private lateinit var installButton: MaterialButton
+    private var chosenKind = GameContentStore.Kind.UPDATE
     private var busy = false
 
-    private val picker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) importPackage(uri)
+    private val picker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+        if (uri != null) importPackage(uri, chosenKind)
     }
 
-    private fun dp(v: Int) = (v * resources.displayMetrics.density).roundToInt()
+    private fun dp(value: Int) = (value * resources.displayMetrics.density).roundToInt()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -58,182 +59,201 @@ class GameContentManagerActivity : AppCompatActivity() {
             finish()
             return
         }
-        kind = if (intent.getStringExtra(EXTRA_CATEGORY) == "dlc")
+        chosenKind = if ((savedInstanceState?.getString("chosen_type")
+                ?: intent.getStringExtra(EXTRA_CATEGORY)) == "dlc")
             GameContentStore.Kind.DLC else GameContentStore.Kind.UPDATE
 
-        val scroll = ScrollView(this).apply { isFillViewport = true }
-        val root = FrameLayout(this)
-        val content = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(24), dp(20), dp(108))
-        }
-        scroll.addView(content)
-        root.addView(scroll, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-        setContentView(root)
+        supportActionBar?.hide()
+        window.statusBarColor = Color.BLACK
+        window.navigationBarColor = Color.BLACK
 
-        val title = TextView(this).apply {
-            text = getString(R.string.synolsis_v54_complements)
-            textSize = 26f
-            setPadding(0, dp(8), 0, dp(10))
+        val root = FrameLayout(this).apply { setBackgroundColor(Color.BLACK) }
+        val scroll = ScrollView(this).apply {
+            isFillViewport = true
+            clipToPadding = false
+            setFillViewport(true)
         }
-        content.addView(title)
-        content.addView(TextView(this).apply {
-            text = (intent.getStringExtra(EXTRA_GAME_TITLE) ?: titleId) + "  [" + titleId + "]"
-            textSize = 16f
-            setPadding(0, 0, 0, dp(14))
-        })
-        content.addView(TextView(this).apply {
-            text = getString(R.string.synolsis_content_not_active)
-            textSize = 14f
-            setPadding(dp(12), dp(12), dp(12), dp(16))
-        })
-        importButton = Button(this).apply {
-            text = getString(R.string.synolsis_v54_install)
-            setOnClickListener {
-                if (busy) return@setOnClickListener
-                AlertDialog.Builder(this@GameContentManagerActivity)
-                    .setTitle(R.string.synolsis_v54_choose_type)
-                    .setItems(arrayOf(
-                        getString(R.string.synolsis_v54_install_update),
-                        getString(R.string.synolsis_v54_install_dlc)
-                    )) { _, selected ->
-                        kind = if (selected == 0) GameContentStore.Kind.UPDATE else GameContentStore.Kind.DLC
-                        picker.launch(arrayOf("*/*"))
-                    }.show()
-            }
+        val column = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(28), dp(18), dp(112))
         }
-        root.addView(importButton, FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
-            Gravity.END or Gravity.BOTTOM).apply { setMargins(dp(20), 0, dp(20), dp(20)) })
+        scroll.addView(column)
+        root.addView(scroll, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+
+        val bar = LinearLayout(this).apply {
+            gravity = Gravity.CENTER_VERTICAL
+            orientation = LinearLayout.HORIZONTAL
+        }
+        bar.addView(TextView(this).apply {
+            text = "‹"
+            textSize = 39f
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+            contentDescription = getString(android.R.string.cancel)
+            setOnClickListener { finish() }
+        }, LinearLayout.LayoutParams(dp(50), dp(56)))
+        bar.addView(TextView(this).apply {
+            val game = intent.getStringExtra(EXTRA_GAME_TITLE) ?: titleId
+            text = "${getString(R.string.synolsis_v54_complements)}: $game"
+            textSize = 23f
+            setTextColor(Color.WHITE)
+            maxLines = 1
+            ellipsize = TextUtils.TruncateAt.END
+        }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        column.addView(bar)
+
+        // A clean empty screen is intentional: headings appear only for
+        // categories containing staged packages.
         listContainer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(0, dp(14), 0, 0)
+            setPadding(dp(8), dp(18), dp(8), 0)
         }
-        content.addView(listContainer)
+        column.addView(listContainer)
+
+        installButton = MaterialButton(this).apply {
+            text = getString(R.string.synolsis_v54_install)
+            textSize = 16f
+            minHeight = dp(58)
+            cornerRadius = dp(23)
+            setIconResource(R.drawable.ic_add)
+            iconPadding = dp(8)
+            backgroundTintList = ColorStateList.valueOf(
+                MaterialColors.getColor(this, com.google.android.material.R.attr.colorPrimary))
+            setOnClickListener { if (!busy) showKindSelector() }
+        }
+        root.addView(installButton, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT, dp(60), Gravity.BOTTOM or Gravity.END).apply {
+            setMargins(dp(24), 0, dp(24), dp(24))
+        })
+        setContentView(root)
         refreshList()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putString("chosen_type",
+            if (chosenKind == GameContentStore.Kind.DLC) "dlc" else "updates")
+        super.onSaveInstanceState(outState)
+    }
+
+    private fun showKindSelector() {
+        var selection = 0
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.synolsis_v54_choose_type)
+            .setSingleChoiceItems(arrayOf(
+                getString(R.string.synolsis_v54_install_update),
+                getString(R.string.synolsis_v54_install_dlc)
+            ), 0) { _, which -> selection = which }
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                chosenKind = if (selection == 0) GameContentStore.Kind.UPDATE
+                             else GameContentStore.Kind.DLC
+                picker.launch(arrayOf("*/*"))
+            }.show()
     }
 
     private fun refreshList() {
         listContainer.removeAllViews()
-        // Display verified staged packages in two separate sections while
-        // keeping their real, independently validated package kinds.
-        for (displayKind in listOf(GameContentStore.Kind.UPDATE, GameContentStore.Kind.DLC)) {
+        var any = false
+        for (kind in listOf(GameContentStore.Kind.UPDATE, GameContentStore.Kind.DLC)) {
+            val entries = GameContentStore.list(this, titleId, kind)
+            if (entries.isEmpty()) continue
+            any = true
             listContainer.addView(TextView(this).apply {
-                text = getString(if (displayKind == GameContentStore.Kind.UPDATE)
+                text = getString(if (kind == GameContentStore.Kind.UPDATE)
                     R.string.synolsis_v54_install_update else R.string.synolsis_v54_install_dlc)
                 textSize = 19f
-                setPadding(0, dp(20), 0, dp(8))
+                setTextColor(Color.WHITE)
+                setPadding(dp(2), dp(26), 0, dp(12))
             })
-            val entries = GameContentStore.list(this, titleId, displayKind)
-            if (entries.isEmpty()) {
+            entries.forEach { entry ->
                 listContainer.addView(TextView(this).apply {
-                    text = getString(R.string.synolsis_content_empty)
-                    setPadding(0, dp(8), 0, dp(12))
-                })
-            }
-            for (entry in entries) {
-            val row = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                setPadding(0, dp(10), 0, dp(10))
-            }
-            row.addView(TextView(this).apply {
-                val summary = getString(R.string.synolsis_content_package_summary, entry.displayName, entry.size / 1048576.0, entry.ncaCount, entry.cnmtCount)
-                val checksum = if (entry.sha256 != null) "\n" +
-                    getString(R.string.synolsis_content_checksum_label, entry.sha256.take(12))
-                else ""
-                val association = if (entry.cnmtOwnerMatched) "\n" +
-                    getString(R.string.synolsis_content_cnmt_matched) else ""
-                text = summary + checksum + association
-                maxLines = 5
-                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-            })
-            if (entry.sha256 != null) {
-                row.addView(Button(this).apply {
-                    text = getString(R.string.synolsis_content_verify)
+                    val short = entry.displayName
+                    text = "$short   ·   ${"%.1f".format(entry.size / 1048576.0)} MB"
+                    textSize = 15f
+                    setTextColor(0xFFC9CDD5.toInt())
+                    setPadding(dp(12), dp(16), dp(12), dp(16))
                     setOnClickListener {
                         if (busy) return@setOnClickListener
-                        busy = true
-                        importButton.isEnabled = false
-                        lifecycleScope.launch {
-                            val result = withContext(Dispatchers.IO) {
-                                runCatching { GameContentStore.verifyIntegrity(entry) }
-                            }
-                            busy = false
-                            importButton.isEnabled = true
-                            val message = when {
-                                result.isFailure -> R.string.synolsis_content_error
-                                result.getOrNull() == true -> R.string.synolsis_content_checksum_ok
-                                else -> R.string.synolsis_content_checksum_failed
-                            }
-                            Toast.makeText(this@GameContentManagerActivity, message, Toast.LENGTH_LONG).show()
-                        }
+                        MaterialAlertDialogBuilder(this@GameContentManagerActivity)
+                            .setTitle(entry.displayName)
+                            .setItems(arrayOf(
+                                getString(R.string.synolsis_content_verify),
+                                getString(R.string.synolsis_content_delete)
+                            )) { _, action ->
+                                if (action == 0) verifyPackage(entry)
+                                else deletePackage(kind, entry.file.name)
+                            }.show()
                     }
                 })
             }
-            row.addView(Button(this).apply {
-                text = getString(R.string.synolsis_content_delete)
-                setOnClickListener {
-                    if (busy) return@setOnClickListener
-                    AlertDialog.Builder(this@GameContentManagerActivity)
-                        .setTitle(R.string.synolsis_content_delete_confirm)
-                        .setMessage(entry.file.name)
-                        .setNegativeButton(R.string.no, null)
-                        .setPositiveButton(R.string.yes) { _, _ ->
-                            if (GameContentStore.delete(this@GameContentManagerActivity, titleId, displayKind, entry.file.name)) {
-                                refreshList()
-                            } else {
-                                Toast.makeText(this@GameContentManagerActivity, R.string.synolsis_content_error, Toast.LENGTH_LONG).show()
-                            }
-                        }.show()
-                }
+        }
+        if (any) {
+            listContainer.addView(TextView(this).apply {
+                text = getString(R.string.synolsis_v55_staged_notice)
+                textSize = 13f
+                setTextColor(0xFFAAB0BC.toInt())
+                setPadding(0, dp(20), 0, 0)
             })
-            listContainer.addView(row)
-            }
         }
     }
 
-    private fun importPackage(uri: Uri) {
+    private fun verifyPackage(entry: GameContentStore.Entry) {
         if (busy) return
         busy = true
-        // Capture the chosen type before the asynchronous document picker returns.
-        val importKind = kind
-        importButton.isEnabled = false
-        importButton.text = getString(R.string.synolsis_content_importing)
+        installButton.isEnabled = false
         lifecycleScope.launch {
-            val result = withContext(Dispatchers.IO) {
-                runCatching { GameContentStore.importNsp(this@GameContentManagerActivity, titleId, importKind, uri) }
+            val verified = withContext(Dispatchers.IO) {
+                runCatching { GameContentStore.verifyIntegrity(entry) }
             }
             busy = false
-            importButton.isEnabled = true
-            importButton.text = getString(R.string.synolsis_v54_install)
+            installButton.isEnabled = true
+            Toast.makeText(this@GameContentManagerActivity,
+                if (verified.getOrNull() == true) R.string.synolsis_content_checksum_ok
+                else R.string.synolsis_content_checksum_failed, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun deletePackage(kind: GameContentStore.Kind, name: String) {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.synolsis_content_delete_confirm)
+            .setMessage(name)
+            .setNegativeButton(R.string.no, null)
+            .setPositiveButton(R.string.yes) { _, _ ->
+                if (!GameContentStore.delete(this, titleId, kind, name)) {
+                    Toast.makeText(this, R.string.synolsis_content_error, Toast.LENGTH_LONG).show()
+                }
+                refreshList()
+            }.show()
+    }
+
+    private fun importPackage(uri: Uri, importKind: GameContentStore.Kind) {
+        if (busy) return
+        busy = true
+        installButton.isEnabled = false
+        lifecycleScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching { GameContentStore.importNsp(
+                    this@GameContentManagerActivity, titleId, importKind, uri) }
+            }
+            busy = false
+            installButton.isEnabled = true
             result.fold(
                 onSuccess = {
-                    Toast.makeText(
-                        this@GameContentManagerActivity,
-                        R.string.synolsis_content_staged_success,
-                        Toast.LENGTH_LONG
-                    ).show()
+                    Toast.makeText(this, R.string.synolsis_content_staged_success, Toast.LENGTH_LONG).show()
                     refreshList()
                 },
-                onFailure = { e ->
-                    if (e is GameContentStore.DuplicatePackageException) {
-                        Toast.makeText(this@GameContentManagerActivity,
-                            R.string.synolsis_content_duplicate, Toast.LENGTH_LONG).show()
-                        refreshList()
-                    } else {
-                        val reason = when (e) {
-                            is GameContentStore.WrongTitleException ->
-                                getString(R.string.synolsis_content_wrong_title)
-                            is GameContentStore.WrongContentKindException ->
-                                getString(R.string.synolsis_content_wrong_kind)
-                            else -> e.localizedMessage ?: getString(R.string.synolsis_content_error)
-                        }
-                        AlertDialog.Builder(this@GameContentManagerActivity)
-                            .setTitle(R.string.synolsis_content_error)
-                            .setMessage(reason)
-                            .setPositiveButton(android.R.string.ok, null).show()
+                onFailure = { error ->
+                    val message = when (error) {
+                        is GameContentStore.WrongTitleException -> getString(R.string.synolsis_content_wrong_title)
+                        is GameContentStore.WrongContentKindException -> getString(R.string.synolsis_content_wrong_kind)
+                        is GameContentStore.DuplicatePackageException -> getString(R.string.synolsis_content_duplicate)
+                        else -> error.localizedMessage ?: getString(R.string.synolsis_content_error)
                     }
+                    MaterialAlertDialogBuilder(this)
+                        .setTitle(R.string.synolsis_content_error)
+                        .setMessage(message)
+                        .setPositiveButton(android.R.string.ok, null).show()
                 }
             )
         }
