@@ -299,4 +299,15 @@
     <string name="game_crash_message">Ocorreu um erro fatal. Consulte os registros para mais detalhes.</string>
     <string name="ryujinx_description">O Ryujinx foi usado como referência por suas implementações precisas.\n\n<b>Nota: o Skyline não é baseado no Ryujinx.</b></string>
     <string name="shader_compiler_description">O compilador de shaders do Skyline é um <b>fork</b> do compilador do <i>Yuzu</i>, com alterações específicas do Skyline e outras melhorias compartilhadas entre os projetos.\n\n<b>Nota:</b> O uso original no Skyline foi permitido por uma exceção de licença concedida pela equipe do <i>Yuzu</i>.</string>
+    <!-- V54: complementos, cache e perfil Vulkan conservador. -->
+    <string name="synolsis_v54_complements">Complementos</string>
+    <string name="synolsis_v54_clear_cache_short">Limpar cache</string>
+    <string name="synolsis_v54_choose_type">Tipo de conteúdo</string>
+    <string name="synolsis_v54_install">Instalar</string>
+    <string name="synolsis_v54_install_update">Atualizações</string>
+    <string name="synolsis_v54_install_dlc">DLCs</string>
+    <string name="synolsis_v54_vulkan_light">Aplicar perfil Vulkan leve</string>
+    <string name="synolsis_v54_vulkan_light_desc">Reduz filas e compilação de shaders na GPU, economizando RAM. Não garante mais FPS. Reinicie o jogo.</string>
+    <string name="synolsis_v54_driver_per_game">Driver GPU deste jogo</string>
+    <string name="synolsis_v54_driver_per_game_desc">Ative as configurações personalizadas para escolher um driver diferente do global.</string>
 </resources>
