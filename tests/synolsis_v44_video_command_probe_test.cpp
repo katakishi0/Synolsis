@@ -24,22 +24,24 @@ int main() {
     assert(probe.Inspect(nvdec, out));
     assert(out.nvdecCodecWrites == 1 && out.lastNvdecCodec == 1);
     assert(out.nvdecExecutions == 1 && out.videoMethodWrites == 5);
-    std::array<std::uint32_t, 9> forwarded{};
+    std::array<std::uint32_t, 12> forwarded{};
     std::size_t forwardedCount{};
     VideoCommandProbe attached;
     Summary attachedStats{};
     assert(attached.Inspect(nvdec, attachedStats,
         [&](std::uint32_t cls, std::uint32_t method, std::uint32_t val) {
-            if (forwardedCount < 3) {
+            if (forwardedCount < 4) {
                 forwarded[forwardedCount * 3] = cls;
                 forwarded[forwardedCount * 3 + 1] = method;
                 forwarded[forwardedCount * 3 + 2] = val;
             }
             ++forwardedCount;
         }));
-    assert(forwardedCount == 2);
+    assert(forwardedCount == 4);
     assert(forwarded[0] == 0xF0 && forwarded[1] == 0x10 && forwarded[2] == 0x80);
     assert(forwarded[3] == 0xF0 && forwarded[4] == 0x11 && forwarded[5] == 1);
+    assert(forwarded[6] == 0xF0 && forwarded[7] == 0x10 && forwarded[8] == 0xC0);
+    assert(forwarded[9] == 0xF0 && forwarded[10] == 0x11 && forwarded[11] == 1);
 
     constexpr std::array<std::uint32_t, 4> vic{{
         SetClass(0x5D, 0x10, 1), 0xC0,
