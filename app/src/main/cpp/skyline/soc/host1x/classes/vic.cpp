@@ -3,6 +3,7 @@
 // Copyright © 2026 Synolsis Emu contributors
 #include "vic.h"
 #include <soc.h>
+#include <gpu/texture/layout.h>
 #include <utility>
 
 namespace skyline::soc::host1x {
@@ -62,6 +63,37 @@ namespace skyline::soc::host1x {
                 reject("unsupported-android-yuv-layout");
                 return;
             }
+            if (surface.blockKind != 0) {
+                // Convert the verified linear Android output using Skyline's
+                // existing MPL-licensed Tegra block-linear texture swizzler.
+                // This path preserves the guest's declared block-height,
+                // rather than writing pitch-linear data into tiled memory.
+                const auto gobHeight{std::size_t{1} << surface.blockHeightLog2};
+                const gpu::texture::Dimensions yDimensions{
+                    surface.width, surface.height, 1};
+                const gpu::texture::Dimensions uvDimensions{
+                    surface.width, surface.height / 2U, 1};
+                const auto lumaBytes{gpu::texture::GetBlockLinearLayerSize(
+                    yDimensions, 1, 1, 1, gobHeight, 1)};
+                const auto chromaBytes{gpu::texture::GetBlockLinearLayerSize(
+                    uvDimensions, 1, 1, 1, gobHeight, 1)};
+                if (!lumaBytes || !chromaBytes ||
+                    lumaBytes > 32ULL * 1024 * 1024 ||
+                    chromaBytes > 16ULL * 1024 * 1024) {
+                    reject("block-linear-image-too-large");
+                    return;
+                }
+                const u32 sourcePitch{(surface.width + 255U) & ~255U};
+                std::vector<u8> tiledY(lumaBytes, 0), tiledUv(chromaBytes, 0);
+                gpu::texture::CopyPitchToBlockLinear(
+                    yDimensions, 1, 1, 1, sourcePitch, gobHeight, 1,
+                    output.luma.data(), tiledY.data());
+                gpu::texture::CopyPitchToBlockLinear(
+                    uvDimensions, 1, 1, 1, sourcePitch, gobHeight, 1,
+                    output.chroma.data(), tiledUv.data());
+                output.luma = std::move(tiledY);
+                output.chroma = std::move(tiledUv);
+            }
             if (!mapped(lumaAddress, output.luma.size()) ||
                 !mapped(chromaAddress, output.chroma.size())) {
                 reject("vic-output-surfaces-unmapped");
@@ -73,8 +105,8 @@ namespace skyline::soc::host1x {
                                   static_cast<u32>(output.luma.size()));
             state.soc->smmu.Write(static_cast<u32>(chromaAddress), output.chroma.data(),
                                   static_cast<u32>(output.chroma.size()));
-            LOGD("VIC wrote decoded YUV420 frame to guest memory: {}x{}",
-                 surface.width, surface.height);
+            LOGD("VIC wrote decoded YUV420 frame to guest memory: {}x{} (blockKind={})",
+                 surface.width, surface.height, surface.blockKind);
         } catch (const std::exception &e) {
             reject("vic-memory-or-format-error");
             LOGW("VIC frame bridge rejected guest buffers: {}", e.what());
