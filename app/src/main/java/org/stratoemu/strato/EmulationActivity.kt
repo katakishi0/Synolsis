@@ -499,13 +499,17 @@ class EmulationActivity : AppCompatActivity(), SurfaceHolder.Callback, View.OnTo
         binding.synolsisDrawerResume.isEnabled = isEmulatorPaused
     }
 
-    private fun showSynolsisDrawer() {
+    private fun showSynolsisDrawer(fromRight: Boolean = false) {
+        (binding.synolsisDrawerPanel.layoutParams as FrameLayout.LayoutParams).apply {
+            gravity = if (fromRight) Gravity.END else Gravity.START
+            binding.synolsisDrawerPanel.layoutParams = this
+        }
         refreshSynolsisDrawerLabels()
         binding.synolsisDrawerPanel.translationX = 0f
         binding.synolsisDrawerScrim.alpha = 1f
         binding.synolsisDrawerScrim.isGone = false
         binding.synolsisDrawerEdge.isGone = true
-        binding.synolsisDrawerHandle.isGone = true
+        binding.synolsisDrawerEdgeRight.isGone = true
     }
 
     private fun hideSynolsisDrawer() {
@@ -513,41 +517,53 @@ class EmulationActivity : AppCompatActivity(), SurfaceHolder.Callback, View.OnTo
         binding.synolsisDrawerPanel.translationX = 0f
         binding.synolsisDrawerScrim.alpha = 1f
         binding.synolsisDrawerEdge.isGone = false
-        binding.synolsisDrawerHandle.isGone = false
+        binding.synolsisDrawerEdgeRight.isGone = false
     }
 
     @SuppressLint("ClickableViewAccessibility")
     private fun setupSynolsisDrawer() {
-        var touchStartX = 0f
-        var dragging = false
-        binding.synolsisDrawerEdge.setOnTouchListener { _, event ->
-            val panelWidth = 290.toPx.toFloat()
-            when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN -> { touchStartX = event.rawX; dragging = false; true }
-                MotionEvent.ACTION_MOVE -> {
-                    val delta = (event.rawX - touchStartX).coerceIn(0f, panelWidth)
-                    if (delta > 8.toPx) dragging = true
-                    if (dragging) {
-                        binding.synolsisDrawerScrim.isGone = false
-                        binding.synolsisDrawerPanel.translationX = delta - panelWidth
-                        binding.synolsisDrawerScrim.alpha = (delta / panelWidth).coerceIn(0.15f, 1f)
+        fun installSwipe(edge: View, fromRight: Boolean) {
+            var startX = 0f
+            var dragging = false
+            edge.setOnTouchListener { _, event ->
+                val width = 290.toPx.toFloat()
+                val direction = if (fromRight) -1f else 1f
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> {
+                        startX = event.rawX
+                        dragging = false
+                        true
                     }
-                    true
+                    MotionEvent.ACTION_MOVE -> {
+                        val travel = ((event.rawX - startX) * direction).coerceIn(0f, width)
+                        if (travel > 10.toPx) dragging = true
+                        if (dragging) {
+                            (binding.synolsisDrawerPanel.layoutParams as FrameLayout.LayoutParams).apply {
+                                gravity = if (fromRight) Gravity.END else Gravity.START
+                                binding.synolsisDrawerPanel.layoutParams = this
+                            }
+                            binding.synolsisDrawerScrim.isGone = false
+                            binding.synolsisDrawerPanel.translationX =
+                                (if (fromRight) 1f else -1f) * (width - travel)
+                            binding.synolsisDrawerScrim.alpha = (travel / width).coerceIn(0.12f, 1f)
+                        }
+                        true
+                    }
+                    MotionEvent.ACTION_UP -> {
+                        val distance = (event.rawX - startX) * direction
+                        if (dragging && distance >= 72.toPx)
+                            showSynolsisDrawer(fromRight)
+                        else hideSynolsisDrawer()
+                        true
+                    }
+                    MotionEvent.ACTION_CANCEL -> { hideSynolsisDrawer(); true }
+                    else -> true
                 }
-                MotionEvent.ACTION_UP -> {
-                    if (dragging && event.rawX - touchStartX >= 72.toPx)
-                        showSynolsisDrawer()
-                    else hideSynolsisDrawer()
-                    true
-                }
-                MotionEvent.ACTION_CANCEL -> { hideSynolsisDrawer(); true }
-                else -> true
             }
         }
-        // Color follows the emulator theme. The indicator is not a button.
-        binding.synolsisDrawerHandle.isClickable = false
+        installSwipe(binding.synolsisDrawerEdge, false)
+        installSwipe(binding.synolsisDrawerEdgeRight, true)
         binding.synolsisDrawerDismiss.setOnClickListener { hideSynolsisDrawer() }
-        binding.synolsisDrawerClose.setOnClickListener { hideSynolsisDrawer() }
         binding.synolsisDrawerPause.setOnClickListener {
             pauseEmulator()
             refreshSynolsisDrawerLabels()
@@ -564,17 +580,6 @@ class EmulationActivity : AppCompatActivity(), SurfaceHolder.Callback, View.OnTo
             binding.perfStats.isGone = !binding.perfStats.isGone
             emulationSettings.perfStats = !binding.perfStats.isGone
             refreshSynolsisDrawerLabels()
-        }
-        binding.synolsisDrawerAuto.setOnClickListener {
-            emulationSettings.synolsisAutoLowEnd = true
-            val info = currentAndroidMemory()
-            val applied = if (info != null)
-                SynolsisGpuProfiles.applyAutomatic(emulationSettings, info.totalMem, info.availMem, info.lowMemory)
-            else null
-            if (applied == null)
-                SynolsisGpuProfiles.apply(emulationSettings, SynolsisGpuProfiles.LOW_END)
-            Toast.makeText(this, R.string.synolsis_drawer_auto_next, Toast.LENGTH_LONG).show()
-            hideSynolsisDrawer()
         }
         binding.synolsisDrawerSettings.setOnClickListener {
             hideSynolsisDrawer()
