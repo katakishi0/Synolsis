@@ -29,6 +29,10 @@ namespace skyline::soc::host1x {
             std::int32_t colorFormat{};
             std::int32_t rowStride{};
             std::int32_t sliceHeight{};
+            // Visible YUV420 rectangle origin in padded MediaCodec output.
+            // width/height are the visible dimensions after the crop.
+            std::int32_t cropLeft{};
+            std::int32_t cropTop{};
         };
 
       private:
@@ -39,6 +43,7 @@ namespace skyline::soc::host1x {
         std::int32_t colorFormat{};
         std::int32_t rowStride{};
         std::int32_t sliceHeight{};
+        std::int32_t cropLeft{}, cropTop{}, cropRight{}, cropBottom{};
 
         void StopLocked();
 
