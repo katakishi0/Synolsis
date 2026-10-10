@@ -98,7 +98,7 @@ namespace skyline::soc::host1x::nvdec_probe {
                   std::span<std::uint8_t>{lengthBytes}))
             return std::nullopt;
         const auto length = Little32(lengthBytes);
-        if (!ValidAddressRange(*bitstream, length))
+        if (length < 4 || !ValidAddressRange(*bitstream, length))
             return std::nullopt;
         std::array<std::uint8_t, 4> prefix{};
         if (!read(*bitstream, std::span<std::uint8_t>{prefix}))
