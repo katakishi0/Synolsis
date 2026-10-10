@@ -2,6 +2,7 @@
 // Copyright © 2026 Synolsis Emu contributors
 #include "android_media_decoder.h"
 #include <algorithm>
+#include <common.h>
 #include <cstring>
 #include <limits>
 
@@ -54,6 +55,8 @@ namespace skyline::soc::host1x {
             if (configured == AMEDIA_OK && AMediaCodec_start(codec) == AMEDIA_OK) {
                 width = static_cast<std::int32_t>(w);
                 height = static_cast<std::int32_t>(h);
+                LOGI("NVDEC Android decoder configured: {}x{} requestedNV12={}",
+                     width, height, attempt == 0);
                 return true;
             }
             StopLocked();
@@ -120,6 +123,8 @@ namespace skyline::soc::host1x {
                 // until a device exposes a different documented layout.
                 if (rowStride <= 0) rowStride = width;
                 if (sliceHeight <= 0) sliceHeight = height;
+                LOGI("NVDEC Android decoded output format: {}x{} color=0x{:X} stride={} sliceHeight={}",
+                     width, height, colorFormat, rowStride, sliceHeight);
                 AMediaFormat_delete(format);
                 if (width < 0 || height < 0 ||
                     !ValidVideoExtent(static_cast<std::uint32_t>(width),
