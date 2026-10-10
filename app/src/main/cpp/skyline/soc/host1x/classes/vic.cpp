@@ -69,12 +69,16 @@ namespace skyline::soc::host1x {
                     data, static_cast<u32>(frame.width), static_cast<u32>(frame.height),
                     static_cast<u32>(frame.rowStride),
                     static_cast<u32>(frame.sliceHeight), frame.colorFormat,
-                    surface, output)
+                    surface, output,
+                    static_cast<u32>(frame.cropLeft),
+                    static_cast<u32>(frame.cropTop))
                 : vic_output::PackLinearNv12(
                     data, static_cast<u32>(frame.width), static_cast<u32>(frame.height),
                     static_cast<u32>(frame.rowStride),
                     static_cast<u32>(frame.sliceHeight), frame.colorFormat,
-                    surface, output);
+                    surface, output,
+                    static_cast<u32>(frame.cropLeft),
+                    static_cast<u32>(frame.cropTop));
             if (!staged) {
                 reject("unsupported-android-color-plane-layout");
                 return;
