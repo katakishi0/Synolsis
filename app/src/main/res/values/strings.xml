@@ -327,4 +327,15 @@
     <string name="global_save_data_zip_name">Strato save data</string>
     <string name="game_crash">The game has crashed</string>
     <string name="game_crash_message">A fatal error occurred. Check the log for details.</string>
+    <!-- V54: unify content management and expose a conservative native-backed Vulkan preset. -->
+    <string name="synolsis_v54_complements">Add-ons</string>
+    <string name="synolsis_v54_clear_cache_short">Clear cache</string>
+    <string name="synolsis_v54_choose_type">Install content type</string>
+    <string name="synolsis_v54_install">Install</string>
+    <string name="synolsis_v54_install_update">Updates</string>
+    <string name="synolsis_v54_install_dlc">DLC</string>
+    <string name="synolsis_v54_vulkan_light">Apply Vulkan Lite profile</string>
+    <string name="synolsis_v54_vulkan_light_desc">Lower host GPU queue and shader compilation pressure; conserves memory, not guaranteed to increase FPS. Restart the game.</string>
+    <string name="synolsis_v54_driver_per_game">GPU driver for this game</string>
+    <string name="synolsis_v54_driver_per_game_desc">Enable custom game settings to override the global GPU driver.</string>
 </resources>
