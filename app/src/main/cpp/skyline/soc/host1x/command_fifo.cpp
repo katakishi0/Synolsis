@@ -154,6 +154,18 @@ namespace skyline::soc::host1x {
         }
     }
 
+    bool ChannelCommandFifo::DispatchVideoGather(
+        std::span<const u32> gather, video_probe::Summary &summary) {
+        std::scoped_lock lock(videoDispatchMutex);
+        return videoProbe.Inspect(gather, summary,
+            [this](u32 classId, u32 method, u32 argument) {
+                if (classId == static_cast<u32>(ClassId::NvDec))
+                    nvDecClass.CallMethod(method, argument);
+                else if (classId == static_cast<u32>(ClassId::VIC))
+                    vicClass.CallMethod(method, argument);
+            });
+    }
+
     void ChannelCommandFifo::Push(span<u32> gather) {
         gatherQueue.Push(gather);
     }
