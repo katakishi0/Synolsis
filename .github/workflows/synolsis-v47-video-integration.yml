@@ -59,7 +59,7 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           h=Path('app/src/main/cpp/skyline/soc/host1x/video_command_probe.h').read_text()
-          assert 'VideoCommandProbe staged = *this;' in h
+          assert 'auto staged{*this};' in h
           assert 'return InspectUnchecked(words, out, sink);' in h
           codec=Path('app/src/main/cpp/skyline/soc/host1x/classes/android_media_decoder.cpp').read_text()
           assert "std::clamp<std::int64_t>(waitUs, 0, 12'000)" in codec
@@ -80,7 +80,7 @@ jobs:
           from pathlib import Path
           h=Path('app/src/main/cpp/skyline/soc/host1x/video_command_probe.h').read_text()
           assert 'currentClass{1}' in h
-          assert 'VideoCommandProbe staged = *this' in h
+          assert 'auto staged{*this};' in h
           print('PASS: cross-gather class and method state remains atomic')
           PY
       - name: Verify wiring and legacy Vulkan regressions
