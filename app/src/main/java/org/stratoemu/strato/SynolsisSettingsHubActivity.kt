@@ -9,6 +9,7 @@ package org.stratoemu.strato
 
 import android.content.ClipData
 import android.content.Intent
+import android.util.Log
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -138,13 +139,32 @@ class SynolsisSettingsHubActivity : AppCompatActivity() {
                     scan.second, Toast.LENGTH_LONG).show()
                 return@launch
             }
-            runCatching {
-                val uri = FileProvider.getUriForFile(this@SynolsisSettingsHubActivity,
+            val uri = try {
+                FileProvider.getUriForFile(this@SynolsisSettingsHubActivity,
                     "${packageName}.synolsis.firmware", target)
-                startQLauncher(uri)
-            }.onFailure {
+            } catch (failure: Exception) {
+                Log.e("Synolsis-QLauncher", "Firmware FileProvider failed", failure)
                 Toast.makeText(this@SynolsisSettingsHubActivity,
-                    R.string.synolsis_qlauncher_open_failed, Toast.LENGTH_LONG).show()
+                    R.string.synolsis_qlauncher_provider_failed, Toast.LENGTH_LONG).show()
+                return@launch
+            }
+            val readable = withContext(Dispatchers.IO) {
+                runCatching {
+                    contentResolver.openFileDescriptor(uri, "r")?.use { it.statSize != 0L }
+                        ?: false
+                }.onFailure {
+                    Log.e("Synolsis-QLauncher", "Firmware URI cannot be opened", it)
+                }.getOrDefault(false)
+            }
+            if (!readable) {
+                Toast.makeText(this@SynolsisSettingsHubActivity,
+                    R.string.synolsis_qlauncher_uri_unreadable, Toast.LENGTH_LONG).show()
+                return@launch
+            }
+            runCatching { startQLauncher(uri) }.onFailure {
+                Log.e("Synolsis-QLauncher", "EmulationActivity launch failed", it)
+                Toast.makeText(this@SynolsisSettingsHubActivity,
+                    R.string.synolsis_qlauncher_activity_failed, Toast.LENGTH_LONG).show()
             }
         }
     }
