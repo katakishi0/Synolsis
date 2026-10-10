@@ -348,7 +348,6 @@ Java_org_stratoemu_strato_SynolsisSettingsHubActivity_validateQLauncherNca(
         return nca.header.programId == QLauncherProgramId &&
                nca.contentType == skyline::vfs::NcaContentType::Program &&
                nca.exeFs != nullptr &&
-               nca.exeFs->FileExists("rtld") &&
                nca.exeFs->FileExists("main") &&
                nca.exeFs->FileExists("main.npdm") ? JNI_TRUE : JNI_FALSE;
     } catch (const std::exception &) {
@@ -425,13 +424,12 @@ Java_org_stratoemu_strato_SynolsisSettingsHubActivity_findInstalledQLauncherNca(
                 programFound = true;
                 qlauncherCandidate = true;
                 skyline::vfs::NCA program{backing, keyStore};
-                if (!program.exeFs || !program.exeFs->FileExists("rtld") ||
+                if (!program.exeFs ||
                     !program.exeFs->FileExists("main") ||
                     !program.exeFs->FileExists("main.npdm")) {
                     // Preserve a diagnosis in Android's emulator log without
                     // dumping user keys, paths or NCA contents.
                     if (!program.exeFs) missingProgramComponent = "@qlauncher:exefs";
-                    else if (!program.exeFs->FileExists("rtld")) missingProgramComponent = "@qlauncher:rtld";
                     else if (!program.exeFs->FileExists("main")) missingProgramComponent = "@qlauncher:main";
                     else missingProgramComponent = "@qlauncher:npdm";
                     LOGW("QLauncher program found but ExeFS is incomplete: hasExeFs={} hasRtld={} hasMain={} hasNpdm={}",
@@ -441,6 +439,8 @@ Java_org_stratoemu_strato_SynolsisSettingsHubActivity_findInstalledQLauncherNca(
                          program.exeFs && program.exeFs->FileExists("main.npdm"));
                     continue;
                 }
+                if (!program.exeFs->FileExists("rtld"))
+                    LOGW("QLauncher Program ExeFS lacks rtld; allowing guarded main.nso fallback");
                 LOGI("QLauncher firmware Program NCA passed ExeFS validation");
                 return env->NewStringUTF(entry.name.c_str());
             } catch (const skyline::loader::loader_exception &error) {
