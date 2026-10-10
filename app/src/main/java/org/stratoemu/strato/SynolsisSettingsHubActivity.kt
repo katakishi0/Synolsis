@@ -10,6 +10,7 @@ package org.stratoemu.strato
 import android.content.ClipData
 import android.content.Intent
 import android.net.Uri
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.lifecycleScope
@@ -138,13 +139,37 @@ class SynolsisSettingsHubActivity : AppCompatActivity() {
                     scan.second, Toast.LENGTH_LONG).show()
                 return@launch
             }
-            runCatching {
-                val uri = FileProvider.getUriForFile(this@SynolsisSettingsHubActivity,
+            // These are three different failure stages. Previously every
+            // exception was reported as a generic QLauncher failure and led
+            // us to change the native loader without knowing where it failed.
+            val uri = try {
+                FileProvider.getUriForFile(this@SynolsisSettingsHubActivity,
                     "${packageName}.synolsis.firmware", target)
-                startQLauncher(uri)
-            }.onFailure {
+            } catch (error: Exception) {
+                Log.e("SynolsisQLauncher",
+                    "Firmware FileProvider failed: ${error.javaClass.simpleName}")
                 Toast.makeText(this@SynolsisSettingsHubActivity,
-                    R.string.synolsis_qlauncher_open_failed, Toast.LENGTH_LONG).show()
+                    R.string.synolsis_qlauncher_provider_failed, Toast.LENGTH_LONG).show()
+                return@launch
+            }
+            val readable = runCatching {
+                contentResolver.openFileDescriptor(uri, "r")?.use {
+                    it.statSize != 0L
+                } ?: false
+            }.onFailure { error ->
+                Log.e("SynolsisQLauncher",
+                    "Firmware URI open failed: ${error.javaClass.simpleName}")
+            }.getOrDefault(false)
+            if (!readable) {
+                Toast.makeText(this@SynolsisSettingsHubActivity,
+                    R.string.synolsis_qlauncher_uri_unreadable, Toast.LENGTH_LONG).show()
+                return@launch
+            }
+            runCatching { startQLauncher(uri) }.onFailure { error ->
+                Log.e("SynolsisQLauncher",
+                    "EmulationActivity launch failed: ${error.javaClass.simpleName}")
+                Toast.makeText(this@SynolsisSettingsHubActivity,
+                    R.string.synolsis_qlauncher_activity_failed, Toast.LENGTH_LONG).show()
             }
         }
     }
