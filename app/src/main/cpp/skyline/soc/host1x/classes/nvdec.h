@@ -5,7 +5,9 @@
 
 #include <common.h>
 #include <atomic>
+#include <soc/smmu.h>
 #include "android_media_decoder.h"
+#include "nvdec_h264_packet_probe.h"
 
 namespace skyline::soc::host1x {
     /**
@@ -14,13 +16,15 @@ namespace skyline::soc::host1x {
     class NvDecClass {
       private:
         std::function<void()> opDoneCallback;
+        SMMU &smmu;
+        nvdec_probe::RegisterState registers{};
         std::atomic<std::uint64_t> unhandledMethodCount{}; //!< Bounded diagnostics; not a fake decode counter
         std::atomic<u32> lastCodecId{};
         std::atomic<std::uint64_t> executeCount{};
         AndroidMediaDecoder mediaCodecBackend; //!< Only decoded access-unit pipeline; register parser still pending
 
       public:
-        NvDecClass(std::function<void()> opDoneCallback);
+        NvDecClass(std::function<void()> opDoneCallback, SMMU &smmu);
 
         void CallMethod(u32 method, u32 argument);
 
