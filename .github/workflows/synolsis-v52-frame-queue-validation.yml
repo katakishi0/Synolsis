@@ -32,3 +32,55 @@ jobs:
           assert 'std::optional<AndroidMediaDecoder::Frame> readyFrame;' not in h
           print('PASS: ordered bounded NVDEC frame retention; no fake framegen')
           PY
+
+  android-native:
+    name: Compile V52 Android Kotlin and ARM64 core (no APK release)
+    needs: host-queue
+    runs-on: ubuntu-22.04
+    timeout-minutes: 150
+    env:
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_MAXSIZE: 2G
+      CCACHE_COMPRESS: 'true'
+      CMAKE_C_COMPILER_LAUNCHER: ccache
+      CMAKE_CXX_COMPILER_LAUNCHER: ccache
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Remove only the known unused Oboe test Gradle wrapper
+        run: |
+          set -euo pipefail
+          wrapper=app/libraries/oboe/apps/OboeTester/gradle/wrapper/gradle-wrapper.jar
+          if [ -f "$wrapper" ]; then
+            printf '%s  %s\n' 'e2b82129ab64751fd40437007bd2f7f2afb3c6e41a9198e628650b22d5824a14' "$wrapper" | sha256sum --check --status
+            rm -- "$wrapper"
+          fi
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Install exact Android native toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ccache ninja-build
+          mkdir -p "$CCACHE_DIR"
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          test -n "$SDK_ROOT"
+          SDKMGR="$(command -v sdkmanager || true)"
+          if [ -z "$SDKMGR" ]; then
+            SDKMGR="$(find "$SDK_ROOT/cmdline-tools" -type f -path '*/bin/sdkmanager' | sort -V | tail -1)"
+          fi
+          test -x "$SDKMGR"
+          "$SDKMGR" --install "platforms;android-34" "build-tools;34.0.0" "ndk;26.1.10909125" "cmake;3.22.1"
+          test -f "$SDK_ROOT/ndk/26.1.10909125/source.properties"
+      - name: Compile frontend and full native ARM64 APK without publishing
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x gradlew
+          ./gradlew :app:compileMainlineOptimizedKotlin --no-daemon --build-cache
+          ./gradlew :app:assembleMainlineOptimized --no-daemon --stacktrace --build-cache
+          ls -lah app/build/outputs/apk/mainline/*/*.apk
+          echo "Compiled V52 bounded NVDEC-to-VIC frame queue with V51 crop support, no release published." >> "$GITHUB_STEP_SUMMARY"
