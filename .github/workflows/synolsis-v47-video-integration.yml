@@ -41,7 +41,7 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           source=Path('app/src/main/cpp/skyline/services/nvdrv/devices/nvhost/host1x_channel.cpp').read_text()
-          assert source.index('videoChannel.DispatchVideoGather(') < source.index('IncrementSyncpointMaxExt(')
+          assert source.index('videoChannel.DispatchVideoGathersAtomically(') < source.index('IncrementSyncpointMaxExt(')
           fifo=Path('app/src/main/cpp/skyline/soc/host1x/command_fifo.cpp').read_text()
           assert 'nvDecClass.CallMethod(method, argument)' in fifo
           assert 'vicClass.CallMethod(method, argument)' in fifo
@@ -83,6 +83,21 @@ jobs:
           assert 'auto staged{*this};' in h
           print('PASS: cross-gather class and method state remains atomic')
           PY
+      - name: Validate full nvhost ioctl atomically across multiple buffers
+        run: |
+          set -euo pipefail
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic \
+            tests/synolsis_v47_atomic_video_submit_test.cpp \
+            -o /tmp/v47_atomic_submit
+          /tmp/v47_atomic_submit
+          python3 - <<'PY'
+          from pathlib import Path
+          source=Path('app/src/main/cpp/skyline/services/nvdrv/devices/nvhost/host1x_channel.cpp').read_text()
+          assert 'DispatchVideoGathersAtomically(gathers, videoSummary)' in source
+          assert source.index('DispatchVideoGathersAtomically(gathers, videoSummary)') < source.index('IncrementSyncpointMaxExt(')
+          print('PASS: full multi-gather nvhost ioctl rejected before side effects')
+          PY
+
       - name: Verify wiring and legacy Vulkan regressions
         run: |
           set -euo pipefail
