@@ -11,7 +11,7 @@
 #include "classes/nvdec.h"
 #include "classes/vic.h"
 #include "tegra_host_interface.h"
-#include "video_command_probe.h"
+#include "video_command_batch.h"
 
 namespace skyline::soc::host1x {
     /**
@@ -70,5 +70,11 @@ namespace skyline::soc::host1x {
         // Host1x method 0 here could double-signal fences.
         bool DispatchVideoGather(std::span<const u32> gather,
                                  video_probe::Summary &summary);
+
+        // nvhost Submit may contain many gathers. Validate their combined
+        // syntax before any actual NVDEC/VIC method reaches MediaCodec.
+        bool DispatchVideoGathersAtomically(
+            std::span<const std::span<const u32>> gathers,
+            video_probe::Summary &summary);
     };
 }
