@@ -42,6 +42,17 @@
             android:textColor="@color/colorPerfStatsPrimary"
             tools:text="60 FPS • 2000 MB" />
 
+        <org.stratoemu.strato.views.SynolsisPerformanceGraphView
+            android:id="@+id/synolsis_performance_graph"
+            android:layout_width="230dp"
+            android:layout_height="94dp"
+            android:layout_gravity="top|start"
+            android:layout_marginStart="10dp"
+            android:layout_marginTop="83dp"
+            android:padding="4dp"
+            android:background="#B0000000"
+            android:visibility="gone" />
+
         <ImageButton
             android:id="@+id/on_screen_pause_toggle"
             android:layout_width="wrap_content"
