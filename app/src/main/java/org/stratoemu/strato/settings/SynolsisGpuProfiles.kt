@@ -5,6 +5,7 @@
 package org.stratoemu.strato.settings
 
 import androidx.preference.ListPreference
+import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.SeekBarPreference
 import androidx.preference.TwoStatePreference
@@ -21,6 +22,7 @@ object SynolsisGpuProfiles {
     const val BALANCED = "balanced"
     const val EXPERIMENTAL = "experimental"
     const val FPS_HACK = "fps_hack"
+    const val VULKAN_LITE = "vulkan_lite"
 
     /**
      * Choose an existing safe native profile before the game starts.
@@ -51,10 +53,10 @@ object SynolsisGpuProfiles {
                 // A memory-first choice: fewer queued host GPU commands and
                 // only one concurrent shader compile job. Can reduce FPS.
                 settings.isDocked = false
-                settings.executorSlotCountScale = 1
-                settings.executorFlushThreshold = 64
+                settings.executorSlotCountScale = 2
+                settings.executorFlushThreshold = 128
                 settings.shaderCompileThreads = 1
-                settings.freeGuestTextureMemory = true
+                settings.freeGuestTextureMemory = false
                 settings.enableFastGpuReadbackHack = false
                 settings.enableFastReadbackWrites = false
                 settings.forceMaxGpuClocks = false
@@ -64,25 +66,25 @@ object SynolsisGpuProfiles {
                 // limited RAM. Keep V39 storage-image correctness intact.
                 // Does not fake additional VRAM or change Switch memory size.
                 settings.isDocked = false
-                settings.executorSlotCountScale = 2
-                settings.executorFlushThreshold = 128
+                settings.executorSlotCountScale = 3
+                settings.executorFlushThreshold = 192
                 settings.shaderCompileThreads = 2
-                settings.freeGuestTextureMemory = true
+                settings.freeGuestTextureMemory = false
                 settings.enableFastGpuReadbackHack = false
                 settings.enableFastReadbackWrites = false
                 settings.forceMaxGpuClocks = false
             }
             CONSERVATIVE -> {
-                settings.executorSlotCountScale = 3
-                settings.executorFlushThreshold = 128
-                settings.freeGuestTextureMemory = true
+                settings.executorSlotCountScale = 4
+                settings.executorFlushThreshold = 256
+                settings.freeGuestTextureMemory = false
                 settings.enableFastGpuReadbackHack = false
                 settings.enableFastReadbackWrites = false
             }
             BALANCED -> {
                 settings.executorSlotCountScale = 4
                 settings.executorFlushThreshold = 256
-                settings.freeGuestTextureMemory = true
+                settings.freeGuestTextureMemory = false
                 settings.enableFastGpuReadbackHack = false
                 settings.enableFastReadbackWrites = false
             }
@@ -94,13 +96,30 @@ object SynolsisGpuProfiles {
                 settings.enableFastReadbackWrites = false
             }
             FPS_HACK -> {
-                // Experimental Turnip readback trade-off, not a guaranteed FPS
-                // unlock. Keep the shader cache and guest safety defaults.
-                settings.executorSlotCountScale = 3
-                settings.executorFlushThreshold = 96
-                settings.freeGuestTextureMemory = true
-                settings.enableFastGpuReadbackHack = true
+                // Retain user-requested experimental mode, but never silently
+                // switch on unsafe readback. The separate switch remains opt-in.
+                settings.executorSlotCountScale = 4
+                settings.executorFlushThreshold = 256
+                settings.freeGuestTextureMemory = false
+                settings.enableFastGpuReadbackHack = false
                 settings.enableFastReadbackWrites = false
+            }
+            VULKAN_LITE -> {
+                // A bounded native-backed queue/compile profile, NOT a fake
+                // internal resolution or Vulkan feature disabling hack.
+                settings.isDocked = false
+                settings.executorSlotCountScale = 3
+                settings.executorFlushThreshold = 256
+                settings.shaderCompileThreads = 2
+                settings.forceTripleBuffering = false
+                settings.disableFrameThrottling = false
+                settings.freeGuestTextureMemory = false
+                settings.useDirectMemoryImport = false
+                settings.forceMaxGpuClocks = false
+                settings.enableFastGpuReadbackHack = false
+                settings.enableFastReadbackWrites = false
+                settings.presentationFrameSkip = 0
+                settings.vulkanPresentMode = 0
             }
             else -> return false
         }
@@ -111,36 +130,52 @@ object SynolsisGpuProfiles {
     }
 }
 
-/** Updates native settings and the visible preference values together. */
+/** Keep all UI switches synchronized with the native-backed setting values. */
 internal fun PreferenceFragmentCompat.wireSynolsisGpuProfiles(settings : EmulationSettings) {
+    fun refreshOptions() {
+        findPreference<TwoStatePreference>("is_docked")?.isChecked = settings.isDocked
+        findPreference<org.stratoemu.strato.preference.IntegerListPreference>("shader_compile_threads")?.let { pref ->
+            val index = pref.entryValues?.indexOf(settings.shaderCompileThreads) ?: -1
+            if (index >= 0) pref.setValueIndex(index)
+        }
+        findPreference<TwoStatePreference>("force_max_gpu_clocks")?.isChecked = settings.forceMaxGpuClocks
+        findPreference<TwoStatePreference>("force_triple_buffering")?.isChecked = settings.forceTripleBuffering
+        findPreference<TwoStatePreference>("disable_frame_throttling")?.isChecked = settings.disableFrameThrottling
+        findPreference<SeekBarPreference>("executor_slot_count_scale")?.value = settings.executorSlotCountScale
+        findPreference<SeekBarPreference>("executor_flush_threshold")?.value = settings.executorFlushThreshold
+        findPreference<TwoStatePreference>("free_guest_texture_memory")?.isChecked = settings.freeGuestTextureMemory
+        findPreference<TwoStatePreference>("disable_shader_cache")?.isChecked = settings.disableShaderCache
+        findPreference<TwoStatePreference>("use_direct_memory_import")?.isChecked = settings.useDirectMemoryImport
+        findPreference<TwoStatePreference>("enable_fast_gpu_readback_hack")?.isChecked = settings.enableFastGpuReadbackHack
+        findPreference<TwoStatePreference>("enable_fast_readback_writes")?.isChecked = settings.enableFastReadbackWrites
+        findPreference<org.stratoemu.strato.preference.IntegerListPreference>("presentation_frame_skip")?.let { pref ->
+            val index = pref.entryValues?.indexOf(settings.presentationFrameSkip) ?: -1
+            if (index >= 0) pref.setValueIndex(index)
+        }
+        findPreference<org.stratoemu.strato.preference.IntegerListPreference>("vulkan_present_mode")?.let { pref ->
+            val index = pref.entryValues?.indexOf(settings.vulkanPresentMode) ?: -1
+            if (index >= 0) pref.setValueIndex(index)
+        }
+        findPreference<ListPreference>("synolsis_readback_precision")?.value =
+            if (settings.enableFastGpuReadbackHack) "balanced" else "accurate"
+    }
     findPreference<ListPreference>("synolsis_gpu_preset")?.setOnPreferenceChangeListener { _, newValue ->
         if (!SynolsisGpuProfiles.apply(settings, newValue as? String ?: "")) {
             false
         } else {
-            findPreference<androidx.preference.TwoStatePreference>("is_docked")?.isChecked =
-                settings.isDocked
-            findPreference<org.stratoemu.strato.preference.IntegerListPreference>("shader_compile_threads")?.let { pref ->
-                val index = pref.entryValues?.indexOf(settings.shaderCompileThreads) ?: -1
-                if (index >= 0) pref.setValueIndex(index)
-            }
-            findPreference<androidx.preference.TwoStatePreference>("force_max_gpu_clocks")?.isChecked =
-                settings.forceMaxGpuClocks
-            findPreference<SeekBarPreference>("executor_slot_count_scale")?.value =
-                settings.executorSlotCountScale
-            findPreference<SeekBarPreference>("executor_flush_threshold")?.value =
-                settings.executorFlushThreshold
-            findPreference<TwoStatePreference>("free_guest_texture_memory")?.isChecked =
-                settings.freeGuestTextureMemory
-            findPreference<TwoStatePreference>("disable_shader_cache")?.isChecked =
-                settings.disableShaderCache
-            findPreference<TwoStatePreference>("enable_fast_gpu_readback_hack")?.isChecked =
-                settings.enableFastGpuReadbackHack
-            findPreference<TwoStatePreference>("enable_fast_readback_writes")?.isChecked =
-                settings.enableFastReadbackWrites
-            findPreference<ListPreference>("synolsis_readback_precision")?.value =
-                if (settings.enableFastGpuReadbackHack) "balanced" else "accurate"
+            refreshOptions()
             true
         }
+    }
+    findPreference<Preference>("synolsis_apply_vulkan_light")?.setOnPreferenceClickListener {
+        if (SynolsisGpuProfiles.apply(settings, SynolsisGpuProfiles.VULKAN_LITE)) {
+            // A manual one-shot profile must not be silently overwritten on
+            // next boot by the automatic low-end preference.
+            settings.synolsisAutoLowEnd = false
+            findPreference<TwoStatePreference>("synolsis_auto_low_end")?.isChecked = false
+            refreshOptions()
+        }
+        true
     }
 }
 
