@@ -94,6 +94,27 @@ namespace skyline::gpu {
             return;
         }
 
+        // A brand-new shader session often leaves an empty .staging file
+        // (valid header, count=0). Inserting an empty streambuf into ostream
+        // sets failbit, causing the "Pipeline cache append failed" warning
+        // observed in V54 despite there being no pipelines to append.
+        // Remove only this empty staging file; never discard the main cache.
+        if (stagingHeader.count == 0) {
+            stagingStream.close();
+            std::error_code cleanupError;
+            std::filesystem::remove(stagingPath, cleanupError);
+            if (cleanupError)
+                LOGW("Cannot remove empty shader cache staging file: {}", cleanupError.message());
+            return;
+        }
+        std::error_code stagingSizeError;
+        const auto stagingSize{std::filesystem::file_size(stagingPath, stagingSizeError)};
+        if (stagingSizeError || stagingSize <= sizeof(PipelineCacheFileHeader)) {
+            LOGW("Shader cache staging header has {} bundles but no payload; main cache preserved",
+                 stagingHeader.count);
+            return;
+        }
+
         std::fstream mainStream{mainPath, std::ios::binary | std::ios::in | std::ios::out};
         PipelineCacheFileHeader mainHeader{};
         mainStream.seekg(0, std::ios_base::beg);
