@@ -342,4 +342,6 @@
     <string name="synolsis_v55_nvdec_summary">Android codec selection; restart the game to apply. Software mode is slower and may be unavailable.</string>
     <string name="synolsis_v55_qlauncher_share_detail">HOME firmware stream failed (%1$s). See Synolsis-QLauncher logs.</string>
     <string name="synolsis_v55_staged_notice">Saved locally; game updates/DLC are not activated yet.</string>
+    <string name="synolsis_v56_nvdec_vp9_status">VP9 cutscenes: pending</string>
+    <string name="synolsis_v56_nvdec_vp9_summary">This game uses NVDEC codec 0x9 (VP9). CPU/GPU/Hybrid selects Android decoders, but native Switch VP9 picture headers are not reconstructed yet.</string>
 </resources>
