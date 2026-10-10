@@ -138,11 +138,26 @@ class SynolsisSettingsHubActivity : AppCompatActivity() {
                     scan.second, Toast.LENGTH_LONG).show()
                 return@launch
             }
-            runCatching {
-                val uri = FileProvider.getUriForFile(this@SynolsisSettingsHubActivity,
+            // A generic "could not open" toast hid a different exception
+            // from failure to parse an NCA. Distinguish the URI handoff
+            // from a launcher/activity failure without logging secret keys.
+            val firmwareUri = runCatching {
+                FileProvider.getUriForFile(this@SynolsisSettingsHubActivity,
                     "${packageName}.synolsis.firmware", target)
-                startQLauncher(uri)
-            }.onFailure {
+            }.onFailure { cause ->
+                android.util.Log.e("SynolsisQLauncher",
+                    "QLauncher FileProvider URI creation failed: ${cause.javaClass.simpleName}", cause)
+                Toast.makeText(this@SynolsisSettingsHubActivity,
+                    R.string.synolsis_qlauncher_provider_failed, Toast.LENGTH_LONG).show()
+            }.getOrNull() ?: return@launch
+            runCatching {
+                contentResolver.openFileDescriptor(firmwareUri, "r")?.use { fd ->
+                    check(fd.statSize != 0L) { "Empty QLauncher NCA descriptor" }
+                } ?: error("FileProvider did not return a readable descriptor")
+                startQLauncher(firmwareUri)
+            }.onFailure { cause ->
+                android.util.Log.e("SynolsisQLauncher",
+                    "QLauncher activity handoff failed: ${cause.javaClass.simpleName}", cause)
                 Toast.makeText(this@SynolsisSettingsHubActivity,
                     R.string.synolsis_qlauncher_open_failed, Toast.LENGTH_LONG).show()
             }
