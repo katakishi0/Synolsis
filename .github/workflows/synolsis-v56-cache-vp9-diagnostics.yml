@@ -22,6 +22,9 @@ jobs:
             tests/nvdec_frame_queue_test.cpp -o /tmp/synolsis-v52-queue
           /tmp/synolsis-v52-queue
           g++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic \
+            tests/nvdec_guest_stream_policy_test.cpp -o /tmp/synolsis-v56-codec-id
+          /tmp/synolsis-v56-codec-id
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic \
             tests/vic_aligned_output_test.cpp -o /tmp/synolsis-v53-aligned-vic
           /tmp/synolsis-v53-aligned-vic
           g++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic \
@@ -81,6 +84,7 @@ jobs:
           assert 'setSingleChoiceItems' in content and 'MaterialButton' in content
           cache=Path('app/src/main/cpp/skyline/gpu/pipeline_cache_manager.cpp').read_text()
           assert 'stagingHeader.count == 0' in cache
+          assert 'vp9-guest-picture-header-reconstruction-not-implemented' in c
           assert 'std::filesystem::file_size' in cache
           print('PASS: V56 Vulkan cache merge policy and native shader compiler cache sources')
           PY
