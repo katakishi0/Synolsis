@@ -247,12 +247,6 @@ class SynolsisSettingsHubActivity : AppCompatActivity() {
         addCard(R.string.synolsis_hub_firmware, R.string.synolsis_v42_firmware_details, R.drawable.ic_play) {
             openSettings(SettingsActivity.SECTION_CONTENT, "firmware")
         }
-        addCard(R.string.synolsis_v42_prod_keys, R.string.synolsis_v42_prod_keys_desc, R.drawable.ic_settings) {
-            openSettings(SettingsActivity.SECTION_CONTENT, "prod_keys")
-        }
-        addCard(R.string.synolsis_v42_title_keys, R.string.synolsis_v42_title_keys_desc, R.drawable.ic_settings) {
-            openSettings(SettingsActivity.SECTION_CONTENT, "title_keys")
-        }
         addCard(R.string.synolsis_v42_saves, R.string.synolsis_v42_saves_desc, R.drawable.ic_settings) {
             openSettings(SettingsActivity.SECTION_CONTENT, "save_data_manager")
         }
