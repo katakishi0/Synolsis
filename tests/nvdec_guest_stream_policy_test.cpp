@@ -19,6 +19,9 @@ constexpr bool RegisterValidation() {
            !BoundedSmmuRange(0x1000, MaximumPacketSize + 1ULL);
 }
 static_assert(RegisterValidation());
+static_assert(TranslateCodec(0x9) == Codec::VP9,
+              "V54 NieR codec=0x9 must remain VP9, never H264");
+static_assert(TranslateCodec(0x3) == Codec::H264);
 
 constexpr bool ContextAndAnnexB() {
     std::array<std::uint8_t, 0x6C> bytes{};
