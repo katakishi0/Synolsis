@@ -29,6 +29,7 @@ import android.util.Rational
 import android.util.TypedValue
 import android.view.*
 import android.widget.Toast
+import android.widget.FrameLayout
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.getSystemService
@@ -390,19 +391,30 @@ class EmulationActivity : AppCompatActivity(), SurfaceHolder.Callback, View.OnTo
                             val pages = File("/proc/self/statm").readText().trim().split(Regex("\\s+"))[1].toLong()
                             pages * android.system.Os.sysconf(android.system.OsConstants._SC_PAGESIZE) / 1_000_000L
                         }.getOrDefault(ramUsage)
-                        // Native telemetry already contains average frametime
-                        // and its deviation; expose them only when explicitly
-                        // requested to keep the default HUD compact.
-                        text = if (emulationSettings.perfStatsDetails) {
-                            String.format(
-                                java.util.Locale.US,
-                                "%d FPS • %d MB\n%.1f ms (±%.1f)%s",
-                                fps, ramUsage, averageFrametime, averageFrametimeDeviation,
-                                batteryTemperatureLabel()
-                            )
-                        } else {
-                            "$fps FPS • $ramUsage MB"
+                        // Stats are host-present telemetry, not guest game-speed %.
+                        val pieces = mutableListOf<String>()
+                        if (emulationSettings.synolsisStatsFps) pieces.add("$fps FPS")
+                        if (emulationSettings.synolsisStatsRam) pieces.add("$ramUsage MB")
+                        if (emulationSettings.synolsisStatsFrametime || emulationSettings.perfStatsDetails)
+                            pieces.add(getString(R.string.synolsis_stats_frame_label, averageFrametime))
+                        if (emulationSettings.synolsisStatsJitter || emulationSettings.perfStatsDetails)
+                            pieces.add(getString(R.string.synolsis_stats_jitter_label, averageFrametimeDeviation))
+                        if (emulationSettings.synolsisStatsBattery) {
+                            val label = batteryTemperatureLabel()
+                            if (label.isNotBlank()) pieces.add(label.trim().trimStart('•').trim())
                         }
+                        if (emulationSettings.synolsisStatsAvailRam) {
+                            currentAndroidMemory()?.let { info ->
+                                pieces.add(getString(R.string.synolsis_stats_available_ram_label,
+                                    info.availMem / 1_000_000L))
+                            }
+                        }
+                        val citronStyle = emulationSettings.synolsisStatsStyle == "citron"
+                        text = pieces.joinToString(if (citronStyle) "\n" else " • ")
+                        binding.synolsisPerformanceGraph.isGone =
+                            !citronStyle || !emulationSettings.synolsisStatsGraph
+                        if (citronStyle && !binding.synolsisPerformanceGraph.isGone)
+                            binding.synolsisPerformanceGraph.addSample(averageFrametime)
                         postDelayed(this, 500)
                     }
                 }, 500)
