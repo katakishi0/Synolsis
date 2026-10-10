@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: synolsis-v44-native-validation
+  cancel-in-progress: true
+
 jobs:
   host-native:
     name: Check NVDEC bounds and source integration
