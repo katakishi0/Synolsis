@@ -11,6 +11,23 @@ namespace skyline::soc::host1x {
         // Do not signal fake decode completion: the guest NVDEC method
         // registers and their SMMU-addressed bitstream buffers have not yet
         // been translated into compressed access units for MediaCodec.
+        // Citron/yuzu Host1x reference registers (GPL implementation was not copied):
+        // 0x80 = codec selection; 0xC0 = decode execute. These observations
+        // distinguish "no cutscene commands" from "decoder never wired".
+        // They do NOT submit a fake frame or signal a successful decode.
+        if (method == 0x80) {
+            const auto previous{lastCodecId.exchange(argument, std::memory_order_relaxed)};
+            if (previous != argument)
+                LOGI("NVDEC guest codec selected: id=0x{:X} (decode not connected)", argument);
+            return;
+        }
+        if (method == 0xC0) {
+            const auto executions{executeCount.fetch_add(1, std::memory_order_relaxed) + 1};
+            if (executions <= 4 || (executions & (executions - 1)) == 0)
+                LOGW("NVDEC execute requested: count={} codec=0x{:X}; guest bitstream and VIC output are not connected",
+                     executions, lastCodecId.load(std::memory_order_relaxed));
+            return;
+        }
         const auto count{unhandledMethodCount.fetch_add(1, std::memory_order_relaxed) + 1};
         // Games can submit thousands of NVDEC registers per second. Logging
         // each register on Android severely harms frame pacing, even though
