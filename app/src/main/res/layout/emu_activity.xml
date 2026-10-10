@@ -150,13 +150,6 @@
                     <Button android:id="@+id/synolsis_drawer_exit"
                         android:layout_width="match_parent" android:layout_height="wrap_content"
                         android:minHeight="42dp" android:text="@string/synolsis_drawer_exit" />
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:text="@string/synolsis_drawer_restart_note"
-                        android:textColor="?android:attr/textColorSecondary"
-                        android:textSize="10sp" />
                 </LinearLayout>
             </ScrollView>
         </FrameLayout>
