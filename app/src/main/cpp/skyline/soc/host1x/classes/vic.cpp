@@ -49,7 +49,10 @@ namespace skyline::soc::host1x {
                 return;
             }
             AndroidMediaDecoder::Frame frame{};
-            if (!decoder.TryGetDecodedFrame(frame)) {
+            // Give an asynchronously decoding Android codec a short chance to
+            // deliver output; a zero-time poll always missed some cutscenes.
+            // Never stall the nvhost submit indefinitely.
+            if (!decoder.TryGetDecodedFrame(frame, 12'000)) {
                 reject("nvdec-output-not-ready");
                 return;
             }
