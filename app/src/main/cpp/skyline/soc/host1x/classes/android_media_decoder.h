@@ -56,6 +56,6 @@ namespace skyline::soc::host1x {
         bool QueueAccessUnit(std::span<const std::uint8_t> input,
                              std::int64_t presentationTimeUs,
                              bool codecConfiguration = false);
-        bool Drain(Frame &frame); // nonblocking; false = no decoded frame
+        bool Drain(Frame &frame, std::int64_t waitUs = 0); // VIC: bounded <=12ms; NVDEC: nonblocking
     };
 }
