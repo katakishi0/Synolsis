@@ -41,6 +41,6 @@ namespace skyline::soc::host1x {
         // SMMU bitstream extraction must call these with actual access units.
         bool ConfigureMediaDecoder(VideoCodec codec, u32 width, u32 height);
         bool SubmitAccessUnit(span<const u8> packet, i64 ptsUs, bool isConfiguration = false);
-        bool TryGetDecodedFrame(AndroidMediaDecoder::Frame &frame);
+        bool TryGetDecodedFrame(AndroidMediaDecoder::Frame &frame, i64 waitUs = 0);
     };
 }
