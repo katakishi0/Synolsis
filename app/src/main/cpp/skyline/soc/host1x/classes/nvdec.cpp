@@ -1,40 +1,137 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright © 2021 Skyline Team and Contributors (https://github.com/skyline-emu/)
+// Copyright © 2026 Synolsis Emu contributors
 
 #include "nvdec.h"
+#include <soc.h>
+#include <algorithm>
+#include <array>
+#include <vector>
 
 namespace skyline::soc::host1x {
-    NvDecClass::NvDecClass(std::function<void()> opDoneCallback)
-        : opDoneCallback(std::move(opDoneCallback)) {}
+    NvDecClass::NvDecClass(std::function<void()> callback, const DeviceState &deviceState)
+        : opDoneCallback(std::move(callback)), state(deviceState) {}
+
+    void NvDecClass::ProcessGuestDecode() {
+        const auto reject{[this](const char *reason) {
+            const auto n{++rejectedVideoPackets};
+            if (n <= 5 || (n & (n - 1)) == 0)
+                LOGW("NVDEC guest frame unavailable: reason={} count={}", reason, n);
+        }};
+
+        if (nvdec_guest::TranslateCodec(registers.Value(nvdec_guest::CodecMethod)) !=
+            nvdec_guest::Codec::H264) {
+            reject("codec-not-yet-supported");
+            return;
+        }
+        if (!state.soc) {
+            reject("missing-soc");
+            return;
+        }
+
+        const auto pictureAddress{registers.Address(nvdec_guest::PictureInfoMethod)};
+        constexpr std::size_t ContextBytes{0x6C};
+        if (!nvdec_guest::BoundedSmmuRange(pictureAddress, ContextBytes)) {
+            reject("picture-address-out-of-range");
+            return;
+        }
+
+        // Reject unmapped guest memory *before* reading. This is not a fake
+        // 0-byte "decoded" frame if the guest mapping is absent.
+        const auto mapped{[this](u32 address, u32 size) {
+            auto chunks{state.soc->smmu.TranslateRange(address, size)};
+            std::size_t bytes{};
+            for (const auto &chunk : chunks) {
+                if (!chunk.data())
+                    return false;
+                bytes += chunk.size();
+            }
+            return bytes == size;
+        }};
+
+        try {
+            if (!mapped(static_cast<u32>(pictureAddress), ContextBytes)) {
+                reject("picture-unmapped");
+                return;
+            }
+            std::array<u8, ContextBytes> context{};
+            state.soc->smmu.Read(context.data(), static_cast<u32>(pictureAddress),
+                                 static_cast<u32>(context.size()));
+            const auto params{nvdec_guest::InspectH264Context(context)};
+            if (!params.valid) {
+                reject("invalid-h264-context");
+                return;
+            }
+
+            const auto streamAddress{registers.Address(nvdec_guest::BitstreamMethod)};
+            if (!nvdec_guest::BoundedSmmuRange(streamAddress, params.streamBytes) ||
+                !mapped(static_cast<u32>(streamAddress), params.streamBytes)) {
+                reject("bitstream-unmapped-or-too-large");
+                return;
+            }
+            std::vector<u8> packet(params.streamBytes);
+            state.soc->smmu.Read(packet.data(), static_cast<u32>(streamAddress),
+                                 params.streamBytes);
+
+            // First frame needs SPS/PPS because this conservative bridge
+            // does not yet synthesize parameter sets from NVDEC picture info.
+            const bool hasHeaders{nvdec_guest::ContainsH264ParameterSets(packet)};
+            if (!decoderWidth || !decoderHeight || decoderWidth != params.width ||
+                decoderHeight != params.height) {
+                if (!hasHeaders) {
+                    reject("h264-parameter-sets-absent");
+                    return;
+                }
+                if (!mediaCodecBackend.Start(VideoCodec::H264, params.width, params.height)) {
+                    reject("mediacodec-configuration-failed");
+                    return;
+                }
+                decoderWidth = params.width;
+                decoderHeight = params.height;
+            }
+
+            // The queued bytes come from the guest via SMMU, never fabricated.
+            // Guest video timestamps and VIC surface composition are still TODO.
+            if (!mediaCodecBackend.QueueAccessUnit(
+                    std::span<const std::uint8_t>(packet.data(), packet.size()),
+                    static_cast<std::int64_t>(decodedAccessUnits) * 33333, false)) {
+                reject("mediacodec-input-not-ready");
+                return;
+            }
+            ++decodedAccessUnits;
+            AndroidMediaDecoder::Frame frame;
+            // Drain output to keep MediaCodec progressing while the VIC
+            // consumer is not connected. Deliberately do NOT report video
+            // as presented to the guest or signal fake completion.
+            if (mediaCodecBackend.Drain(frame) &&
+                (decodedAccessUnits <= 4 || (decodedAccessUnits % 120) == 0))
+                LOGI("NVDEC produced Android frame: {}x{} format={} bytes={} (VIC output pending)",
+                     frame.width, frame.height, frame.colorFormat, frame.data.size());
+        } catch (const std::exception &e) {
+            reject("guest-memory-read-failed");
+            LOGW("NVDEC guest stream reader rejected command: {}", e.what());
+        }
+    }
 
     void NvDecClass::CallMethod(u32 method, u32 argument) {
-        // Do not signal fake decode completion: the guest NVDEC method
-        // registers and their SMMU-addressed bitstream buffers have not yet
-        // been translated into compressed access units for MediaCodec.
-        // Citron/yuzu Host1x reference registers (GPL implementation was not copied):
-        // 0x80 = codec selection; 0xC0 = decode execute. These observations
-        // distinguish "no cutscene commands" from "decoder never wired".
-        // They do NOT submit a fake frame or signal a successful decode.
-        if (method == 0x80) {
+        if (!registers.Write(method, argument)) {
+            const auto n{unhandledMethodCount.fetch_add(1, std::memory_order_relaxed) + 1};
+            if (n <= 5 || (n & (n - 1)) == 0)
+                LOGW("NVDEC register outside documented bank: 0x{:X}", method);
+            return;
+        }
+        if (method == nvdec_guest::CodecMethod) {
             const auto previous{lastCodecId.exchange(argument, std::memory_order_relaxed)};
             if (previous != argument)
-                LOGI("NVDEC guest codec selected: id=0x{:X} (decode not connected)", argument);
+                LOGI("NVDEC hardware codec selected: id=0x{:X}", argument);
             return;
         }
-        if (method == 0xC0) {
-            const auto executions{executeCount.fetch_add(1, std::memory_order_relaxed) + 1};
-            if (executions <= 4 || (executions & (executions - 1)) == 0)
-                LOGW("NVDEC execute requested: count={} codec=0x{:X}; guest bitstream and VIC output are not connected",
-                     executions, lastCodecId.load(std::memory_order_relaxed));
-            return;
+        if (method == nvdec_guest::ExecuteMethod) {
+            const auto n{executeCount.fetch_add(1, std::memory_order_relaxed) + 1};
+            if (n <= 4 || (n & (n - 1)) == 0)
+                LOGI("NVDEC execute count={} codec=0x{:X}", n, lastCodecId.load());
+            ProcessGuestDecode();
         }
-        const auto count{unhandledMethodCount.fetch_add(1, std::memory_order_relaxed) + 1};
-        // Games can submit thousands of NVDEC registers per second. Logging
-        // each register on Android severely harms frame pacing, even though
-        // full bitstream decoding is not yet integrated.
-        if (count <= 8 || (count & (count - 1)) == 0)
-            LOGW("NVDEC registers not decoded: sample #{} method 0x{:X} argument 0x{:X}",
-                 count, method, argument);
     }
 
     bool NvDecClass::ConfigureMediaDecoder(VideoCodec codec, u32 width, u32 height) {
