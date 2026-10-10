@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <span>
+#include <utility>
 #include <vector>
 
 namespace skyline::soc::host1x::video_gather {
@@ -34,7 +35,10 @@ namespace skyline::soc::host1x::video_gather {
             for (const auto input : inputs) {
                 if (!input.empty() && !input.data())
                     return false;
-                candidate.owned.emplace_back(input.begin(), input.end());
+                if (input.empty())
+                    candidate.owned.emplace_back();
+                else
+                    candidate.owned.emplace_back(input.begin(), input.end());
             }
             candidate.references.reserve(candidate.owned.size());
             for (const auto &buffer : candidate.owned)
