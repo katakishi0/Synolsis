@@ -4,6 +4,7 @@
 #include <soc.h>
 #include <services/nvdrv/devices/deserialisation/deserialisation.h>
 #include "host1x_channel.h"
+#include <soc/host1x/video_command_probe.h>
 
 namespace skyline::service::nvdrv::device::nvhost {
     Host1xChannel::Host1xChannel(const DeviceState &state,
@@ -53,29 +54,52 @@ namespace skyline::service::nvdrv::device::nvhost {
                 return PosixResult::InvalidArgument;
         }
 
+        // Execute ONLY the NVDEC/VIC THI method register subset before the
+        // guest-visible syncpoint acknowledgement. Prior builds discarded
+        // the entire video pushbuffer, leaving real H264/VIC implementations
+        // unreachable. Running in-place avoids retaining freed guest spans.
+        // Host1x syncpoint method 0 is deliberately not forwarded here:
+        // nvhost already acknowledges the submitted count below.
+        auto &videoChannel{state.soc->host1x.channels[static_cast<size_t>(channelType)]};
+        soc::host1x::video_probe::Summary videoSummary{};
+        try {
+            for (const auto &cmdBuf : cmdBufs) {
+                const auto handleDesc{core.nvMap.GetHandle(cmdBuf.mem)};
+                const auto gatherAddress{handleDesc->address + cmdBuf.offset};
+                const std::span<const u32> gather{
+                    reinterpret_cast<const u32 *>(gatherAddress), cmdBuf.words};
+                // Unsupported packet types are intentionally skipped, not
+                // executed through the unsafe asynchronous FIFO.
+                videoChannel.DispatchVideoGather(gather, videoSummary);
+            }
+        } catch (const std::exception &e) {
+            LOGW("Video guest pushbuffer dispatch rejected: {}", e.what());
+            return PosixResult::InvalidArgument;
+        }
+        if (videoSummary.nvdecExecutions || videoSummary.vicExecutions) {
+            static std::atomic<std::uint64_t> videoSubmitCount{};
+            const auto serial{videoSubmitCount.fetch_add(1, std::memory_order_relaxed) + 1};
+            if (serial <= 4 || (serial & (serial - 1)) == 0)
+                LOGI("Synolsis video command dispatch #{}: NVDEC executions={} codec=0x{:X} VIC executions={}",
+                     serial, videoSummary.nvdecExecutions, videoSummary.lastNvdecCodec,
+                     videoSummary.vicExecutions);
+        }
+        if (videoSummary.truncatedOrUnsupported) {
+            static std::atomic<std::uint64_t> skippedSubmitCount{};
+            const auto serial{skippedSubmitCount.fetch_add(1, std::memory_order_relaxed) + 1};
+            if (serial <= 4 || (serial & (serial - 1)) == 0)
+                LOGW("Video pushbuffer contained truncated or unsupported Host1x packet (sample #{})", serial);
+        }
+        // This is still a compatibility acknowledgement, not a claim that
+        // decoded frames reached the game. Accurate per-operation fences and
+        // asynchronous video scheduling require further integration.
         for (size_t i{}; i < syncpointIncrs.size(); i++) {
             const auto &incr{syncpointIncrs[i]};
-
             u32 max{core.syncpointManager.IncrementSyncpointMaxExt(incr.syncpointId, incr.numIncrs)};
-
-            // Increment syncpoints on the CPU to avoid needing to pass through the emulated nvdec code which currently does nothing
             for (size_t j{}; j < incr.numIncrs; j++)
                 state.soc->host1x.syncpoints[incr.syncpointId].Increment();
-
             if (i < fenceThresholds.size())
                 fenceThresholds[i] = max;
-        }
-
-        for (const auto &cmdBuf : cmdBufs) {
-            auto handleDesc{core.nvMap.GetHandle(cmdBuf.mem)};
-            // Already validated before signalling guest syncpoints.
-
-            u64 gatherAddress{handleDesc->address + cmdBuf.offset};
-            LOGD("Submit gather, CPU address: 0x{:X}, words: 0x{:X}", gatherAddress, cmdBuf.words);
-
-            span gather(reinterpret_cast<u32 *>(gatherAddress), cmdBuf.words);
-            // Skip submitting the cmdbufs as no functionality is implemented
-            // state.soc->host1x.channels[static_cast<size_t>(channelType)].Push(gather);
         }
 
         return PosixResult::Success;
