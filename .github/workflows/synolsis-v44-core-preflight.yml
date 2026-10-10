@@ -1,0 +1,46 @@
+name: Synolsis V44 Core Preflight (no APK)
+on:
+  push:
+    branches:
+      - feature/synolsis-v44-qlauncher-video-core
+    paths:
+      - 'app/src/main/cpp/skyline/soc/host1x/**'
+      - 'app/src/main/java/org/stratoemu/strato/SynolsisSettingsHubActivity.kt'
+      - 'app/src/main/res/values*/synolsis_qlauncher.xml'
+      - 'tests/nvdec_h264_packet_probe_test.cpp'
+      - '.github/workflows/synolsis-v44-core-preflight.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile and execute NVDEC memory-bounds regression
+        run: |
+          set -euo pipefail
+          c++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic tests/nvdec_h264_packet_probe_test.cpp -o /tmp/synolsis-nvdec-probe
+          /tmp/synolsis-nvdec-probe
+      - name: Verify SMMU wiring and QLauncher failure stages
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          base=Path('app/src/main')
+          smmu=(base/'cpp/skyline/soc/host1x/classes/nvdec.cpp').read_text()
+          for value in ('nvdec_probe::Inspect(registers','smmu.Read(output.data()','nvdec_probe::PictureInfoMethod'):
+              assert value in smmu,value
+          qlauncher=(base/'java/org/stratoemu/strato/SynolsisSettingsHubActivity.kt').read_text()
+          for value in ('synolsis_qlauncher_provider_failed','synolsis_qlauncher_uri_unreadable',
+                        'synolsis_qlauncher_activity_failed','openFileDescriptor(uri, "r")'):
+              assert value in qlauncher, value
+          for loc in ('values','values-pt-rBR'):
+              root=ET.parse(base/'res'/loc/'synolsis_qlauncher.xml')
+              names={e.get('name') for e in root.getroot()}
+              assert {'synolsis_qlauncher_provider_failed',
+                      'synolsis_qlauncher_uri_unreadable',
+                      'synolsis_qlauncher_activity_failed'} <= names
+          print('V44 preflight PASS: H264 probe + staged Android provider diagnostics')
+          PY
