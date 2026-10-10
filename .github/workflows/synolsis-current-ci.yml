@@ -1284,7 +1284,7 @@ jobs:
           PY
           echo "PASS: V41 compact game menu + adaptive low-memory profiles + QLauncher diagnostics" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Verify V42 swipe navigation, key cards, metrics, QLauncher diagnosis and adaptive skip
+      - name: Verify retained V42 core with V43 fully invisible bidirectional swipe
         shell: bash
         run: |
           set -euo pipefail
@@ -1301,7 +1301,8 @@ jobs:
               assert item in game, item
           assert 'synolsisDrawerHandle.setOnClickListener' not in game
           layout=(src/'res/layout/emu_activity.xml').read_text()
-          assert 'android:background="?attr/colorPrimary"' in layout
+          assert 'android:id="@+id/synolsis_drawer_edge_right"' in layout
+          assert 'synolsis_drawer_handle' not in layout
           assert 'android:background="?attr/colorSurface"' in layout
           nca=(src/'cpp/loader_jni.cpp').read_text()
           for stage in ('@qlauncher:exefs', '@qlauncher:main', '@qlauncher:npdm'):
