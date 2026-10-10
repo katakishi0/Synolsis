@@ -75,6 +75,7 @@ namespace skyline {
         Setting<u32> vulkanPresentationScalePercent; //!< Host swapchain scale (50/75/100%), not guest internal resolution
         Setting<u32> vulkanPresentMode; //!< 0 auto, 1 FIFO, 2 MAILBOX, 3 IMMEDIATE; fallback to FIFO
         Setting<u32> shaderCompileThreads; //!< Vulkan pipeline compilation workers, 0=auto, max=4
+        Setting<u32> nvdecMode; //!< Android MediaCodec selector: auto/hardware preferred/software/hybrid
         Setting<bool> disableShaderCache;  //!< Prevents cached shaders from being loaded and disables caching of new shaders
 
         // GPU
