@@ -17,12 +17,12 @@ This branch continues the **V43 base** (V35 SVC boot fix, V39 Vulkan Maxwell/Kep
 
 - Connects VIC to the *same channel's* NVDEC via THI without copying arbitrary guest addresses.
 - Handles guest VIC config/luma/chroma offset methods and execute trigger.
-- Only supports linear YUV420 guest output, with Android planar or semi-planar 8-bit YUV420 CPU buffers and known row stride/slice height.
+- Supports guest YUV420 surfaces with Android planar or semi-planar 8-bit YUV420 CPU buffers and known row stride/slice height. For tiled surfaces, calls Skyline's existing MPL-licensed block-linear swizzler with guest block-height metadata.
 - Builds padded, 256-byte-aligned luma and interleaved UV buffers with allocation caps and checks guest SMMU destinations before writing.
-- Refuses block-linear formats, RGB output, ambiguous Android flexible YUV420 layouts, mismatched sizes and unmapped/overflowed guest allocations.
+- Refuses RGB output, ambiguous Android flexible YUV420 layouts, unsupported large block-heights, mismatched sizes and unmapped/overflowed guest allocations.
 - Tests cover C++ protocol selection, incomplete NCA/legacy GPU baseline, Annex-B header requirements, SPS/PPS generation, NV12 conversion, padding, invalid address/memory guards.
 
-**Important:** This is a conditional partial path, **NOT proof that any cutscene plays**. Hardware decoder output formats and game surface layout still require device testing; block-linear swizzling, crop/transfer and guest syncpoint correctness must be implemented.
+**Important:** This is a conditional partial path, **NOT proof that any cutscene plays**. Native block-linear texture conversion is implemented but has not been validated with real VIC guest buffers on Android. Hardware decoder output formats, tiled output layout, crop/transfer and guest syncpoint correctness still require device testing.
 
 ### QLauncher
 
