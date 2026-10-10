@@ -56,6 +56,14 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - name: Remove only the known unused Oboe test Gradle wrapper
+        run: |
+          set -euo pipefail
+          wrapper=app/libraries/oboe/apps/OboeTester/gradle/wrapper/gradle-wrapper.jar
+          if [ -f "$wrapper" ]; then
+            printf '%s  %s\n' 'e2b82129ab64751fd40437007bd2f7f2afb3c6e41a9198e628650b22d5824a14' "$wrapper" | sha256sum --check --status
+            rm -- "$wrapper"
+          fi
       - uses: gradle/actions/setup-gradle@v4
       - uses: android-actions/setup-android@v3
       - name: Install exact Android native toolchain
