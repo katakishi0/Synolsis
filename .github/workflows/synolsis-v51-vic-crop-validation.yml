@@ -1,0 +1,231 @@
+name: Synolsis V51 VIC Cropped MediaCodec Video Validation (no APK publishing)
+
+on:
+  push:
+    branches:
+      - feature/synolsis-v51-vic-mediacodec-cropped-frames
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: synolsis-v51-native-video-validation
+  cancel-in-progress: true
+
+jobs:
+  host-native:
+    name: Check NVDEC bounds and source integration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile and run independent C++20 NVDEC test
+        run: |
+          set -euo pipefail
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic \
+            tests/nvdec_guest_stream_policy_test.cpp -o /tmp/v44_nvdec_test
+          /tmp/v44_nvdec_test
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic \
+            tests/vic_yuv420_output_test.cpp -o /tmp/v44_vic_test
+          /tmp/v44_vic_test
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic \
+            tests/nvdec_h264_csd_test.cpp -o /tmp/v44_csd_test
+          /tmp/v44_csd_test
+      - name: Verify and run Host1x guest NVDEC/VIC command stream
+        run: |
+          set -euo pipefail
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic \
+              -Iapp/src/main/cpp tests/synolsis_v44_video_command_probe_test.cpp \
+              -o /tmp/v45_video_gather_test
+          /tmp/v45_video_gather_test
+          python3 - <<'PY'
+          from pathlib import Path
+          source=Path('app/src/main/cpp/skyline/services/nvdrv/devices/nvhost/host1x_channel.cpp').read_text()
+          assert source.index('videoChannel.DispatchVideoGathersAtomically(') < source.index('IncrementSyncpointMaxExt(')
+          fifo=Path('app/src/main/cpp/skyline/soc/host1x/command_fifo.cpp').read_text()
+          assert 'nvDecClass.CallMethod(method, argument)' in fifo
+          assert 'vicClass.CallMethod(method, argument)' in fifo
+          assert 'std::scoped_lock lock(videoDispatchMutex)' in fifo
+          assert 'Decode' in Path('app/src/main/cpp/skyline/soc/host1x/classes/nvdec.cpp').read_text()
+          print('PASS: real THI register dispatch precedes guest syncpoint ack')
+          PY
+      - name: Reject malformed NVDEC/VIC submits atomically
+        run: |
+          set -euo pipefail
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic \
+            -Iapp/src/main/cpp tests/synolsis_v46_atomic_video_dispatch_test.cpp \
+            -o /tmp/v46_atomic_host1x
+          /tmp/v46_atomic_host1x
+          python3 - <<'PY'
+          from pathlib import Path
+          h=Path('app/src/main/cpp/skyline/soc/host1x/video_command_probe.h').read_text()
+          assert 'auto staged{*this};' in h
+          assert 'return InspectUnchecked(words, out, sink);' in h
+          codec=Path('app/src/main/cpp/skyline/soc/host1x/classes/android_media_decoder.cpp').read_text()
+          assert "std::clamp<std::int64_t>(waitUs, 0, 12'000)" in codec
+          assert 'if (rowStride <= 0) rowStride = width;' in codec
+          assert 'if (sliceHeight <= 0) sliceHeight = height;' in codec
+          vic=Path('app/src/main/cpp/skyline/soc/host1x/classes/vic.cpp').read_text()
+          assert "decoder.TryGetDecodedFrame(frame, 12'000)" in vic
+          print('PASS: transactional Host1x packet parser and bounded MediaCodec VIC output wait')
+          PY
+      - name: Prove cross-gather class continuity after atomic validation
+        run: |
+          set -euo pipefail
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic \
+            -Iapp/src/main/cpp tests/synolsis_v46_atomic_video_gather_test.cpp \
+            -o /tmp/v46_continuity
+          /tmp/v46_continuity
+          python3 - <<'PY'
+          from pathlib import Path
+          h=Path('app/src/main/cpp/skyline/soc/host1x/video_command_probe.h').read_text()
+          assert 'currentClass{1}' in h
+          assert 'auto staged{*this};' in h
+          print('PASS: cross-gather class and method state remains atomic')
+          PY
+      - name: Validate full nvhost ioctl atomically across multiple buffers
+        run: |
+          set -euo pipefail
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic \
+            tests/synolsis_v47_atomic_video_submit_test.cpp \
+            -o /tmp/v47_atomic_submit
+          /tmp/v47_atomic_submit
+          python3 - <<'PY'
+          from pathlib import Path
+          source=Path('app/src/main/cpp/skyline/services/nvdrv/devices/nvhost/host1x_channel.cpp').read_text()
+          assert 'DispatchVideoGathersAtomically(stable.Buffers(), videoSummary)' in source
+          assert source.index('DispatchVideoGathersAtomically(stable.Buffers(), videoSummary)') < source.index('IncrementSyncpointMaxExt(')
+          print('PASS: full multi-gather nvhost ioctl rejected before side effects')
+          PY
+
+      - name: Verify VIC RGB/BGRA/RGBX and original YUV420 modes
+        run: |
+          set -euo pipefail
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic \
+            tests/vic_rgb_output_test.cpp -o /tmp/v48_vic_rgb
+          /tmp/v48_vic_rgb
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic \
+            tests/vic_yuv420_output_test.cpp -o /tmp/v48_vic_yuv
+          /tmp/v48_vic_yuv
+          python3 - <<'PY'
+          from pathlib import Path
+          src=Path('app/src/main/cpp/skyline/soc/host1x/classes/vic.cpp').read_text()
+          for token in ('vic_output::IsPackedRgb', 'vic_output::PackLinearRgba',
+                        'rgb ? 4 : 1', '!output.chroma.empty()'):
+              assert token in src
+          print('PASS: packed RGB VIC path + unchanged YUV420 path')
+          PY
+      - name: Verify wiring and legacy Vulkan regressions
+        run: |
+          set -euo pipefail
+          python3 tests/synolsis_v44_bridge_integration_test.py
+          python3 tests/synolsis_v43_integration_test.py
+          python3 tests/synolsis_v40_integration_test.py
+      - name: Verify real H264 Annex-B and guest length-prefixed NAL conversion
+        run: |
+          set -euo pipefail
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic \
+            tests/nvdec_h264_access_unit_test.cpp -o /tmp/v50_access_units
+          /tmp/v50_access_units
+          python3 - <<'PY'
+          from pathlib import Path
+          video=Path('app/src/main/cpp/skyline/soc/host1x/classes/nvdec.cpp').read_text()
+          assert 'h264_access_unit::Normalize(packet)' in video
+          assert 'ContainsH264ParameterSets(normalized.bytes)' in video
+          assert 'normalized.bytes.data(), normalized.bytes.size()' in video
+          print('PASS: actual H264 NALs normalized and passed to MediaCodec')
+          PY
+
+      - name: Verify V49 immutable guest command snapshots and decoder negotiation
+        run: |
+          set -euo pipefail
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic \
+            tests/synolsis_v49_gather_snapshot_test.cpp -o /tmp/v49_snapshot
+          /tmp/v49_snapshot
+          python3 - <<'PY'
+          from pathlib import Path
+          source=Path('app/src/main/cpp/skyline/services/nvdrv/devices/nvhost/host1x_channel.cpp').read_text()
+          assert 'stable.Capture(gathers)' in source
+          assert 'DispatchVideoGathersAtomically(stable.Buffers()' in source
+          assert source.index('stable.Capture(gathers)') < source.index('IncrementSyncpointMaxExt(')
+          media=Path('app/src/main/cpp/skyline/soc/host1x/classes/android_media_decoder.cpp').read_text()
+          assert 'AMEDIAFORMAT_KEY_COLOR_FORMAT, 0x15' in media
+          assert 'attempt < 2' in media
+          assert 'NVDEC Android decoded output format' in media
+          print('PASS: immutable 1-MiB bounded nvhost command snapshots and negotiated video output with fallback')
+          PY
+      - name: Verify cropped MediaCodec YUV420 to VIC output and Android metadata
+        run: |
+          set -euo pipefail
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic \
+            tests/vic_mediacodec_crop_test.cpp -o /tmp/v51_crop
+          /tmp/v51_crop
+          python3 - <<'PY'
+          from pathlib import Path
+          code=Path('app/src/main/cpp/skyline/soc/host1x/classes/android_media_decoder.cpp').read_text()
+          assert 'AMEDIAFORMAT_KEY_CROP_LEFT' in code
+          assert 'AMEDIAFORMAT_KEY_CROP_BOTTOM' in code
+          assert 'frame.width = cropRight - cropLeft + 1' in code
+          vic=Path('app/src/main/cpp/skyline/soc/host1x/classes/vic.cpp').read_text()
+          assert vic.count('static_cast<u32>(frame.cropLeft)')==2
+          assert vic.count('static_cast<u32>(frame.cropTop)')==2
+          print('PASS: MediaCodec visible crop copied to guest VIC with stride/slice guards')
+          PY
+
+      - name: Summary
+        run: |
+          echo '### V51 H264, immutable gather, NV12 negotiation and decoded crop bounds, no user APK' >> "$GITHUB_STEP_SUMMARY"
+          echo 'NVDEC/VIC SMMU+MediaCodec and Host1x method dispatch have native regression tests.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'This workflow does NOT publish APKs; cutscenes, true internal resolution and frame generation remain unverified or incomplete.' >> "$GITHUB_STEP_SUMMARY"
+
+  android-native:
+    name: Compile V51 Android Kotlin and ARM64 native core (no APK release)
+    needs: host-native
+    runs-on: ubuntu-22.04
+    timeout-minutes: 150
+    env:
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_MAXSIZE: 2G
+      CCACHE_COMPRESS: 'true'
+      CMAKE_C_COMPILER_LAUNCHER: ccache
+      CMAKE_CXX_COMPILER_LAUNCHER: ccache
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Remove only the known unused Oboe test Gradle wrapper
+        run: |
+          set -euo pipefail
+          wrapper=app/libraries/oboe/apps/OboeTester/gradle/wrapper/gradle-wrapper.jar
+          if [ -f "$wrapper" ]; then
+            printf '%s  %s\n' 'e2b82129ab64751fd40437007bd2f7f2afb3c6e41a9198e628650b22d5824a14' "$wrapper" | sha256sum --check --status
+            rm -- "$wrapper"
+          fi
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Install exact Android native toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ccache ninja-build
+          mkdir -p "$CCACHE_DIR"
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          test -n "$SDK_ROOT"
+          SDKMGR="$(command -v sdkmanager || true)"
+          if [ -z "$SDKMGR" ]; then
+            SDKMGR="$(find "$SDK_ROOT/cmdline-tools" -type f -path '*/bin/sdkmanager' | sort -V | tail -1)"
+          fi
+          test -x "$SDKMGR"
+          "$SDKMGR" --install "platforms;android-34" "build-tools;34.0.0" "ndk;26.1.10909125" "cmake;3.22.1"
+          test -f "$SDK_ROOT/ndk/26.1.10909125/source.properties"
+      - name: Compile frontend and full native ARM64 APK without publishing
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x gradlew
+          ./gradlew :app:compileMainlineOptimizedKotlin --no-daemon --build-cache
+          ./gradlew :app:assembleMainlineOptimized --no-daemon --stacktrace --build-cache
+          ls -lah app/build/outputs/apk/mainline/*/*.apk
+          echo "Compiled V51 padded MediaCodec crop and VIC image output candidate, no release published." >> "$GITHUB_STEP_SUMMARY"
