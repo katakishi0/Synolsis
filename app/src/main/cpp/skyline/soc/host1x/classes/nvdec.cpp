@@ -158,12 +158,12 @@ namespace skyline::soc::host1x {
             std::span<const std::uint8_t>(packet.data(), packet.size()), ptsUs, isConfiguration);
     }
 
-    bool NvDecClass::TryGetDecodedFrame(AndroidMediaDecoder::Frame &frame) {
+    bool NvDecClass::TryGetDecodedFrame(AndroidMediaDecoder::Frame &frame, i64 waitUs) {
         if (readyFrame) {
             frame = std::move(*readyFrame);
             readyFrame.reset();
             return true;
         }
-        return mediaCodecBackend.Drain(frame);
+        return mediaCodecBackend.Drain(frame, waitUs);
     }
 }
