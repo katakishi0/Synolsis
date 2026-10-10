@@ -60,6 +60,8 @@ namespace skyline::soc::host1x::vic_output {
         std::vector<std::uint8_t> chroma;
     };
 
+    // Even-aligned MediaCodec crop origins are respected without reading
+    // outside the padded Android YUV plane allocation.
     // Android CPU output buffers may be padded by sourceStride and
     // sliceHeight. Guest VIC linear YUV420 uses 256-byte-aligned pitch.
     inline bool PackLinearNv12(std::span<const std::uint8_t> source,
@@ -67,10 +69,15 @@ namespace skyline::soc::host1x::vic_output {
                                std::uint32_t sourceStride,
                                std::uint32_t sliceHeight,
                                std::int32_t androidFormat,
-                               Surface surface, Output &output) {
+                               Surface surface, Output &output,
+                               std::uint32_t cropLeft = 0,
+                               std::uint32_t cropTop = 0) {
         if (!SupportedSurface(surface) || surface.format != GuestYuv420 ||
-            width != surface.width || height != surface.height || sourceStride < width ||
-            sliceHeight < height || (sourceStride & 1U) ||
+            width != surface.width || height != surface.height ||
+            cropLeft > sourceStride || width > sourceStride - cropLeft ||
+            cropTop > sliceHeight || height > sliceHeight - cropTop ||
+            (cropLeft & 1U) || (cropTop & 1U) ||
+            (sourceStride & 1U) ||
             (sliceHeight & 1U) ||
             sourceStride > 8192 || sliceHeight > 4096 ||
             (androidFormat != AndroidYuvPlanar &&
@@ -95,16 +102,18 @@ namespace skyline::soc::host1x::vic_output {
         staged.luma.assign(ySize, 0);
         staged.chroma.assign(uvSize, 0);
         for (std::size_t row = 0; row < height; ++row)
-            std::copy_n(source.data() + row * sourceStride, width,
+            std::copy_n(source.data() + (row + cropTop) * sourceStride + cropLeft, width,
                         staged.luma.data() + row * pitch);
         for (std::size_t row = 0; row < height / 2; ++row) {
             const auto *chromaBase = source.data() + fullYBytes;
             auto *dst = staged.chroma.data() + row * pitch;
             if (androidFormat == AndroidYuvSemiplanar) {
-                std::copy_n(chromaBase + row * chromaStride, width, dst);
+                std::copy_n(chromaBase + (row + cropTop / 2U) * chromaStride + cropLeft,
+                            width, dst);
             } else {
-                const auto *u = chromaBase + row * chromaStride;
-                const auto *v = chromaBase + planeBytes + row * chromaStride;
+                const auto *u = chromaBase + (row + cropTop / 2U) * chromaStride + cropLeft / 2U;
+                const auto *v = chromaBase + planeBytes +
+                                (row + cropTop / 2U) * chromaStride + cropLeft / 2U;
                 for (std::size_t col = 0; col < width / 2; ++col) {
                     dst[col * 2] = u[col];
                     dst[col * 2 + 1] = v[col];
@@ -149,10 +158,14 @@ namespace skyline::soc::host1x::vic_output {
                               std::uint32_t sourceStride,
                               std::uint32_t sliceHeight,
                               std::int32_t androidFormat,
-                              Surface surface, Output &output) {
+                              Surface surface, Output &output,
+                              std::uint32_t cropLeft = 0,
+                              std::uint32_t cropTop = 0) {
         if (!SupportedSurface(surface) || !IsPackedRgb(surface.format) ||
             width != surface.width || height != surface.height ||
-            sourceStride < width || sliceHeight < height ||
+            cropLeft > sourceStride || width > sourceStride - cropLeft ||
+            cropTop > sliceHeight || height > sliceHeight - cropTop ||
+            (cropLeft & 1U) || (cropTop & 1U) ||
             (sourceStride & 1U) || (sliceHeight & 1U) ||
             sourceStride > 8192 || sliceHeight > 4096 ||
             (androidFormat != AndroidYuvPlanar &&
@@ -182,9 +195,9 @@ namespace skyline::soc::host1x::vic_output {
         for (std::size_t row = 0; row < height; ++row) {
             auto *dest = staged.luma.data() + row * pitch;
             for (std::size_t column = 0; column < width; ++column) {
-                const auto sampleY = yPlane[row * sourceStride + column];
-                const auto uvRow = (row / 2U) * chromaStride;
-                const auto uvCol = column / 2U;
+                const auto sampleY = yPlane[(row + cropTop) * sourceStride + cropLeft + column];
+                const auto uvRow = ((row + cropTop) / 2U) * chromaStride;
+                const auto uvCol = (column + cropLeft) / 2U;
                 const auto sampleU = androidFormat == AndroidYuvPlanar
                     ? uvPlane[uvRow + uvCol]
                     : uvPlane[uvRow + uvCol * 2U];
