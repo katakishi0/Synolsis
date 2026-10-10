@@ -10,6 +10,7 @@ import android.os.Bundle
 import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.Button
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -61,18 +62,17 @@ class GameContentManagerActivity : AppCompatActivity() {
             GameContentStore.Kind.DLC else GameContentStore.Kind.UPDATE
 
         val scroll = ScrollView(this).apply { isFillViewport = true }
+        val root = FrameLayout(this)
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(24), dp(20), dp(30))
+            setPadding(dp(20), dp(24), dp(20), dp(108))
         }
         scroll.addView(content)
-        setContentView(scroll)
+        root.addView(scroll, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        setContentView(root)
 
         val title = TextView(this).apply {
-            text = getString(
-                if (kind == GameContentStore.Kind.UPDATE) R.string.synolsis_content_updates
-                else R.string.synolsis_content_dlc
-            )
+            text = getString(R.string.synolsis_v54_complements)
             textSize = 26f
             setPadding(0, dp(8), 0, dp(10))
         }
@@ -88,10 +88,23 @@ class GameContentManagerActivity : AppCompatActivity() {
             setPadding(dp(12), dp(12), dp(12), dp(16))
         })
         importButton = Button(this).apply {
-            text = getString(R.string.synolsis_content_import)
-            setOnClickListener { if (!busy) picker.launch(arrayOf("*/*")) }
+            text = getString(R.string.synolsis_v54_install)
+            setOnClickListener {
+                if (busy) return@setOnClickListener
+                AlertDialog.Builder(this@GameContentManagerActivity)
+                    .setTitle(R.string.synolsis_v54_choose_type)
+                    .setItems(arrayOf(
+                        getString(R.string.synolsis_v54_install_update),
+                        getString(R.string.synolsis_v54_install_dlc)
+                    )) { _, selected ->
+                        kind = if (selected == 0) GameContentStore.Kind.UPDATE else GameContentStore.Kind.DLC
+                        picker.launch(arrayOf("*/*"))
+                    }.show()
+            }
         }
-        content.addView(importButton)
+        root.addView(importButton, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+            Gravity.END or Gravity.BOTTOM).apply { setMargins(dp(20), 0, dp(20), dp(20)) })
         listContainer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(0, dp(14), 0, 0)
@@ -102,15 +115,23 @@ class GameContentManagerActivity : AppCompatActivity() {
 
     private fun refreshList() {
         listContainer.removeAllViews()
-        val entries = GameContentStore.list(this, titleId, kind)
-        if (entries.isEmpty()) {
+        // Display verified staged packages in two separate sections while
+        // keeping their real, independently validated package kinds.
+        for (displayKind in listOf(GameContentStore.Kind.UPDATE, GameContentStore.Kind.DLC)) {
             listContainer.addView(TextView(this).apply {
-                text = getString(R.string.synolsis_content_empty)
-                setPadding(0, dp(20), 0, dp(20))
+                text = getString(if (displayKind == GameContentStore.Kind.UPDATE)
+                    R.string.synolsis_v54_install_update else R.string.synolsis_v54_install_dlc)
+                textSize = 19f
+                setPadding(0, dp(20), 0, dp(8))
             })
-            return
-        }
-        for (entry in entries) {
+            val entries = GameContentStore.list(this, titleId, displayKind)
+            if (entries.isEmpty()) {
+                listContainer.addView(TextView(this).apply {
+                    text = getString(R.string.synolsis_content_empty)
+                    setPadding(0, dp(8), 0, dp(12))
+                })
+            }
+            for (entry in entries) {
             val row = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
@@ -159,7 +180,7 @@ class GameContentManagerActivity : AppCompatActivity() {
                         .setMessage(entry.file.name)
                         .setNegativeButton(R.string.no, null)
                         .setPositiveButton(R.string.yes) { _, _ ->
-                            if (GameContentStore.delete(this@GameContentManagerActivity, titleId, kind, entry.file.name)) {
+                            if (GameContentStore.delete(this@GameContentManagerActivity, titleId, displayKind, entry.file.name)) {
                                 refreshList()
                             } else {
                                 Toast.makeText(this@GameContentManagerActivity, R.string.synolsis_content_error, Toast.LENGTH_LONG).show()
@@ -168,21 +189,24 @@ class GameContentManagerActivity : AppCompatActivity() {
                 }
             })
             listContainer.addView(row)
+            }
         }
     }
 
     private fun importPackage(uri: Uri) {
         if (busy) return
         busy = true
+        // Capture the chosen type before the asynchronous document picker returns.
+        val importKind = kind
         importButton.isEnabled = false
         importButton.text = getString(R.string.synolsis_content_importing)
         lifecycleScope.launch {
             val result = withContext(Dispatchers.IO) {
-                runCatching { GameContentStore.importNsp(this@GameContentManagerActivity, titleId, kind, uri) }
+                runCatching { GameContentStore.importNsp(this@GameContentManagerActivity, titleId, importKind, uri) }
             }
             busy = false
             importButton.isEnabled = true
-            importButton.text = getString(R.string.synolsis_content_import)
+            importButton.text = getString(R.string.synolsis_v54_install)
             result.fold(
                 onSuccess = {
                     Toast.makeText(
