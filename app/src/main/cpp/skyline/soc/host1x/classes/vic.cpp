@@ -17,13 +17,13 @@ namespace skyline::soc::host1x {
             if (n <= 5 || (n & (n - 1)) == 0)
                 LOGW("VIC guest image not available: reason={} count={}", cause, n);
         }};
-        if (!state.soc || !configAddress || !lumaAddress || !chromaAddress ||
+        if (!state.soc || !configAddress || !lumaAddress ||
             configAddress > 0xFFFFFFFFULL - 0x28ULL) {
             reject("missing-mapped-guest-surfaces");
             return;
         }
         const auto mapped{[this](std::uint64_t at, std::size_t length) {
-            if (at < 0x100 || !length || length > 32ULL * 1024 * 1024 ||
+            if (at < 0x100 || !length || length > 64ULL * 1024 * 1024 ||
                 at >= (1ULL << 32) || length > (1ULL << 32) - at)
                 return false;
             const auto chunks{state.soc->smmu.TranslateRange(
@@ -48,6 +48,10 @@ namespace skyline::soc::host1x {
                 reject("unsupported-vic-format-or-block-linear-surface");
                 return;
             }
+            if (surface.format == vic_output::GuestYuv420 && !chromaAddress) {
+                reject("missing-vic-chroma-surface");
+                return;
+            }
             AndroidMediaDecoder::Frame frame{};
             // Give an asynchronously decoding Android codec a short chance to
             // deliver output; a zero-time poll always missed some cutscenes.
@@ -57,48 +61,60 @@ namespace skyline::soc::host1x {
                 return;
             }
             vic_output::Output output{};
-            if (!vic_output::PackLinearNv12(
-                    std::span<const std::uint8_t>(frame.data.data(), frame.data.size()),
-                    static_cast<u32>(frame.width), static_cast<u32>(frame.height),
+            const auto data = std::span<const std::uint8_t>(
+                frame.data.data(), frame.data.size());
+            const bool rgb = vic_output::IsPackedRgb(surface.format);
+            const bool staged = rgb
+                ? vic_output::PackLinearRgba(
+                    data, static_cast<u32>(frame.width), static_cast<u32>(frame.height),
                     static_cast<u32>(frame.rowStride),
                     static_cast<u32>(frame.sliceHeight), frame.colorFormat,
-                    surface, output)) {
-                reject("unsupported-android-yuv-layout");
+                    surface, output)
+                : vic_output::PackLinearNv12(
+                    data, static_cast<u32>(frame.width), static_cast<u32>(frame.height),
+                    static_cast<u32>(frame.rowStride),
+                    static_cast<u32>(frame.sliceHeight), frame.colorFormat,
+                    surface, output);
+            if (!staged) {
+                reject("unsupported-android-color-plane-layout");
                 return;
             }
             if (surface.blockKind != 0) {
-                // Convert the verified linear Android output using Skyline's
-                // existing MPL-licensed Tegra block-linear texture swizzler.
-                // This path preserves the guest's declared block-height,
-                // rather than writing pitch-linear data into tiled memory.
+                // Convert verified planar staging with Skyline's own
+                // MPL-2.0 guest texture layout routine; packed RGB is
+                // one 4-bytes-per-pixel guest surface, never a UV plane.
                 const auto gobHeight{std::size_t{1} << surface.blockHeightLog2};
                 const gpu::texture::Dimensions yDimensions{
                     surface.width, surface.height, 1};
                 const gpu::texture::Dimensions uvDimensions{
                     surface.width, surface.height / 2U, 1};
                 const auto lumaBytes{gpu::texture::GetBlockLinearLayerSize(
-                    yDimensions, 1, 1, 1, gobHeight, 1)};
-                const auto chromaBytes{gpu::texture::GetBlockLinearLayerSize(
+                    yDimensions, 1, 1, rgb ? 4 : 1, gobHeight, 1)};
+                const auto chromaBytes{rgb ? 0 : gpu::texture::GetBlockLinearLayerSize(
                     uvDimensions, 1, 1, 1, gobHeight, 1)};
-                if (!lumaBytes || !chromaBytes ||
-                    lumaBytes > 32ULL * 1024 * 1024 ||
+                if (!lumaBytes || lumaBytes > (rgb ? 64ULL : 32ULL) * 1024 * 1024 ||
                     chromaBytes > 16ULL * 1024 * 1024) {
                     reject("block-linear-image-too-large");
                     return;
                 }
-                const u32 sourcePitch{(surface.width + 255U) & ~255U};
-                std::vector<u8> tiledY(lumaBytes, 0), tiledUv(chromaBytes, 0);
+                const u32 sourcePitch{((surface.width * (rgb ? 4U : 1U)) + 255U) & ~255U};
+                std::vector<u8> tiledY(lumaBytes, 0);
                 gpu::texture::CopyPitchToBlockLinear(
-                    yDimensions, 1, 1, 1, sourcePitch, gobHeight, 1,
+                    yDimensions, 1, 1, rgb ? 4 : 1,
+                    sourcePitch, gobHeight, 1,
                     output.luma.data(), tiledY.data());
-                gpu::texture::CopyPitchToBlockLinear(
-                    uvDimensions, 1, 1, 1, sourcePitch, gobHeight, 1,
-                    output.chroma.data(), tiledUv.data());
                 output.luma = std::move(tiledY);
-                output.chroma = std::move(tiledUv);
+                if (!rgb) {
+                    std::vector<u8> tiledUv(chromaBytes, 0);
+                    gpu::texture::CopyPitchToBlockLinear(
+                        uvDimensions, 1, 1, 1,
+                        sourcePitch, gobHeight, 1,
+                        output.chroma.data(), tiledUv.data());
+                    output.chroma = std::move(tiledUv);
+                }
             }
             if (!mapped(lumaAddress, output.luma.size()) ||
-                !mapped(chromaAddress, output.chroma.size())) {
+                (!output.chroma.empty() && !mapped(chromaAddress, output.chroma.size()))) {
                 reject("vic-output-surfaces-unmapped");
                 return;
             }
@@ -106,10 +122,11 @@ namespace skyline::soc::host1x {
             // validated do we write actual video pixels to the guest surface.
             state.soc->smmu.Write(static_cast<u32>(lumaAddress), output.luma.data(),
                                   static_cast<u32>(output.luma.size()));
-            state.soc->smmu.Write(static_cast<u32>(chromaAddress), output.chroma.data(),
-                                  static_cast<u32>(output.chroma.size()));
-            LOGD("VIC wrote decoded YUV420 frame to guest memory: {}x{} (blockKind={})",
-                 surface.width, surface.height, surface.blockKind);
+            if (!output.chroma.empty())
+                state.soc->smmu.Write(static_cast<u32>(chromaAddress), output.chroma.data(),
+                                      static_cast<u32>(output.chroma.size()));
+            LOGD("VIC wrote decoded frame to guest memory: {}x{} format=0x{:X} blockKind={}",
+                 surface.width, surface.height, surface.format, surface.blockKind);
         } catch (const std::exception &e) {
             reject("vic-memory-or-format-error");
             LOGW("VIC frame bridge rejected guest buffers: {}", e.what());
