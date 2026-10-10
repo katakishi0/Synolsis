@@ -1,0 +1,46 @@
+name: Synolsis V44 - Host1x Video Probe Tests
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/synolsis-v44-video-probe-test.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  host1x-probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Dedicated tested snapshot. Do not publish an APK before NVDEC/VIC,
+          # actual internal render scale and frame generation are complete.
+          ref: feature/synolsis-v44-host1x-video-path
+          submodules: false
+          persist-credentials: false
+      - name: Compile and run pure host video probe tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ --version
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic \
+              -Iapp/src/main/cpp tests/synolsis_v44_video_command_probe_test.cpp \
+              -o /tmp/synolsis_v44_video_probe_test
+          /tmp/synolsis_v44_video_probe_test
+      - name: Verify video producer instrumentation precedes guest syncpoint acknowledgement
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('app/src/main/cpp/skyline/services/nvdrv/devices/nvhost/host1x_channel.cpp').read_text()
+          probe=p.index('videoProbe.Inspect(gather, videoSummary)')
+          sync=p.index('core.syncpointManager.IncrementSyncpointMaxExt(')
+          assert probe < sync, 'video probe must not access guest memory after acknowledging work'
+          assert 'state.soc->host1x.channels[static_cast<size_t>(channelType)].Push(gather);' not in p
+          assert 'decoder/VIC not connected' in p
+          print('PASS: video gather safely observed before guest syncpoint and no fabricated decode')
+          PY
