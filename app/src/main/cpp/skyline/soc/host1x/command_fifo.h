@@ -11,6 +11,7 @@
 #include "classes/nvdec.h"
 #include "classes/vic.h"
 #include "tegra_host_interface.h"
+#include "video_command_probe.h"
 
 namespace skyline::soc::host1x {
     /**
@@ -25,6 +26,10 @@ namespace skyline::soc::host1x {
         CircularQueue<span<u32>> gatherQueue;
         std::thread thread; //!< The thread that manages processing of pushbuffers within gathers
         std::mutex threadStartMutex; //!< Protects the thread from being started multiple times
+        // Guest buffers must not outlive nvhost Submit. The synchronous
+        // video-only path is guarded independently from the async FIFO.
+        std::mutex videoDispatchMutex;
+        video_probe::VideoCommandProbe videoProbe;
 
         Host1xClass host1XClass; //!< The internal Host1x class, used for performing syncpoint waits and other general operations
         TegraHostInterface<NvDecClass> nvDecClass; //!< The THI wrapped NVDEC class for video decoding
@@ -59,5 +64,11 @@ namespace skyline::soc::host1x {
          * @brief Pushes a single gather into the FIFO to be processed asynchronously
          */
         void Push(span<u32> gather);
+
+        // Only forward validated NVDEC/VIC THI method 0/1 writes. Normal
+        // guest syncpoint increments stay owned by nvhost submit; forwarding
+        // Host1x method 0 here could double-signal fences.
+        bool DispatchVideoGather(std::span<const u32> gather,
+                                 video_probe::Summary &summary);
     };
 }
