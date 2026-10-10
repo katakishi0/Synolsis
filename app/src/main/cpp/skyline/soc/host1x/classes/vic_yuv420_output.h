@@ -55,6 +55,22 @@ namespace skyline::soc::host1x::vic_output {
                !(surface.width & 1U) && !(surface.height & 1U);
     }
 
+    // MediaCodec can report a coded or visible rectangle that is up to one
+    // H.264 macroblock larger than the game's requested VIC destination.
+    // Clamp reads to the smaller guest surface *only* for trailing alignment:
+    // no scaling, upsampling, fake pixels, or out-of-bounds source reads.
+    // Both NV12 and packed RGB require the same original decoded crop origin.
+    constexpr bool DecodedFrameCoversSurface(Surface surface,
+                                              std::uint32_t visibleWidth,
+                                              std::uint32_t visibleHeight) {
+        constexpr std::uint32_t MacroblockAlignment = 16;
+        return SupportedSurface(surface) &&
+               visibleWidth >= surface.width &&
+               visibleHeight >= surface.height &&
+               visibleWidth - surface.width <= MacroblockAlignment &&
+               visibleHeight - surface.height <= MacroblockAlignment;
+    }
+
     struct Output {
         std::vector<std::uint8_t> luma;
         std::vector<std::uint8_t> chroma;
