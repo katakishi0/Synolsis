@@ -8,9 +8,8 @@
 #include <span>
 #include <vector>
 
-// Independent, bounded linear YUV420 conversion. No block-linear image
-// emulation is attempted here; incorrectly swizzled output is worse than
-// keeping an unsupported VIC mode disabled.
+// Independent, bounded YUV420 staging. The caller uses Skyline's own
+// MPL-licensed guest texture swizzler for block-linear output.
 namespace skyline::soc::host1x::vic_output {
     constexpr std::uint32_t ExecuteMethod = 0xC0;
     constexpr std::uint32_t ConfigMethod = 0x1C2;
@@ -26,6 +25,7 @@ namespace skyline::soc::host1x::vic_output {
         std::uint32_t height{};
         std::uint32_t blockKind{};
         std::uint32_t format{};
+        std::uint32_t blockHeightLog2{};
     };
 
     constexpr Surface DecodeSurface(std::uint64_t config) {
@@ -33,12 +33,14 @@ namespace skyline::soc::host1x::vic_output {
             static_cast<std::uint32_t>(((config >> 32) & 0x3FFFU) + 1),
             static_cast<std::uint32_t>(((config >> 46) & 0x3FFFU) + 1),
             static_cast<std::uint32_t>((config >> 11) & 0xFU),
-            static_cast<std::uint32_t>(config & 0x7FU)
+            static_cast<std::uint32_t>(config & 0x7FU),
+            static_cast<std::uint32_t>((config >> 15) & 0xFU)
         };
     }
 
     constexpr bool SupportedSurface(Surface surface) {
-        return surface.format == GuestYuv420 && surface.blockKind == 0 &&
+        return surface.format == GuestYuv420 &&
+               surface.blockHeightLog2 <= 4U &&
                surface.width >= 16 && surface.height >= 16 &&
                surface.width <= 4096 && surface.height <= 2160 &&
                !(surface.width & 1U) && !(surface.height & 1U);
