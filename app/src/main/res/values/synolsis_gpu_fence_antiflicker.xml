@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="synolsis_gpu_fence_antiflicker_title">Accurate GPU fence synchronization</string>
-    <string name="synolsis_gpu_fence_antiflicker_off">Standard GPU completion timing (recommended on V39).</string>
+    <string name="synolsis_gpu_fence_antiflicker_off">Standard GPU completion timing.</string>
     <string name="synolsis_gpu_fence_antiflicker_on">Wait for GPU completion before notifying the game. Experimental; may lower FPS.</string>
 </resources>
