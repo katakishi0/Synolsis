@@ -4,6 +4,7 @@
 #include <soc.h>
 #include <services/nvdrv/devices/deserialisation/deserialisation.h>
 #include "host1x_channel.h"
+#include <soc/host1x/video_command_probe.h>
 
 namespace skyline::service::nvdrv::device::nvhost {
     Host1xChannel::Host1xChannel(const DeviceState &state,
@@ -53,29 +54,50 @@ namespace skyline::service::nvdrv::device::nvhost {
                 return PosixResult::InvalidArgument;
         }
 
+        // Extract the actual Host1x/THI method stream from validated guest
+        // buffers *before* acknowledging it to the guest. Previously, all
+        // buffers were skipped, so the NVDEC/VIC classes never saw requests.
+        // Probe only: full video decoding still requires register/SMMU and VIC
+        // output support. Do not send this to the asynchronous FIFO: it holds
+        // guest spans which could be unmapped immediately after return.
+        soc::host1x::video_probe::VideoCommandProbe videoProbe;
+        soc::host1x::video_probe::Summary videoSummary{};
+        for (const auto &cmdBuf : cmdBufs) {
+            const auto handleDesc{core.nvMap.GetHandle(cmdBuf.mem)};
+            const u64 gatherAddress{handleDesc->address + cmdBuf.offset};
+            const std::span<const u32> gather{
+                reinterpret_cast<const u32 *>(gatherAddress), cmdBuf.words};
+            videoProbe.Inspect(gather, videoSummary);
+        }
+        // Sample real guest execution requests; never confuse observed NVDEC
+        // calls with decoded frames or a completed VIC color conversion.
+        if (videoSummary.nvdecExecutions || videoSummary.vicExecutions) {
+            static std::atomic<std::uint64_t> videoSubmitCount{};
+            const auto serial{videoSubmitCount.fetch_add(1, std::memory_order_relaxed) + 1};
+            if (serial <= 4 || (serial & (serial - 1)) == 0)
+                LOGW("Synolsis video submit #{}: NVDEC exec={} codec=0x{:X} VIC exec={} "
+                     "(guest commands observed; decoder/VIC not connected)",
+                     serial, videoSummary.nvdecExecutions, videoSummary.lastNvdecCodec,
+                     videoSummary.vicExecutions);
+        }
+        if (videoSummary.truncatedOrUnsupported) {
+            static std::atomic<std::uint64_t> unsupportedGatherCount{};
+            const auto serial{unsupportedGatherCount.fetch_add(1, std::memory_order_relaxed) + 1};
+            if (serial <= 4 || (serial & (serial - 1)) == 0)
+                LOGW("Video pushbuffer probe encountered unsupported or truncated opcodes (sample #{})", serial);
+        }
+
+        // Legacy syncpoint behavior remains until class execution actually
+        // produces guest-visible video output. A fake decode completion would
+        // cause black cutscenes and break guest synchronization.
         for (size_t i{}; i < syncpointIncrs.size(); i++) {
             const auto &incr{syncpointIncrs[i]};
-
             u32 max{core.syncpointManager.IncrementSyncpointMaxExt(incr.syncpointId, incr.numIncrs)};
-
-            // Increment syncpoints on the CPU to avoid needing to pass through the emulated nvdec code which currently does nothing
             for (size_t j{}; j < incr.numIncrs; j++)
                 state.soc->host1x.syncpoints[incr.syncpointId].Increment();
 
             if (i < fenceThresholds.size())
                 fenceThresholds[i] = max;
-        }
-
-        for (const auto &cmdBuf : cmdBufs) {
-            auto handleDesc{core.nvMap.GetHandle(cmdBuf.mem)};
-            // Already validated before signalling guest syncpoints.
-
-            u64 gatherAddress{handleDesc->address + cmdBuf.offset};
-            LOGD("Submit gather, CPU address: 0x{:X}, words: 0x{:X}", gatherAddress, cmdBuf.words);
-
-            span gather(reinterpret_cast<u32 *>(gatherAddress), cmdBuf.words);
-            // Skip submitting the cmdbufs as no functionality is implemented
-            // state.soc->host1x.channels[static_cast<size_t>(channelType)].Push(gather);
         }
 
         return PosixResult::Success;
