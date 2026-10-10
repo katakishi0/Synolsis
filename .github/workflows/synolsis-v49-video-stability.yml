@@ -93,8 +93,8 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           source=Path('app/src/main/cpp/skyline/services/nvdrv/devices/nvhost/host1x_channel.cpp').read_text()
-          assert 'DispatchVideoGathersAtomically(gathers, videoSummary)' in source
-          assert source.index('DispatchVideoGathersAtomically(gathers, videoSummary)') < source.index('IncrementSyncpointMaxExt(')
+          assert 'DispatchVideoGathersAtomically(stable.Buffers(), videoSummary)' in source
+          assert source.index('DispatchVideoGathersAtomically(stable.Buffers(), videoSummary)') < source.index('IncrementSyncpointMaxExt(')
           print('PASS: full multi-gather nvhost ioctl rejected before side effects')
           PY
 
