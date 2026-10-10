@@ -1,0 +1,101 @@
+name: Synolsis V53 Aligned H264-to-VIC Output (no APK release)
+on:
+  push:
+    branches:
+      - feature/synolsis-v53-vic-aligned-output
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: synolsis-v53-vic-aligned-output
+  cancel-in-progress: true
+jobs:
+  host-queue:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile C++20 queue and validate frame order / memory budget
+        shell: bash
+        run: |
+          set -euo pipefail
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic \
+            tests/nvdec_frame_queue_test.cpp -o /tmp/synolsis-v52-queue
+          /tmp/synolsis-v52-queue
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic \
+            tests/vic_aligned_output_test.cpp -o /tmp/synolsis-v53-aligned-vic
+          /tmp/synolsis-v53-aligned-vic
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic \
+            tests/vic_mediacodec_crop_test.cpp -o /tmp/synolsis-v53-crop
+          /tmp/synolsis-v53-crop
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic \
+            tests/vic_rgb_output_test.cpp -o /tmp/synolsis-v53-rgb
+          /tmp/synolsis-v53-rgb
+          python3 - <<'PY'
+          from pathlib import Path
+          c=Path('app/src/main/cpp/skyline/soc/host1x/classes/nvdec.cpp').read_text()
+          h=Path('app/src/main/cpp/skyline/soc/host1x/classes/nvdec.h').read_text()
+          assert 'readyFrames.Push(std::move(frame))' in c
+          assert 'readyFrames.Take()' in c
+          assert 'readyFrames.Clear()' in c
+          assert 'BoundedFrames<AndroidMediaDecoder::Frame>' in h
+          assert 'std::optional<AndroidMediaDecoder::Frame> readyFrame;' not in h
+          vic=Path('app/src/main/cpp/skyline/soc/host1x/classes/vic.cpp').read_text()
+          policy=Path('app/src/main/cpp/skyline/soc/host1x/classes/vic_yuv420_output.h').read_text()
+          assert 'DecodedFrameCoversSurface' in policy and vic
+          assert vic.count('data, surface.width, surface.height,') == 2
+          assert 'decoded-frame-vic-extent-mismatch' in vic
+          assert 'frame.width), static_cast<u32>(frame.height)' not in vic
+          print('PASS: bounded real-frame handoff, H264 16px trailing alignment and VIC NV12/RGB packing')
+          PY
+
+  android-native:
+    name: Compile V53 Android Kotlin and ARM64 core (no APK release)
+    needs: host-queue
+    runs-on: ubuntu-22.04
+    timeout-minutes: 150
+    env:
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_MAXSIZE: 2G
+      CCACHE_COMPRESS: 'true'
+      CMAKE_C_COMPILER_LAUNCHER: ccache
+      CMAKE_CXX_COMPILER_LAUNCHER: ccache
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Remove only the known unused Oboe test Gradle wrapper
+        run: |
+          set -euo pipefail
+          wrapper=app/libraries/oboe/apps/OboeTester/gradle/wrapper/gradle-wrapper.jar
+          if [ -f "$wrapper" ]; then
+            printf '%s  %s\n' 'e2b82129ab64751fd40437007bd2f7f2afb3c6e41a9198e628650b22d5824a14' "$wrapper" | sha256sum --check --status
+            rm -- "$wrapper"
+          fi
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Install exact Android native toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ccache ninja-build
+          mkdir -p "$CCACHE_DIR"
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          test -n "$SDK_ROOT"
+          SDKMGR="$(command -v sdkmanager || true)"
+          if [ -z "$SDKMGR" ]; then
+            SDKMGR="$(find "$SDK_ROOT/cmdline-tools" -type f -path '*/bin/sdkmanager' | sort -V | tail -1)"
+          fi
+          test -x "$SDKMGR"
+          "$SDKMGR" --install "platforms;android-34" "build-tools;34.0.0" "ndk;26.1.10909125" "cmake;3.22.1"
+          test -f "$SDK_ROOT/ndk/26.1.10909125/source.properties"
+      - name: Compile frontend and full native ARM64 APK without publishing
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x gradlew
+          ./gradlew :app:compileMainlineOptimizedKotlin --no-daemon --build-cache
+          ./gradlew :app:assembleMainlineOptimized --no-daemon --stacktrace --build-cache
+          ls -lah app/build/outputs/apk/mainline/*/*.apk
+          echo "Compiled V53 VIC alignment tolerance and existing V52 NVDEC frame queue, no release published." >> "$GITHUB_STEP_SUMMARY"
