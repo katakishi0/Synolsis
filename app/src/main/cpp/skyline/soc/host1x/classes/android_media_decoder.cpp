@@ -83,13 +83,17 @@ namespace skyline::soc::host1x {
         return true;
     }
 
-    bool AndroidMediaDecoder::Drain(Frame &frame) {
+    bool AndroidMediaDecoder::Drain(Frame &frame, std::int64_t waitUs) {
         constexpr std::size_t MaxFrameBytes{32 * 1024 * 1024};
         std::scoped_lock guard{mutex};
         if (!codec)
             return false;
         AMediaCodecBufferInfo info{};
-        const ssize_t index{AMediaCodec_dequeueOutputBuffer(codec, &info, 0)};
+        // MediaCodec decode is asynchronous. The old immediate-only poll
+        // consistently missed VIC execute on some Android codecs. Permit a
+        // bounded wait (<=12ms) from VIC, but keep NVDEC submit nonblocking.
+        const auto boundedWait{std::clamp<std::int64_t>(waitUs, 0, 12'000)};
+        ssize_t index{AMediaCodec_dequeueOutputBuffer(codec, &info, boundedWait)};
         if (index == AMEDIACODEC_INFO_OUTPUT_FORMAT_CHANGED) {
             AMediaFormat *format{AMediaCodec_getOutputFormat(codec)};
             if (format) {
@@ -98,6 +102,11 @@ namespace skyline::soc::host1x {
                 AMediaFormat_getInt32(format, AMEDIAFORMAT_KEY_COLOR_FORMAT, &colorFormat);
                 AMediaFormat_getInt32(format, AMEDIAFORMAT_KEY_STRIDE, &rowStride);
                 AMediaFormat_getInt32(format, AMEDIAFORMAT_KEY_SLICE_HEIGHT, &sliceHeight);
+                // Some MediaCodec implementations omit optional stride/
+                // slice-height keys. Tight packing is the only safe fallback
+                // until a device exposes a different documented layout.
+                if (rowStride <= 0) rowStride = width;
+                if (sliceHeight <= 0) sliceHeight = height;
                 AMediaFormat_delete(format);
                 if (width < 0 || height < 0 ||
                     !ValidVideoExtent(static_cast<std::uint32_t>(width),
@@ -107,7 +116,10 @@ namespace skyline::soc::host1x {
                     StopLocked();
                 }
             }
-            return false;
+            if (!codec) return false;
+            // The next output event can be ready immediately after the format
+            // transition; do not silently drop it and strand VIC's one shot.
+            index = AMediaCodec_dequeueOutputBuffer(codec, &info, 0);
         }
         if (index < 0)
             return false;
