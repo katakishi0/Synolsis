@@ -1,11 +1,11 @@
-name: Synolsis V53 Aligned H264-to-VIC Output (no APK release)
+name: Synolsis V53 Experimental NVDEC-VIC APK and Host Validation
 on:
   push:
     branches:
       - feature/synolsis-v53-vic-aligned-output
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 concurrency:
   group: synolsis-v53-vic-aligned-output
   cancel-in-progress: true
@@ -56,7 +56,7 @@ jobs:
           PY
 
   android-native:
-    name: Compile V53 Android Kotlin and ARM64 core (no APK release)
+    name: Build V53 Android ARM64 experimental APK
     needs: host-queue
     runs-on: ubuntu-22.04
     timeout-minutes: 150
@@ -105,4 +105,37 @@ jobs:
           ./gradlew :app:compileMainlineOptimizedKotlin --no-daemon --build-cache
           ./gradlew :app:assembleMainlineOptimized --no-daemon --stacktrace --build-cache
           ls -lah app/build/outputs/apk/mainline/*/*.apk
-          echo "Compiled V53 VIC alignment tolerance and existing V52 NVDEC frame queue, no release published." >> "$GITHUB_STEP_SUMMARY"
+          echo "Compiled V53 VIC alignment tolerance, Android NDK 14/15 buffers and V52 NVDEC frame queue." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish experimental APK to GitHub Releases (requires user device verification)
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(app/build/outputs/apk/mainline/*/*.apk)
+          if (( ${#files[@]} == 0 )); then
+            echo "::error::No Android ARM64 APK built"
+            exit 1
+          fi
+          tag="synolsis-v53-video-experimental-${GITHUB_RUN_NUMBER}"
+          notes="V53 experimental source checkpoint only. NVDEC H264->MediaCodec->VIC registers, frame queue, 16px alignment, and Android 14/15 NDK output buffer policy are compiled and host-tested. IMPORTANT: no physical Android game cutscene proof, QLauncher HOME incomplete, true internal GPU resolution 0.5x/0.75x/2x NOT implemented and Vulkan Frame Generation NOT implemented. Do not claim these features work. Preserve V39 graphics and V35 boot baseline. Bring emulation.log and logcat for device-only validation. No firmware, keys or ROMs included."
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$tag" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$tag" "${files[@]}" --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --title "Synolsis V53 Experimental Video Bridge (Not Fully Functional) ${GITHUB_RUN_NUMBER}" \
+              --notes "$notes" --prerelease
+          fi
+          {
+            echo "### Experimental V53 APK (not confirmed to fix cutscenes)"
+            echo "Source SHA: $GITHUB_SHA"
+            echo "Release: https://github.com/${GITHUB_REPOSITORY}/releases/tag/${tag}"
+            for file in "${files[@]}"; do
+              echo "APK: $file"
+              sha256sum "$file"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
