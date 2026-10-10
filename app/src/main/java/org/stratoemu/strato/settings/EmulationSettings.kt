@@ -38,6 +38,15 @@ class EmulationSettings private constructor(context : Context, prefName : String
     // Display
     var perfStats by sharedPreferences(context, false, prefName = prefName)
     var perfStatsDetails by sharedPreferences(context, false, prefName = prefName)
+    // User-selectable Citron-inspired overlay and independent data switches.
+    var synolsisStatsStyle by sharedPreferences(context, "classic", prefName = prefName)
+    var synolsisStatsFps by sharedPreferences(context, true, prefName = prefName)
+    var synolsisStatsRam by sharedPreferences(context, true, prefName = prefName)
+    var synolsisStatsFrametime by sharedPreferences(context, false, prefName = prefName)
+    var synolsisStatsJitter by sharedPreferences(context, false, prefName = prefName)
+    var synolsisStatsBattery by sharedPreferences(context, false, prefName = prefName)
+    var synolsisStatsAvailRam by sharedPreferences(context, false, prefName = prefName)
+    var synolsisStatsGraph by sharedPreferences(context, true, prefName = prefName)
     var maxRefreshRate by sharedPreferences(context, false, prefName = prefName)
     var orientation by sharedPreferences(context, ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE, prefName = prefName)
     var aspectRatio by sharedPreferences(context, 0, prefName = prefName)
