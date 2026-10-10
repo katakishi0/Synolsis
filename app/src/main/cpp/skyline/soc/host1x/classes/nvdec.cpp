@@ -4,13 +4,16 @@
 #include "nvdec.h"
 
 namespace skyline::soc::host1x {
-    NvDecClass::NvDecClass(std::function<void()> opDoneCallback)
-        : opDoneCallback(std::move(opDoneCallback)) {}
+    NvDecClass::NvDecClass(std::function<void()> opDoneCallback, SMMU &smmu)
+        : opDoneCallback(std::move(opDoneCallback)), smmu(smmu) {}
 
     void NvDecClass::CallMethod(u32 method, u32 argument) {
         // Do not signal fake decode completion: the guest NVDEC method
         // registers and their SMMU-addressed bitstream buffers have not yet
         // been translated into compressed access units for MediaCodec.
+        registers.Write(method, argument);
+        // Hardware method indices are documented independently in the
+        // MPL-licensed nvdec_h264_packet_probe.h. No video is synthesized.
         // Citron/yuzu Host1x reference registers (GPL implementation was not copied):
         // 0x80 = codec selection; 0xC0 = decode execute. These observations
         // distinguish "no cutscene commands" from "decoder never wired".
@@ -23,11 +26,34 @@ namespace skyline::soc::host1x {
         }
         if (method == 0xC0) {
             const auto executions{executeCount.fetch_add(1, std::memory_order_relaxed) + 1};
-            if (executions <= 4 || (executions & (executions - 1)) == 0)
-                LOGW("NVDEC execute requested: count={} codec=0x{:X}; guest bitstream and VIC output are not connected",
-                     executions, lastCodecId.load(std::memory_order_relaxed));
+            // Read the guest H264 stream descriptor through Skyline's real
+            // SMMU mappings. This is bounded and probes ONLY the four-byte
+            // length and first four compressed bytes, not entire video frames.
+            // It establishes whether the guest video source is reachable.
+            auto packet{nvdec_probe::Inspect(registers, [this](u32 address,
+                          std::span<std::uint8_t> output) -> bool {
+                try {
+                    smmu.Read(output.data(), address, static_cast<u32>(output.size()));
+                    return true;
+                } catch (const std::exception &) {
+                    return false; // Guest pages may legitimately be unmapped.
+                }
+            })};
+            if (executions <= 4 || (executions & (executions - 1)) == 0) {
+                if (packet)
+                    LOGI("NVDEC H264 guest packet: count={} size={} AnnexB={} (decode/VIC still pending)",
+                         executions, packet->size, packet->hasAnnexBPrefix);
+                else
+                    LOGW("NVDEC execute requested: count={} codec=0x{:X}; H264 guest packet unavailable or invalid",
+                         executions, lastCodecId.load(std::memory_order_relaxed));
+            }
             return;
         }
+        // Known state registers are tracked, not "unknown" spam.
+        if (method == nvdec_probe::ControlMethod ||
+            method == nvdec_probe::PictureInfoMethod ||
+            method == nvdec_probe::BitstreamMethod)
+            return;
         const auto count{unhandledMethodCount.fetch_add(1, std::memory_order_relaxed) + 1};
         // Games can submit thousands of NVDEC registers per second. Logging
         // each register on Android severely harms frame pacing, even though
