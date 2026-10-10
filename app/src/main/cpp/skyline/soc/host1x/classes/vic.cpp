@@ -60,20 +60,36 @@ namespace skyline::soc::host1x {
                 reject("nvdec-output-not-ready");
                 return;
             }
+            // A hardware decoder may expose 1920x1088 for a 1920x1080
+            // picture. Previous exact-width/height checks rejected the
+            // otherwise valid VIC output. Accept at most one macroblock of
+            // *trailing* alignment and never stretch an undersized frame.
+            if (frame.width <= 0 || frame.height <= 0 ||
+                !vic_output::DecodedFrameCoversSurface(
+                    surface, static_cast<u32>(frame.width),
+                    static_cast<u32>(frame.height))) {
+                reject("decoded-frame-vic-extent-mismatch");
+                return;
+            }
+            if (frame.width != static_cast<std::int32_t>(surface.width) ||
+                frame.height != static_cast<std::int32_t>(surface.height))
+                LOGD("VIC trims aligned decoded frame {}x{} to guest {}x{}",
+                     frame.width, frame.height, surface.width, surface.height);
+
             vic_output::Output output{};
             const auto data = std::span<const std::uint8_t>(
                 frame.data.data(), frame.data.size());
             const bool rgb = vic_output::IsPackedRgb(surface.format);
             const bool staged = rgb
                 ? vic_output::PackLinearRgba(
-                    data, static_cast<u32>(frame.width), static_cast<u32>(frame.height),
+                    data, surface.width, surface.height,
                     static_cast<u32>(frame.rowStride),
                     static_cast<u32>(frame.sliceHeight), frame.colorFormat,
                     surface, output,
                     static_cast<u32>(frame.cropLeft),
                     static_cast<u32>(frame.cropTop))
                 : vic_output::PackLinearNv12(
-                    data, static_cast<u32>(frame.width), static_cast<u32>(frame.height),
+                    data, surface.width, surface.height,
                     static_cast<u32>(frame.rowStride),
                     static_cast<u32>(frame.sliceHeight), frame.colorFormat,
                     surface, output,
