@@ -53,6 +53,35 @@
             app:key="perf_stats_details"
             app:title="@string/synolsis_frametime_overlay"
             android:summary="@string/synolsis_frametime_overlay_desc" />
+        <ListPreference
+            android:defaultValue="classic"
+            android:entries="@array/synolsis_stats_style_entries"
+            android:entryValues="@array/synolsis_stats_style_values"
+            app:key="synolsis_stats_style"
+            app:dependency="perf_stats"
+            app:title="@string/synolsis_stats_style_title"
+            app:summary="@string/synolsis_stats_style_desc" />
+        <SwitchPreferenceCompat android:defaultValue="true"
+            app:key="synolsis_stats_fps" app:dependency="perf_stats"
+            app:title="@string/synolsis_stats_fps" />
+        <SwitchPreferenceCompat android:defaultValue="true"
+            app:key="synolsis_stats_ram" app:dependency="perf_stats"
+            app:title="@string/synolsis_stats_ram" />
+        <SwitchPreferenceCompat android:defaultValue="false"
+            app:key="synolsis_stats_frametime" app:dependency="perf_stats"
+            app:title="@string/synolsis_stats_frametime" />
+        <SwitchPreferenceCompat android:defaultValue="false"
+            app:key="synolsis_stats_jitter" app:dependency="perf_stats"
+            app:title="@string/synolsis_stats_jitter" />
+        <SwitchPreferenceCompat android:defaultValue="false"
+            app:key="synolsis_stats_battery" app:dependency="perf_stats"
+            app:title="@string/synolsis_stats_battery" />
+        <SwitchPreferenceCompat android:defaultValue="false"
+            app:key="synolsis_stats_avail_ram" app:dependency="perf_stats"
+            app:title="@string/synolsis_stats_avail_ram" />
+        <SwitchPreferenceCompat android:defaultValue="true"
+            app:key="synolsis_stats_graph" app:dependency="perf_stats"
+            app:title="@string/synolsis_stats_graph" />
         <SwitchPreferenceCompat
             android:defaultValue="false"
             android:summaryOff="@string/max_refresh_rate_disabled"
