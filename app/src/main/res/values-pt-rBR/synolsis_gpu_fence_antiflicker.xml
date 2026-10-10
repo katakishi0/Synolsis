@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="synolsis_gpu_fence_antiflicker_title">Sincronização precisa dos fences da GPU</string>
-    <string name="synolsis_gpu_fence_antiflicker_off">Sincronização padrão (recomendada com V39).</string>
+    <string name="synolsis_gpu_fence_antiflicker_off">Sincronização padrão.</string>
     <string name="synolsis_gpu_fence_antiflicker_on">Espera a GPU terminar antes de avisar o jogo. Experimental; pode reduzir FPS.</string>
 </resources>
