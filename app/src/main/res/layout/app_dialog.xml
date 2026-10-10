@@ -88,18 +88,6 @@
                 app:layout_constraintTop_toBottomOf="@id/game_version"
                 tools:text="Nintendo" />
 
-            <com.google.android.material.button.MaterialButton
-            android:id="@+id/synolsis_clear_game_cache"
-            style="@style/Widget.Material3.Button.TonalButton.Icon"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="@string/synolsis_v54_clear_cache_short"
-            app:icon="@drawable/ic_delete"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/synolsis_content_actions" />
     </androidx.constraintlayout.widget.ConstraintLayout>
 
         <com.google.android.flexbox.FlexboxLayout
@@ -231,6 +219,16 @@
                 android:text="@string/synolsis_v54_complements"
                 app:icon="@drawable/ic_add" />
         </LinearLayout>
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/synolsis_clear_game_cache"
+            style="@style/Widget.Material3.Button.TonalButton.Icon"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/synolsis_v54_clear_cache_short"
+            app:icon="@drawable/ic_delete"
+            app:layout_constraintTop_toBottomOf="@id/synolsis_content_actions"
+            app:layout_constraintEnd_toEndOf="parent" />
     </androidx.constraintlayout.widget.ConstraintLayout>
     </androidx.core.widget.NestedScrollView>
 </LinearLayout>
