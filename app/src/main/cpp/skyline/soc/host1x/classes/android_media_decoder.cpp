@@ -30,26 +30,35 @@ namespace skyline::soc::host1x {
         const auto mime{AndroidMime(video)};
         if (mime.empty() || !ValidVideoExtent(w, h))
             return false;
-        codec = AMediaCodec_createDecoderByType(mime.data());
-        if (!codec)
-            return false;
-        AMediaFormat *format{AMediaFormat_new()};
-        if (!format) {
+        // Guest VIC currently supports only explicit planar (0x13) or
+        // semi-planar (0x15) CPU output. Prefer the latter when the Android
+        // decoder supports it, then retry without a forced color format.
+        // Never pretend COLOR_FormatYUV420Flexible (0x7F420888) has a known
+        // plane/pixel stride: that still requires image-plane metadata.
+        for (int attempt = 0; attempt < 2; ++attempt) {
+            codec = AMediaCodec_createDecoderByType(mime.data());
+            if (!codec)
+                return false;
+            AMediaFormat *format{AMediaFormat_new()};
+            if (!format) {
+                StopLocked();
+                return false;
+            }
+            AMediaFormat_setString(format, AMEDIAFORMAT_KEY_MIME, mime.data());
+            AMediaFormat_setInt32(format, AMEDIAFORMAT_KEY_WIDTH, static_cast<std::int32_t>(w));
+            AMediaFormat_setInt32(format, AMEDIAFORMAT_KEY_HEIGHT, static_cast<std::int32_t>(h));
+            if (attempt == 0)
+                AMediaFormat_setInt32(format, AMEDIAFORMAT_KEY_COLOR_FORMAT, 0x15);
+            const auto configured{AMediaCodec_configure(codec, format, nullptr, nullptr, 0)};
+            AMediaFormat_delete(format);
+            if (configured == AMEDIA_OK && AMediaCodec_start(codec) == AMEDIA_OK) {
+                width = static_cast<std::int32_t>(w);
+                height = static_cast<std::int32_t>(h);
+                return true;
+            }
             StopLocked();
-            return false;
         }
-        AMediaFormat_setString(format, AMEDIAFORMAT_KEY_MIME, mime.data());
-        AMediaFormat_setInt32(format, AMEDIAFORMAT_KEY_WIDTH, static_cast<std::int32_t>(w));
-        AMediaFormat_setInt32(format, AMEDIAFORMAT_KEY_HEIGHT, static_cast<std::int32_t>(h));
-        const auto configured{AMediaCodec_configure(codec, format, nullptr, nullptr, 0)};
-        AMediaFormat_delete(format);
-        if (configured != AMEDIA_OK || AMediaCodec_start(codec) != AMEDIA_OK) {
-            StopLocked();
-            return false;
-        }
-        width = static_cast<std::int32_t>(w);
-        height = static_cast<std::int32_t>(h);
-        return true;
+        return false;
     }
 
     bool AndroidMediaDecoder::QueueAccessUnit(std::span<const std::uint8_t> input,
