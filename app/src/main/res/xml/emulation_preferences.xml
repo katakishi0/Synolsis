@@ -202,6 +202,10 @@
             app:summary="@string/experimental_warning_summary" />
         <!-- Memory profile sets actual libskyline executor/texture settings.
              GPU frequency and experimental unsafe hacks remain opt-in. -->
+        <Preference
+            app:key="synolsis_apply_vulkan_light"
+            app:title="@string/synolsis_v54_vulkan_light"
+            app:summary="@string/synolsis_v54_vulkan_light_desc" />
         <ListPreference
             android:defaultValue="balanced"
             android:entries="@array/synolsis_gpu_preset_entries"
@@ -236,7 +240,7 @@
             app:title="@string/executor_flush_threshold"
             android:summary="@string/executor_flush_threshold_desc" />
         <SwitchPreferenceCompat
-            android:defaultValue="true"
+            android:defaultValue="false"
             app:key="free_guest_texture_memory"
             app:title="@string/free_guest_texture_memory"
             android:summary="@string/free_guest_texture_memory_desc" />
