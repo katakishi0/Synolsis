@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="synolsis_v55_nvdec_modes">
+        <item>Automático (Android)</item>
+        <item>Priorizar hardware (MediaCodec)</item>
+        <item>Software Android (CPU)</item>
+        <item>Híbrido (alternativa software)</item>
+    </string-array>
+</resources>
