@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright © 2026 Synolsis Emu contributors
 #include "android_media_decoder.h"
+#include "mediacodec_output_slice.h"
+#include <android/api-level.h>
 #include <algorithm>
 #include <common.h>
 #include <cstring>
@@ -104,7 +106,6 @@ namespace skyline::soc::host1x {
     }
 
     bool AndroidMediaDecoder::Drain(Frame &frame, std::int64_t waitUs) {
-        constexpr std::size_t MaxFrameBytes{32 * 1024 * 1024};
         std::scoped_lock guard{mutex};
         if (!codec)
             return false;
@@ -167,12 +168,18 @@ namespace skyline::soc::host1x {
 
         std::size_t capacity{};
         auto *buffer{AMediaCodec_getOutputBuffer(codec, static_cast<size_t>(index), &capacity)};
-        bool valid{buffer && info.size > 0 && info.offset >= 0 &&
-                   static_cast<std::size_t>(info.offset) <= capacity &&
-                   static_cast<std::size_t>(info.size) <= capacity - static_cast<std::size_t>(info.offset) &&
-                   static_cast<std::size_t>(info.size) <= MaxFrameBytes};
+        // On Android 14 / API 34, NDK's getOutputBuffer out_size and
+        // AMediaCodecBufferInfo.offset are documented as invalid. The
+        // previous capacity/offset check rejected valid decoded YUV frames
+        // before VIC ever received them. Use info.size only on <= API 35.
+        const auto slice{codec_output::ChooseOutputSlice(
+            android_get_device_api_level(), capacity,
+            static_cast<std::int64_t>(info.offset),
+            static_cast<std::int64_t>(info.size))};
+        bool valid{buffer && static_cast<bool>(slice)};
         if (valid) {
-            frame.data.assign(buffer + info.offset, buffer + info.offset + info.size);
+            frame.data.assign(buffer + slice.offset,
+                              buffer + slice.offset + slice.size);
             frame.ptsUs = info.presentationTimeUs;
             frame.width = cropRight - cropLeft + 1;
             frame.height = cropBottom - cropTop + 1;
