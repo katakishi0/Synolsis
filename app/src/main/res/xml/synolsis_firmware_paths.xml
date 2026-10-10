@@ -6,4 +6,7 @@
     <!-- getPublicFilesDir() can fall back to app-internal filesDir. -->
     <files-path android:name="internal_registered_ncas"
         android:path="switch/nand/system/Contents/registered/" />
+    <!-- Fallback for user-installed firmware outside FileProvider's external-files roots. -->
+    <cache-path android:name="qlauncher_cache"
+        android:path="synolsis/qlauncher/" />
 </paths>
