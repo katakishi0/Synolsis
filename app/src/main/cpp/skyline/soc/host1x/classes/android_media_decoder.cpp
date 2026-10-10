@@ -132,10 +132,10 @@ namespace skyline::soc::host1x {
                 // Only accept a fully specified crop within coded dimensions.
                 std::int32_t left{}, top{}, right{}, bottom{};
                 const bool hasCrop =
-                    AMediaFormat_getInt32(format, AMEDIAFORMAT_KEY_CROP_LEFT, &left) &&
-                    AMediaFormat_getInt32(format, AMEDIAFORMAT_KEY_CROP_TOP, &top) &&
-                    AMediaFormat_getInt32(format, AMEDIAFORMAT_KEY_CROP_RIGHT, &right) &&
-                    AMediaFormat_getInt32(format, AMEDIAFORMAT_KEY_CROP_BOTTOM, &bottom);
+                    AMediaFormat_getInt32(format, "crop-left", &left) &&
+                    AMediaFormat_getInt32(format, "crop-top", &top) &&
+                    AMediaFormat_getInt32(format, "crop-right", &right) &&
+                    AMediaFormat_getInt32(format, "crop-bottom", &bottom);
                 if (hasCrop && left >= 0 && top >= 0 && right >= left &&
                     bottom >= top && right < width && bottom < height) {
                     cropLeft = left; cropTop = top;

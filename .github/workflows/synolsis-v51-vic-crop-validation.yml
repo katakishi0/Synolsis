@@ -163,8 +163,9 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           code=Path('app/src/main/cpp/skyline/soc/host1x/classes/android_media_decoder.cpp').read_text()
-          assert 'AMEDIAFORMAT_KEY_CROP_LEFT' in code
-          assert 'AMEDIAFORMAT_KEY_CROP_BOTTOM' in code
+          for key in ('"crop-left"', '"crop-top"', '"crop-right"', '"crop-bottom"'):
+              assert key in code, f'MediaCodec missing crop key: {key}'
+          assert 'AMEDIAFORMAT_KEY_CROP_LEFT' not in code
           assert 'frame.width = cropRight - cropLeft + 1' in code
           vic=Path('app/src/main/cpp/skyline/soc/host1x/classes/vic.cpp').read_text()
           assert vic.count('static_cast<u32>(frame.cropLeft)')==2

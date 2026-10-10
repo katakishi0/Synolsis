@@ -25,3 +25,9 @@ Video decoders may advertise a padded hardware picture and an independently crop
 ## Acceptance
 
 Before user APK release: full native CI + emulator launch test; run the same cutscene on physical Android and inspect NVDEC real codec info, MediaCodec reported color+crop, VIC writes, and screen output. Confirm the V39 graphics patch still renders correctly with the same Turnip setup.
+
+## V51 Android NDK build repair
+
+- Full ARM64 CI failed because Android NDK 26.1.10909125 does not export `AMEDIAFORMAT_KEY_CROP_LEFT/TOP/RIGHT/BOTTOM` macros in `NdkMediaFormat.h`.
+- Native `AMediaFormat_getInt32` accepts a string key. Replaced the nonexistent macros with Android MediaFormat's stable keys `crop-left`, `crop-top`, `crop-right`, `crop-bottom`, retaining the four-field/bounds-checked fallback.
+- Updated V51 host regression to check these actual key strings. A full Android native CI rerun is still required to verify the repair; not evidence of working in-game cutscenes.
