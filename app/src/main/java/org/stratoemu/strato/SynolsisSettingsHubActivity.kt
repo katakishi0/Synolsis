@@ -31,6 +31,7 @@ import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.FileProvider
+import org.stratoemu.strato.provider.SynolsisHomeNcaProvider
 import java.io.File
 import androidx.core.content.ContextCompat
 import com.google.android.material.card.MaterialCardView
@@ -144,48 +145,28 @@ class SynolsisSettingsHubActivity : AppCompatActivity() {
             // When that happens, stage only the verified Program NCA inside
             // a private, grantable cache root; never broaden provider access
             // to all of external storage or pass file:// URIs to Android 14.
+            // The dedicated V55 provider resolves the installed firmware by
+            // validated basename. It does not depend on FileProvider path
+            // XML matching the public files directory on this device.
             val share = withContext(Dispatchers.IO) {
                 runCatching {
+                    val direct = SynolsisHomeNcaProvider.uriFor(packageName, target.name)
+                    val valid = contentResolver.openFileDescriptor(direct, "r")?.use {
+                        it.statSize > 0L
+                    } ?: false
+                    check(valid) { "HOME NCA provider returned an empty stream" }
+                    Log.i("Synolsis-QLauncher", "V55 stream provider passed read check")
+                    direct
+                }.recoverCatching { providerError ->
+                    Log.w("Synolsis-QLauncher", "V55 direct provider failed, attempting legacy fallback", providerError)
                     FileProvider.getUriForFile(this@SynolsisSettingsHubActivity,
                         "${packageName}.synolsis.firmware", target)
-                }.recoverCatching { initialError ->
-                    Log.w("Synolsis-QLauncher",
-                        "Installed firmware path is outside FileProvider roots; staging private read-only copy", initialError)
-                    val bytes = target.length()
-                    val stageDir = File(cacheDir, "synolsis/qlauncher")
-                    require(bytes > 0L && bytes <= 512L * 1024L * 1024L) {
-                        "Invalid or oversized QLauncher Program NCA"
-                    }
-                    require(stageDir.isDirectory || stageDir.mkdirs()) {
-                        "Cannot create firmware sharing cache"
-                    }
-                    require(stageDir.usableSpace > bytes + 32L * 1024L * 1024L) {
-                        "Insufficient free storage for firmware sharing cache"
-                    }
-                    val tmp = File(stageDir, "home_program.nca.partial")
-                    val staged = File(stageDir, "home_program.nca")
-                    try {
-                        target.inputStream().buffered().use { input ->
-                            tmp.outputStream().buffered().use { output ->
-                                input.copyTo(output)
-                            }
-                        }
-                        check(tmp.length() == bytes) { "Incomplete NCA staging copy" }
-                        if (staged.exists() && !staged.delete()) {
-                            error("Cannot replace old QLauncher cache copy")
-                        }
-                        check(tmp.renameTo(staged)) { "Cannot finalize QLauncher cache" }
-                    } finally {
-                        if (tmp.exists()) tmp.delete()
-                    }
-                    FileProvider.getUriForFile(this@SynolsisSettingsHubActivity,
-                        "${packageName}.synolsis.firmware", staged)
                 }
             }
             val uri = share.getOrElse { failure ->
                 Log.e("Synolsis-QLauncher", "Firmware FileProvider and cache staging failed", failure)
                 Toast.makeText(this@SynolsisSettingsHubActivity,
-                    R.string.synolsis_qlauncher_provider_failed, Toast.LENGTH_LONG).show()
+                    getString(R.string.synolsis_v55_qlauncher_share_detail, failure.javaClass.simpleName), Toast.LENGTH_LONG).show()
                 return@launch
             }
             val readable = withContext(Dispatchers.IO) {
