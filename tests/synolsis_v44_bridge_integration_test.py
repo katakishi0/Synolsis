@@ -18,7 +18,13 @@ for term in ('state.soc->smmu.TranslateRange', 'state.soc->smmu.Read',
     assert term in decoder
 assert 'nvDecClass(syncpoints, state)' in native
 assert 'std::forward<Args>(args)...' in interface
-assert 'VIC output pending' in decoder
+assert 'readyFrame = std::move(frame)' in decoder
+assert 'VIC output pending' not in decoder
+vic = source(base+"classes/vic.cpp")
+for word in ('decoder.TryGetDecodedFrame(frame)', 'vic_output::PackLinearNv12',
+             'state.soc->smmu.Write', 'vic_output::SupportedSurface',
+             'vic-output-surfaces-unmapped'):
+    assert word in vic
 assert 'framegen::FrameHistory' in source("app/src/main/cpp/skyline/gpu/presentation_engine.h")
 for path in ("maxwell_3d", "kepler_compute"):
     pipeline = source("app/src/main/cpp/skyline/gpu/interconnect/"+path+"/pipeline_manager.cpp")
