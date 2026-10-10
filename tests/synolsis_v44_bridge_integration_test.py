@@ -21,7 +21,7 @@ assert 'std::forward<Args>(args)...' in interface
 assert 'readyFrame = std::move(frame)' in decoder
 assert 'VIC output pending' not in decoder
 vic = source(base+"classes/vic.cpp")
-for word in ('decoder.TryGetDecodedFrame(frame)', 'vic_output::PackLinearNv12',
+for word in ('decoder.TryGetDecodedFrame(frame, 12\'000)', 'vic_output::PackLinearNv12',
              'state.soc->smmu.Write', 'vic_output::SupportedSurface',
              'vic-output-surfaces-unmapped',
              'gpu::texture::CopyPitchToBlockLinear',
@@ -33,4 +33,4 @@ for path in ("maxwell_3d", "kepler_compute"):
     assert "vk::DescriptorType::eStorageImage" in pipeline
 assert 'wait_synchronization_policy::ValidCount(numHandles)' in source("app/src/main/cpp/skyline/kernel/svc.cpp")
 assert "NVDEC guest codec selected" not in decoder  # V43 diagnostic-only bridge retired
-print("PASS V44: bounded guest NVDEC reader connected; baseline graphics repairs preserved; VIC still pending")
+print("PASS V44: bounded guest NVDEC reader connected; baseline graphics repairs preserved; VIC frame handoff under native validation")
