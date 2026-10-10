@@ -6,6 +6,7 @@
 #include "nvdec_h264_csd.h"
 #include "nvdec_h264_access_unit.h"
 #include <soc.h>
+#include <common/settings.h>
 #include <algorithm>
 #include <array>
 #include <vector>
@@ -100,7 +101,8 @@ namespace skyline::soc::host1x {
                     reject("unsupported-h264-picture-parameter-sets");
                     return;
                 }
-                if (!mediaCodecBackend.Start(VideoCodec::H264, params.width, params.height)) {
+                if (!mediaCodecBackend.Start(VideoCodec::H264, params.width, params.height,
+                        static_cast<DecoderMode>(*state.settings->nvdecMode))) {
                     reject("mediacodec-configuration-failed");
                     return;
                 }
@@ -168,7 +170,8 @@ namespace skyline::soc::host1x {
     }
 
     bool NvDecClass::ConfigureMediaDecoder(VideoCodec codec, u32 width, u32 height) {
-        return mediaCodecBackend.Start(codec, width, height);
+        return mediaCodecBackend.Start(codec, width, height,
+            static_cast<DecoderMode>(*state.settings->nvdecMode));
     }
 
     bool NvDecClass::SubmitAccessUnit(span<const u8> packet, i64 ptsUs, bool isConfiguration) {
