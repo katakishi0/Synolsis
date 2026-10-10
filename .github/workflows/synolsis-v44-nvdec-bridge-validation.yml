@@ -35,3 +35,41 @@ jobs:
           echo '### V44 NVDEC partial bridge' >> "$GITHUB_STEP_SUMMARY"
           echo 'SMMU input + codec path have native regression tests.' >> "$GITHUB_STEP_SUMMARY"
           echo 'This workflow does NOT publish APKs; VIC linear YUV420 is conditional. Full cutscenes, internal resolution and frame generation remain device-unverified.' >> "$GITHUB_STEP_SUMMARY"
+
+  android-native:
+    name: Compile V44 Android Kotlin and ARM64 native core (no APK release)
+    needs: host-native
+    runs-on: ubuntu-22.04
+    timeout-minutes: 150
+    env:
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_MAXSIZE: 2G
+      CCACHE_COMPRESS: 'true'
+      CMAKE_C_COMPILER_LAUNCHER: ccache
+      CMAKE_CXX_COMPILER_LAUNCHER: ccache
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - uses: android-actions/setup-android@v3
+      - name: Install exact Android native toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ccache ninja-build
+          mkdir -p "$CCACHE_DIR"
+          sdkmanager --install "platforms;android-34" "build-tools;34.0.0" "ndk;26.1.10909125" "cmake;3.22.1"
+          test -f "$ANDROID_HOME/ndk/26.1.10909125/source.properties"
+      - name: Compile frontend and full native ARM64 APK without publishing
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x gradlew
+          ./gradlew :app:compileMainlineOptimizedKotlin --no-daemon --build-cache
+          ./gradlew :app:assembleMainlineOptimized --no-daemon --stacktrace --build-cache
+          ls -lah app/build/outputs/apk/mainline/*/*.apk
+          echo "Compiled V44 native changes, no release published." >> "$GITHUB_STEP_SUMMARY"
