@@ -338,4 +338,8 @@
     <string name="synolsis_v54_vulkan_light_desc">Lower host GPU queue and shader compilation pressure; conserves memory, not guaranteed to increase FPS. Restart the game.</string>
     <string name="synolsis_v54_driver_per_game">GPU driver for this game</string>
     <string name="synolsis_v54_driver_per_game_desc">Enable custom game settings to override the global GPU driver.</string>
+    <string name="synolsis_v55_nvdec_title">Video decoder (NVDEC)</string>
+    <string name="synolsis_v55_nvdec_summary">Android codec selection; restart the game to apply. Software mode is slower and may be unavailable.</string>
+    <string name="synolsis_v55_qlauncher_share_detail">HOME firmware stream failed (%1$s). See Synolsis-QLauncher logs.</string>
+    <string name="synolsis_v55_staged_notice">Saved locally; game updates/DLC are not activated yet.</string>
 </resources>
