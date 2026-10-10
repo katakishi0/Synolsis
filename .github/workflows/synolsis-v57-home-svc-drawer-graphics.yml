@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   host-queue:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
       - name: Compile C++20 queue and validate frame order / memory budget
