@@ -1,16 +1,16 @@
-name: Synolsis V45 guest video dispatch CI (no APK publishing)
+name: Synolsis V46 atomic Host1x video gather CI (no APK publishing)
 
 on:
   push:
     branches:
-      - feature/synolsis-v45-guest-video-dispatch
+      - feature/synolsis-v46-video-dispatch-atomic-gathers
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: synolsis-v45-native-video-dispatch
+  group: synolsis-v46-native-video-gathers
   cancel-in-progress: true
 
 jobs:
@@ -49,6 +49,13 @@ jobs:
           assert 'Decode' in Path('app/src/main/cpp/skyline/soc/host1x/classes/nvdec.cpp').read_text()
           print('PASS: real THI register dispatch precedes guest syncpoint ack')
           PY
+      - name: Verify split video gathers and atomic invalid-packet rejection
+        run: |
+          set -euo pipefail
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic \
+              -Iapp/src/main/cpp tests/synolsis_v46_atomic_video_gather_test.cpp \
+              -o /tmp/v46_video_atomic_test
+          /tmp/v46_video_atomic_test
       - name: Verify wiring and legacy Vulkan regressions
         run: |
           set -euo pipefail
@@ -57,12 +64,12 @@ jobs:
           python3 tests/synolsis_v40_integration_test.py
       - name: Summary
         run: |
-          echo '### V45 guest NVDEC/VIC pushbuffer dispatch' >> "$GITHUB_STEP_SUMMARY"
+          echo '### V46 video gather class preservation and atomic validation' >> "$GITHUB_STEP_SUMMARY"
           echo 'NVDEC/VIC SMMU+MediaCodec and Host1x method dispatch have native regression tests.' >> "$GITHUB_STEP_SUMMARY"
           echo 'This workflow does NOT publish APKs; VIC linear YUV420 is conditional. Full cutscenes, internal resolution and frame generation remain device-unverified.' >> "$GITHUB_STEP_SUMMARY"
 
   android-native:
-    name: Compile V45 Android Kotlin and ARM64 native core (no APK release)
+    name: Compile V46 Android Kotlin and ARM64 native core (no APK release)
     needs: host-native
     runs-on: ubuntu-22.04
     timeout-minutes: 150
@@ -111,4 +118,4 @@ jobs:
           ./gradlew :app:compileMainlineOptimizedKotlin --no-daemon --build-cache
           ./gradlew :app:assembleMainlineOptimized --no-daemon --stacktrace --build-cache
           ls -lah app/build/outputs/apk/mainline/*/*.apk
-          echo "Compiled V45 native video method dispatch, no release published." >> "$GITHUB_STEP_SUMMARY"
+          echo "Compiled V46 atomic video method dispatch, no release published." >> "$GITHUB_STEP_SUMMARY"
