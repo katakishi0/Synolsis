@@ -4,6 +4,7 @@
 #include "mediacodec_output_slice.h"
 #include <android/api-level.h>
 #include <algorithm>
+#include <atomic>
 #include <common.h>
 #include <cstring>
 #include <limits>
@@ -192,6 +193,16 @@ namespace skyline::soc::host1x {
             // chroma pairs by VIC, so do not hand those frames to the guest.
             valid = frame.width > 0 && frame.height > 0 &&
                     (cropLeft & 1) == 0 && (cropTop & 1) == 0;
+        }
+        if (!valid) {
+            // Do not silently drop a decoded frame: log enough non-sensitive
+            // layout data to diagnose Android 14/15 vendor codec differences.
+            static std::atomic<std::uint64_t> rejectedOutputs{};
+            const auto n{rejectedOutputs.fetch_add(1, std::memory_order_relaxed) + 1};
+            if (n <= 5 || (n & (n - 1)) == 0)
+                LOGW("Synolsis NVDEC MediaCodec output rejected #{}: api={} buffer={} size={} offset={} capacity={} width={} height={} crop=({},{})",
+                     n, android_get_device_api_level(), buffer != nullptr,
+                     info.size, info.offset, capacity, width, height, cropLeft, cropTop);
         }
         AMediaCodec_releaseOutputBuffer(codec, static_cast<size_t>(index), false);
         return valid;
