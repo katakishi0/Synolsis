@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: synolsis-v49-native-video-validation
+  group: synolsis-v49-h264-access-unit-only
   cancel-in-progress: true
 
 jobs:
