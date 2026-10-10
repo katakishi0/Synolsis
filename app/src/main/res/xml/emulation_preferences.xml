@@ -142,6 +142,14 @@
             app:title="@string/force_triple_buffering" />
         <org.stratoemu.strato.preference.IntegerListPreference
             android:defaultValue="0"
+            android:entries="@array/synolsis_v55_nvdec_modes"
+            android:entryValues="@array/synolsis_v55_nvdec_values"
+            app:key="nvdec_mode"
+            app:title="@string/synolsis_v55_nvdec_title"
+            android:summary="@string/synolsis_v55_nvdec_summary"
+            app:useSimpleSummaryProvider="true" />
+        <org.stratoemu.strato.preference.IntegerListPreference
+            android:defaultValue="0"
             android:entries="@array/synolsis_shader_threads_entries"
             android:entryValues="@array/synolsis_shader_threads_values"
             app:key="shader_compile_threads"
