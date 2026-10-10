@@ -15,6 +15,8 @@ namespace skyline::soc::host1x {
       private:
         std::function<void()> opDoneCallback;
         std::atomic<std::uint64_t> unhandledMethodCount{}; //!< Bounded diagnostics; not a fake decode counter
+        std::atomic<u32> lastCodecId{};
+        std::atomic<std::uint64_t> executeCount{};
         AndroidMediaDecoder mediaCodecBackend; //!< Only decoded access-unit pipeline; register parser still pending
 
       public:
