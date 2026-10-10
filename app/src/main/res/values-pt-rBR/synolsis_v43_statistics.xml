@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="synolsis_stats_style_title">Estilo das estatísticas de desempenho</string>
+    <string name="synolsis_stats_style_desc">HUD clássico ou monitor de frametime inspirado no Citron; apenas dados reais</string>
+    <string-array name="synolsis_stats_style_entries"><item>Clássico (compacto)</item><item>Inspirado no Citron (avançado)</item></string-array>
+    <string-array name="synolsis_stats_style_values"><item>classic</item><item>citron</item></string-array>
+    <string name="synolsis_stats_fps">Mostrar FPS</string>
+    <string name="synolsis_stats_ram">Mostrar RAM do aplicativo</string>
+    <string name="synolsis_stats_frametime">Mostrar tempo por quadro</string>
+    <string name="synolsis_stats_jitter">Mostrar variação do frametime</string>
+    <string name="synolsis_stats_battery">Mostrar temperatura da bateria</string>
+    <string name="synolsis_stats_avail_ram">Mostrar RAM livre do aparelho</string>
+    <string name="synolsis_stats_graph">Mostrar gráfico de frametime (estilo Citron)</string>
+    <string name="synolsis_stats_available_ram_label">RAM livre: %1$d MB</string>
+    <string name="synolsis_stats_frame_label">Quadro: %1$.1f ms</string>
+    <string name="synolsis_stats_jitter_label">Variação: ±%1$.1f ms</string>
+</resources>
