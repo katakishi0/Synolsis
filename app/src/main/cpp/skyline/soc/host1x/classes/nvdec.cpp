@@ -3,6 +3,7 @@
 // Copyright © 2026 Synolsis Emu contributors
 
 #include "nvdec.h"
+#include "nvdec_h264_csd.h"
 #include <soc.h>
 #include <algorithm>
 #include <array>
@@ -30,7 +31,7 @@ namespace skyline::soc::host1x {
         }
 
         const auto pictureAddress{registers.Address(nvdec_guest::PictureInfoMethod)};
-        constexpr std::size_t ContextBytes{0x6C};
+        constexpr std::size_t ContextBytes{0xB8};
         if (!nvdec_guest::BoundedSmmuRange(pictureAddress, ContextBytes)) {
             reject("picture-address-out-of-range");
             return;
@@ -73,13 +74,17 @@ namespace skyline::soc::host1x {
             state.soc->smmu.Read(packet.data(), static_cast<u32>(streamAddress),
                                  params.streamBytes);
 
-            // First frame needs SPS/PPS because this conservative bridge
-            // does not yet synthesize parameter sets from NVDEC picture info.
+            // Many Switch NVDEC streams contain only slice NAL units.
+            // Build conservative SPS/PPS from the *actual guest picture info*
+            // instead of trying to decode unconfigured H264. Only progressive
+            // 8-bit 4:2:0 parameter sets supported at this stage.
             const bool hasHeaders{nvdec_guest::ContainsH264ParameterSets(packet)};
             if (!decoderWidth || !decoderHeight || decoderWidth != params.width ||
                 decoderHeight != params.height) {
-                if (!hasHeaders) {
-                    reject("h264-parameter-sets-absent");
+                auto config{hasHeaders ? h264_csd::HeaderPair{} :
+                                       h264_csd::Build(context)};
+                if (!hasHeaders && !config.valid) {
+                    reject("unsupported-h264-picture-parameter-sets");
                     return;
                 }
                 if (!mediaCodecBackend.Start(VideoCodec::H264, params.width, params.height)) {
@@ -88,6 +93,14 @@ namespace skyline::soc::host1x {
                 }
                 decoderWidth = params.width;
                 decoderHeight = params.height;
+                readyFrame.reset();
+                if (!hasHeaders && !mediaCodecBackend.QueueAccessUnit(
+                        std::span<const std::uint8_t>(config.packet.data(), config.packet.size()),
+                        0, true)) {
+                    decoderWidth = decoderHeight = 0;
+                    reject("mediacodec-csd-queue-rejected");
+                    return;
+                }
             }
 
             // The queued bytes come from the guest via SMMU, never fabricated.
