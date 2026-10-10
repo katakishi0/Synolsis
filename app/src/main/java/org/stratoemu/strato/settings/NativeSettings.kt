@@ -36,6 +36,7 @@ data class NativeSettings(
     var vulkanPresentationScalePercent : Int,
     var vulkanPresentMode : Int,
     var shaderCompileThreads : Int,
+    var nvdecMode : Int,
     var executorSlotCountScale : Int,
     var executorFlushThreshold : Int,
     var useDirectMemoryImport : Boolean,
@@ -69,6 +70,7 @@ data class NativeSettings(
         pref.vulkanPresentationScalePercent.takeIf { it == 50 || it == 75 } ?: 100,
         pref.vulkanPresentMode.coerceIn(0, 3),
         pref.shaderCompileThreads.coerceIn(0, 4),
+        pref.nvdecMode.coerceIn(0, 3),
         pref.executorSlotCountScale,
         pref.executorFlushThreshold,
         // The Direct Memory Import path is only supported with the system
