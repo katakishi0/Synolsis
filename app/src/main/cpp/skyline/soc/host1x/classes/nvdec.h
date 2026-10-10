@@ -6,6 +6,7 @@
 #include <common.h>
 #include <atomic>
 #include "android_media_decoder.h"
+#include "nvdec_register_state.h"
 
 namespace skyline::soc::host1x {
     /**
@@ -17,6 +18,7 @@ namespace skyline::soc::host1x {
         std::atomic<std::uint64_t> unhandledMethodCount{}; //!< Bounded diagnostics; not a fake decode counter
         std::atomic<u32> lastCodecId{};
         std::atomic<std::uint64_t> executeCount{};
+        NvdecRegisterState registerState; //!< FIFO-thread-only guest NVDEC registers; no GPU memory access
         AndroidMediaDecoder mediaCodecBackend; //!< Only decoded access-unit pipeline; register parser still pending
 
       public:
