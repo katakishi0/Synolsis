@@ -25,6 +25,9 @@ jobs:
             tests/vic_aligned_output_test.cpp -o /tmp/synolsis-v53-aligned-vic
           /tmp/synolsis-v53-aligned-vic
           g++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic \
+            tests/mediacodec_output_slice_test.cpp -o /tmp/synolsis-v53-ndk-buffers
+          /tmp/synolsis-v53-ndk-buffers
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic \
             tests/vic_mediacodec_crop_test.cpp -o /tmp/synolsis-v53-crop
           /tmp/synolsis-v53-crop
           g++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic \
@@ -45,7 +48,11 @@ jobs:
           assert vic.count('data, surface.width, surface.height,') == 2
           assert 'decoded-frame-vic-extent-mismatch' in vic
           assert 'frame.width), static_cast<u32>(frame.height)' not in vic
-          print('PASS: bounded real-frame handoff, H264 16px trailing alignment and VIC NV12/RGB packing')
+          decoder=Path('app/src/main/cpp/skyline/soc/host1x/classes/android_media_decoder.cpp').read_text()
+          assert 'codec_output::ChooseOutputSlice(' in decoder
+          assert 'android_get_device_api_level()' in decoder
+          assert 'buffer + info.offset' not in decoder
+          print('PASS: V53 VIC aligned frame trim and Android 14/15 NDK MediaCodec output buffer policy')
           PY
 
   android-native:
