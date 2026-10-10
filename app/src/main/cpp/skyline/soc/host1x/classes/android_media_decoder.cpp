@@ -162,6 +162,12 @@ namespace skyline::soc::host1x {
             // transition; do not silently drop it and strand VIC's one shot.
             index = AMediaCodec_dequeueOutputBuffer(codec, &info, 0);
         }
+        // Android may invalidate the legacy output-buffer array while keeping
+        // the codec session alive. Treat this as a transient event rather than
+        // losing VIC's one opportunity to consume a decoded frame.
+        // A second dequeue is nonblocking: no additional Host1x stall.
+        if (index == AMEDIACODEC_INFO_OUTPUT_BUFFERS_CHANGED)
+            index = AMediaCodec_dequeueOutputBuffer(codec, &info, 0);
         if (index < 0)
             return false;
 
