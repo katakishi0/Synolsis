@@ -8,6 +8,13 @@ namespace skyline::soc::host1x {
         : opDoneCallback(std::move(opDoneCallback)) {}
 
     void NvDecClass::CallMethod(u32 method, u32 argument) {
+        // Validate guest-provided register IDs; don't index beyond NVDEC state.
+        if (!registerState.Write(method, argument)) {
+            const auto count{unhandledMethodCount.fetch_add(1, std::memory_order_relaxed) + 1};
+            if (count <= 4 || (count & (count - 1)) == 0)
+                LOGW("Ignoring out-of-range NVDEC register method 0x{:X}", method);
+            return;
+        }
         // Do not signal fake decode completion: the guest NVDEC method
         // registers and their SMMU-addressed bitstream buffers have not yet
         // been translated into compressed access units for MediaCodec.
@@ -24,8 +31,10 @@ namespace skyline::soc::host1x {
         if (method == 0xC0) {
             const auto executions{executeCount.fetch_add(1, std::memory_order_relaxed) + 1};
             if (executions <= 4 || (executions & (executions - 1)) == 0)
-                LOGW("NVDEC execute requested: count={} codec=0x{:X}; guest bitstream and VIC output are not connected",
-                     executions, lastCodecId.load(std::memory_order_relaxed));
+                LOGW("NVDEC execute requested: count={} codec=0x{:X} frame={} pictureInfo={} bitstream={}; guest decode and VIC not connected",
+                     executions, registerState.CodecId(), registerState.Raw(NvdecRegisterState::FrameNumber),
+                     registerState.GuestPictureInfoAddress() != 0,
+                     registerState.GuestBitstreamAddress() != 0);
             return;
         }
         const auto count{unhandledMethodCount.fetch_add(1, std::memory_order_relaxed) + 1};
