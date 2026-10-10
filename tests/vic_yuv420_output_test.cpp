@@ -10,7 +10,8 @@ constexpr bool Layout() {
     const auto surface = DecodeSurface(raw);
     if (!SupportedSurface(surface) || surface.width != 16 || surface.height != 16)
         return false;
-    return !SupportedSurface(DecodeSurface(raw | (1ULL << 11)));
+    return SupportedSurface(DecodeSurface(raw | (1ULL << 11))) &&
+           !SupportedSurface(DecodeSurface(raw | (5ULL << 15)));
 }
 static_assert(Layout());
 
