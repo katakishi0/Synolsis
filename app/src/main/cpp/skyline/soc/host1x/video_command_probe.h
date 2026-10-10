@@ -33,6 +33,7 @@ namespace skyline::soc::host1x::video_probe {
 
         std::uint32_t nvdecMethod{};
         std::uint32_t vicMethod{};
+        std::uint32_t currentClass{1}; // Host1x persists across gathers
 
         template<typename Sink>
         void Write(std::uint32_t targetClass, std::uint32_t method,
@@ -62,14 +63,11 @@ namespace skyline::soc::host1x::video_probe {
             }
         }
 
-      public:
-        // This intentionally does not follow Restart/Gather GPU addresses.
-        // Such opcodes require separate validated SMMU resolution.
+      private:
         template<typename Sink>
-        bool Inspect(std::span<const std::uint32_t> words, Summary &out,
-                     Sink &&sink) {
+        bool InspectUnchecked(std::span<const std::uint32_t> words, Summary &out,
+                              Sink &sink) {
             std::size_t pos{};
-            std::uint32_t targetClass{1};
             const auto take = [&](std::size_t count) -> bool {
                 return count <= words.size() - pos;
             };
@@ -81,7 +79,7 @@ namespace skyline::soc::host1x::video_probe {
                 const std::uint32_t low{raw & 0xFFFF};
                 switch (opcode) {
                     case 0: { // SetClass with up to 6 masked payloads
-                        targetClass = (raw >> 6) & 0x3FF;
+                        currentClass = (raw >> 6) & 0x3FF;
                         const auto mask{raw & 0x3F};
                         if (!take(std::popcount(mask))) {
                             out.truncatedOrUnsupported = true;
@@ -89,7 +87,7 @@ namespace skyline::soc::host1x::video_probe {
                         }
                         for (std::uint32_t bit{}; bit < 6; ++bit)
                             if ((mask >> bit) & 1)
-                                Write(targetClass, method + bit, words[pos++], out, sink);
+                                Write(currentClass, method + bit, words[pos++], out, sink);
                         break;
                     }
                     case 1: // Incr
@@ -99,7 +97,7 @@ namespace skyline::soc::host1x::video_probe {
                             return false;
                         }
                         for (std::uint32_t j{}; j < low; ++j)
-                            Write(targetClass, method + (opcode == 1 ? j : 0),
+                            Write(currentClass, method + (opcode == 1 ? j : 0),
                                   words[pos++], out, sink);
                         break;
                     }
@@ -110,11 +108,11 @@ namespace skyline::soc::host1x::video_probe {
                         }
                         for (std::uint32_t bit{}; bit < 16; ++bit)
                             if ((low >> bit) & 1)
-                                Write(targetClass, method + bit, words[pos++], out, sink);
+                                Write(currentClass, method + bit, words[pos++], out, sink);
                         break;
                     }
                     case 4: // Imm; low 12 bits are immediate data
-                        Write(targetClass, method, raw & 0xFFF, out, sink);
+                        Write(currentClass, method, raw & 0xFFF, out, sink);
                         break;
                     default:
                         out.truncatedOrUnsupported = true;
@@ -122,6 +120,27 @@ namespace skyline::soc::host1x::video_probe {
                 }
             }
             return true;
+        }
+
+      public:
+        // A malformed trailing packet must not partially feed NVDEC/VIC.
+        // Validate a copy of the entire gather before real THI delivery.
+        template<typename Sink>
+        bool Inspect(std::span<const std::uint32_t> words, Summary &out,
+                     Sink &&sink) {
+            constexpr std::size_t MaxGatherWords{262144};
+            if (words.size() > MaxGatherWords) {
+                out.truncatedOrUnsupported = true;
+                return false;
+            }
+            auto staged{*this};
+            Summary tentative{};
+            auto noop = [](std::uint32_t, std::uint32_t, std::uint32_t) {};
+            if (!staged.InspectUnchecked(words, tentative, noop)) {
+                out.truncatedOrUnsupported = true;
+                return false;
+            }
+            return InspectUnchecked(words, out, sink);
         }
 
         bool Inspect(std::span<const std::uint32_t> words, Summary &out) {
