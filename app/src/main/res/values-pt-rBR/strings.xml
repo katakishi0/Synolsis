@@ -314,4 +314,6 @@
     <string name="synolsis_v55_nvdec_summary">Escolha o decodificador Android. Reinicie o jogo. Software pode ser mais lento ou indisponível.</string>
     <string name="synolsis_v55_qlauncher_share_detail">Falha ao abrir a NCA do HOME (%1$s). Consulte os logs Synolsis-QLauncher.</string>
     <string name="synolsis_v55_staged_notice">Conteúdo salvo localmente, mas atualizações/DLC ainda não são ativados no jogo.</string>
+    <string name="synolsis_v56_nvdec_vp9_status">Cutscenes VP9: ainda sem suporte</string>
+    <string name="synolsis_v56_nvdec_vp9_summary">Neste jogo, o NVDEC usa o codec 0x9 (VP9). CPU/GPU/Híbrido escolhe decodificadores Android, mas a reconstrução dos quadros VP9 do Switch ainda não está implementada.</string>
 </resources>
