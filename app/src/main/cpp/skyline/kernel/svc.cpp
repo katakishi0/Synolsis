@@ -1017,6 +1017,8 @@ namespace skyline::kernel::svc {
             // 6.0.0+
             TotalMemoryAvailableWithoutSystemResource = 21,
             TotalMemoryUsageWithoutSystemResource = 22,
+            // 18.0.0+ — reserved alias address-space extension.
+            AliasRegionExtraSize = 28,
         };
 
         InfoState info{static_cast<u32>(ctx.w1)};
@@ -1110,6 +1112,20 @@ namespace skyline::kernel::svc {
 
             case InfoState::TotalMemoryUsageWithoutSystemResource:
                 out = state.process->memory.GetUserMemoryUsage();
+                break;
+
+            case InfoState::AliasRegionExtraSize:
+                // This Skyline address-space model does not reserve an extra
+                // alias segment on top of the reported AliasRegionSize.
+                // Zero reports that actual emulated layout, rather than
+                // returning InvalidEnumValue to the HOME program (FW 18+).
+                // Only sub-ID zero is documented for this process query.
+                if (id1 != 0) {
+                    ctx.w0 = result::InvalidEnumValue;
+                    return;
+                }
+                out = 0;
+                LOGI("Synolsis HOME svcGetInfo AliasRegionExtraSize=0 (no extra reservation)");
                 break;
 
             case InfoState::UserExceptionContextAddr:
