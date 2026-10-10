@@ -5,6 +5,7 @@
 #include <services/nvdrv/devices/deserialisation/deserialisation.h>
 #include "host1x_channel.h"
 #include <soc/host1x/video_command_probe.h>
+#include <soc/host1x/video_gather_snapshot.h>
 #include <vector>
 
 namespace skyline::service::nvdrv::device::nvhost {
@@ -74,9 +75,15 @@ namespace skyline::service::nvdrv::device::nvhost {
                 gathers.emplace_back(
                     reinterpret_cast<const u32 *>(gatherAddress), cmdBuf.words);
             }
+            // Guest memory may be modified while the ioctl runs. Take a
+            // bounded, owned snapshot so the syntax-validation pass and
+            // actual THI method dispatch use identical command words.
+            soc::host1x::video_gather::Snapshot stable;
+            if (!stable.Capture(gathers))
+                return PosixResult::InvalidArgument;
             // The complete ioctl's buffers must be valid as one unit.
             // A truncated later gather must not partially decode the first.
-            if (!videoChannel.DispatchVideoGathersAtomically(gathers, videoSummary))
+            if (!videoChannel.DispatchVideoGathersAtomically(stable.Buffers(), videoSummary))
                 return PosixResult::InvalidArgument;
         } catch (const std::exception &e) {
             LOGW("Video guest pushbuffer dispatch rejected: {}", e.what());
