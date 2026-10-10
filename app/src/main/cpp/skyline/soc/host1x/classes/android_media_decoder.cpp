@@ -60,7 +60,11 @@ namespace skyline::soc::host1x {
         std::scoped_lock guard{mutex};
         if (!codec)
             return false;
-        const ssize_t index{AMediaCodec_dequeueInputBuffer(codec, 0)};
+        // The guest issues NVDEC Execute immediately after selecting the codec.
+        // MediaCodec may not yet have a free input slot. A zero-time dequeue
+        // regularly drops valid guest access units at cutscene start.
+        // This bounded wait is not a guest syncpoint acknowledgement.
+        const ssize_t index{AMediaCodec_dequeueInputBuffer(codec, 4'000)};
         if (index < 0)
             return false;
         std::size_t capacity{};
