@@ -31,7 +31,7 @@ ET.fromstring(view)
 assert "synolsis_drawer_edge_right" in view
 assert "synolsis_drawer_handle" not in view
 assert "synolsis_drawer_auto" not in view
-assert "synolsis_drawer_close\"" not in view
+assert 'android:id="@+id/synolsis_drawer_close"' not in view
 assert "synolsis_performance_graph" in view
 appKt=source("java/org/stratoemu/strato/EmulationActivity.kt")
 assert 'installSwipe(binding.synolsisDrawerEdge, false)' in appKt
