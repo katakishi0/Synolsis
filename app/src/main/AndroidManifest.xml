@@ -122,6 +122,14 @@
             </intent-filter>
         </activity>
 
+        <!-- V55: direct read-only HOME Program NCA access, independent
+             of FileProvider path roots or Android storage variations. -->
+        <provider
+            android:name=".provider.SynolsisHomeNcaProvider"
+            android:authorities="${applicationId}.synolsis.home"
+            android:exported="false"
+            android:grantUriPermissions="true" />
+
         <!-- Securely forward NCAs already imported with the user's
              installed firmware to the separate emulation process. -->
         <provider
