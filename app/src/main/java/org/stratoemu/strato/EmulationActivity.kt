@@ -382,6 +382,7 @@ class EmulationActivity : AppCompatActivity(), SurfaceHolder.Callback, View.OnTo
                         if (this@EmulationActivity.isFinishing || this@EmulationActivity.isDestroyed)
                             return
                         if (binding.perfStats.isGone) {
+                            binding.synolsisPerformanceGraph.isGone = true
                             postDelayed(this, 1200)
                             return
                         }
@@ -591,6 +592,7 @@ class EmulationActivity : AppCompatActivity(), SurfaceHolder.Callback, View.OnTo
         binding.synolsisDrawerStats.setOnClickListener {
             binding.perfStats.isGone = !binding.perfStats.isGone
             emulationSettings.perfStats = !binding.perfStats.isGone
+            if (binding.perfStats.isGone) binding.synolsisPerformanceGraph.isGone = true
             refreshSynolsisDrawerLabels()
         }
         binding.synolsisDrawerSettings.setOnClickListener {
