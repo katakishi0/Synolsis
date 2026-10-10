@@ -4,6 +4,7 @@
 
 #include "nvdec.h"
 #include "nvdec_h264_csd.h"
+#include "nvdec_h264_access_unit.h"
 #include <soc.h>
 #include <algorithm>
 #include <array>
@@ -73,12 +74,24 @@ namespace skyline::soc::host1x {
             std::vector<u8> packet(params.streamBytes);
             state.soc->smmu.Read(packet.data(), static_cast<u32>(streamAddress),
                                  params.streamBytes);
+            // Guest access units may be Annex-B or length-prefixed NALs.
+            // Validate the complete real bitstream before MediaCodec. Without
+            // this, length prefixes are sent as invalid H264 start codes.
+            auto normalized{h264_access_unit::Normalize(packet)};
+            if (!normalized) {
+                reject("unsupported-h264-access-unit-framing");
+                return;
+            }
+            if (normalized.format == h264_access_unit::Format::LengthPrefixed4 &&
+                (decodedAccessUnits < 4 || decodedAccessUnits % 120 == 0))
+                LOGI("NVDEC normalized {} length-prefixed NAL units to Annex-B",
+                     normalized.nalCount);
 
             // Many Switch NVDEC streams contain only slice NAL units.
             // Build conservative SPS/PPS from the *actual guest picture info*
             // instead of trying to decode unconfigured H264. Only progressive
             // 8-bit 4:2:0 parameter sets supported at this stage.
-            const bool hasHeaders{nvdec_guest::ContainsH264ParameterSets(packet)};
+            const bool hasHeaders{nvdec_guest::ContainsH264ParameterSets(normalized.bytes)};
             if (!decoderWidth || !decoderHeight || decoderWidth != params.width ||
                 decoderHeight != params.height) {
                 auto config{hasHeaders ? h264_csd::HeaderPair{} :
@@ -106,7 +119,8 @@ namespace skyline::soc::host1x {
             // The queued bytes come from the guest via SMMU, never fabricated.
             // Guest video timestamps and VIC surface composition are still TODO.
             if (!mediaCodecBackend.QueueAccessUnit(
-                    std::span<const std::uint8_t>(packet.data(), packet.size()),
+                    std::span<const std::uint8_t>(
+                        normalized.bytes.data(), normalized.bytes.size()),
                     static_cast<std::int64_t>(decodedAccessUnits) * 33333, false)) {
                 reject("mediacodec-input-not-ready");
                 return;
