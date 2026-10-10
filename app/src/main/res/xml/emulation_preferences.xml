@@ -148,6 +148,11 @@
             app:title="@string/synolsis_v55_nvdec_title"
             android:summary="@string/synolsis_v55_nvdec_summary"
             app:useSimpleSummaryProvider="true" />
+        <Preference
+            app:key="synolsis_nvdec_vp9_notice"
+            android:selectable="false"
+            app:title="@string/synolsis_v56_nvdec_vp9_status"
+            app:summary="@string/synolsis_v56_nvdec_vp9_summary" />
         <org.stratoemu.strato.preference.IntegerListPreference
             android:defaultValue="0"
             android:entries="@array/synolsis_shader_threads_entries"
