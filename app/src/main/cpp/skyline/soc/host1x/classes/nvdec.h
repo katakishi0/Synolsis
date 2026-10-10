@@ -5,6 +5,7 @@
 
 #include <common.h>
 #include <atomic>
+#include <optional>
 #include "android_media_decoder.h"
 #include "nvdec_guest_stream.h"
 
@@ -28,7 +29,8 @@ namespace skyline::soc::host1x {
         std::atomic<std::uint64_t> unhandledMethodCount{}; //!< Bounded diagnostics; not a fake decode counter
         std::atomic<u32> lastCodecId{};
         std::atomic<std::uint64_t> executeCount{};
-        AndroidMediaDecoder mediaCodecBackend; //!< Only decoded access-unit pipeline; register parser still pending
+        AndroidMediaDecoder mediaCodecBackend;
+        std::optional<AndroidMediaDecoder::Frame> readyFrame; //!< At most one decoded frame pending VIC
 
       public:
         NvDecClass(std::function<void()> opDoneCallback, const DeviceState &state);
