@@ -310,4 +310,8 @@
     <string name="synolsis_v54_vulkan_light_desc">Reduz filas e compilação de shaders na GPU, economizando RAM. Não garante mais FPS. Reinicie o jogo.</string>
     <string name="synolsis_v54_driver_per_game">Driver GPU deste jogo</string>
     <string name="synolsis_v54_driver_per_game_desc">Ative as configurações personalizadas para escolher um driver diferente do global.</string>
+    <string name="synolsis_v55_nvdec_title">Decodificação de vídeo (NVDEC)</string>
+    <string name="synolsis_v55_nvdec_summary">Escolha o decodificador Android. Reinicie o jogo. Software pode ser mais lento ou indisponível.</string>
+    <string name="synolsis_v55_qlauncher_share_detail">Falha ao abrir a NCA do HOME (%1$s). Consulte os logs Synolsis-QLauncher.</string>
+    <string name="synolsis_v55_staged_notice">Conteúdo salvo localmente, mas atualizações/DLC ainda não são ativados no jogo.</string>
 </resources>
