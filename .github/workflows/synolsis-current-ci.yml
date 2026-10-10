@@ -25,7 +25,7 @@ concurrency:
 
 jobs:
   build:
-    name: V42 Swipe Menu, QLauncher Stages, Metrics and Auto Present Skip ARM64
+    name: V43 Invisible Two-Edge Menu, Configurable Metrics and QLauncher Main Bootstrap ARM64
     runs-on: ubuntu-22.04
     timeout-minutes: 150
     env:
@@ -44,7 +44,7 @@ jobs:
         with:
           # Source is checked out at the start of the run, then built from that snapshot.
           # Pin the tested revision, including safe V4 locale migration.
-          ref: 836f2ae35dd59913abf99161395748702f28d862
+          ref: c61c9f58b1ce1081f4ee90c5c165d14988e27217
           submodules: false
 
       - name: Assert full source is checked in
@@ -1273,7 +1273,7 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           src=Path("app/src/main/java/org/stratoemu/strato/EmulationActivity.kt").read_text()
-          assert "synolsisDrawerEdge.setOnTouchListener" in src
+          assert "installSwipe(binding.synolsisDrawerEdge, false)" in src
           assert "synolsisDrawerResume.setOnClickListener" in src
           assert "synolsisDrawerSettings.setOnClickListener" in src
           assert "currentAndroidMemory()" in src
@@ -1293,7 +1293,7 @@ jobs:
           import xml.etree.ElementTree as ET
           src=Path('app/src/main')
           ui=(src/'java/org/stratoemu/strato/SynolsisSettingsHubActivity.kt').read_text()
-          for item in ('"prod_keys"', '"title_keys"', '"firmware"', '"save_data_manager"', '"search_location"'):
+          for item in ('"firmware"', '"save_data_manager"', '"search_location"'):
               assert item in ui
           game=(src/'java/org/stratoemu/strato/EmulationActivity.kt').read_text()
           for item in ('onBackPressedDispatcher.addCallback(this,', 'synolsisDrawerPanel.translationX',
@@ -1304,7 +1304,7 @@ jobs:
           assert 'android:background="?attr/colorPrimary"' in layout
           assert 'android:background="?attr/colorSurface"' in layout
           nca=(src/'cpp/loader_jni.cpp').read_text()
-          for stage in ('@qlauncher:exefs', '@qlauncher:rtld', '@qlauncher:main', '@qlauncher:npdm'):
+          for stage in ('@qlauncher:exefs', '@qlauncher:main', '@qlauncher:npdm'):
               assert stage in nca and stage in ui
           for locale in ('values','values-pt-rBR'):
               root=ET.parse(src/'res'/locale/'synolsis_qlauncher.xml').getroot()
@@ -1315,7 +1315,20 @@ jobs:
           assert 'skipPolicy.ObserveHostPresentCostNs' in cpp
           assert 'hostPresentationStartNs' in cpp
           assert 'presentationFrameSkip"), 3U)' in (src/'cpp/skyline/common/android_settings.h').read_text()
-          print('PASS: V42 requested UI and host auto-skip connected to native code')
+          print('PASS: V43 retained legacy settings plus host auto-skip path')
+          PY
+
+      - name: Verify V43 saves isolation, hidden bidirectional drawer, Citron-inspired stats and main-only ExeFS
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tests/synolsis_v43_integration_test.py
+          python3 - <<'PY'
+          from pathlib import Path
+          src=Path('app/src/main/cpp/skyline/soc/host1x/classes/nvdec.cpp').read_text()
+          for marker in ('method == 0x80','method == 0xC0','NVDEC execute requested'):
+              assert marker in src
+          print('PASS: guest NVDEC codec and execute logging, no false decoded-frame report')
           PY
 
       - name: Compile Android Kotlin frontend before expensive native build
@@ -1396,16 +1409,16 @@ jobs:
             echo "::error::Gradle did not produce an APK"
             exit 1
           fi
-          tag="synolsis-v42-user-feedback-${GITHUB_RUN_NUMBER}"
+          tag="synolsis-v43-screenshot-fixes-${GITHUB_RUN_NUMBER}"
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             # Rerunning a build must not fail just because its release exists.
             gh release upload "$tag" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
           else
             gh release create "$tag" "${files[@]}" \
               --repo "$GITHUB_REPOSITORY" \
-              --target "836f2ae35dd59913abf99161395748702f28d862" \
-              --title "Synolsis V42 UI, Telemetry, QLauncher Stages and Auto Skip ${GITHUB_RUN_NUMBER}" \
-              --notes "Experimental Synolsis V42 ARM64, retains V39 Maxwell/Kepler storage image correctness and V35 SVC boot fix. Restores explicit firmware/prod.keys/title.keys/save/game-folder navigation and larger themed cards. Converts in-game left rail to swipe drag only, themed color. Adds detailed HUD based on real native FPS, RAM, frametime and Android battery temperature; not copied Citron source. Adds optional automatic HOST presentation frame skip under sustained host pressure, not guest FPS increase. Gives exact QLauncher ExeFS failure stage. WARNING: HOME Menu/QLauncher still requires missing services, true internal resolution, frame generation and NVDEC/VIC cutscene decode are not implemented. See docs/SYNOLSIS_V42_USER_FEEDBACK_SCOPE.md." \
+              --target "c61c9f58b1ce1081f4ee90c5c165d14988e27217" \
+              --title "Synolsis V43 Invisible Drawer, Citron-style Stats and QLauncher Main Bootstrap ${GITHUB_RUN_NUMBER}" \
+              --notes "Synolsis V43 experimental ARM64: restores cleaner firmware keys (inside firmware card) and isolated save data. Invisible left/right edge drag opens game menu; removes redundant optimize/close buttons and V39 recommended wording. Adds original Citron-inspired configurable FPS, RAM, frametime, jitter, battery, free RAM and graph, not invented emulation speed. Attempts main.nso bootstrap if QLauncher ExeFS lacks rtld. NVDEC guest method codec/execute diagnostics improved but cutscenes still do not decode; true internal resolution and framegen also remain incomplete. Preserves V39 storage images and V35 boot stability. See docs/SYNOLSIS_V43_USER_SCREENSHOT_FIXES_AND_NVDEC.md." \
               --prerelease
           fi
           {
