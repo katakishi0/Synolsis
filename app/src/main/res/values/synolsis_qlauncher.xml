@@ -13,4 +13,6 @@
   <string name="synolsis_qlauncher_rtld_missing">QLauncher has no rtld. Experimental main.nso bootstrap is now attempted; HOME applet services may still fail.</string>
   <string name="synolsis_qlauncher_main_missing">QLauncher ExeFS mounted, but main is missing. Check the emulator log and firmware source.</string>
   <string name="synolsis_qlauncher_npdm_missing">QLauncher ExeFS mounted, but main.npdm is missing. Check the emulator log and firmware source.</string>
+  <string name="synolsis_qlauncher_provider_failed">QLauncher: the installed firmware file cannot be shared with the emulator. Check FileProvider paths in the log.</string>
+  <string name="synolsis_qlauncher_activity_failed">QLauncher: Android could not start the emulation screen. Check the launch exception in the log.</string>
 </resources>
