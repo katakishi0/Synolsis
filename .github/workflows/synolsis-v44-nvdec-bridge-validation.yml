@@ -1,16 +1,16 @@
-name: Synolsis V44 NVDEC bridge validation (no APK publishing)
+name: Synolsis V45 guest video dispatch CI (no APK publishing)
 
 on:
   push:
     branches:
-      - feature/synolsis-v44-nvdec-guest-stream-bridge
+      - feature/synolsis-v45-guest-video-dispatch
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: synolsis-v44-native-validation
+  group: synolsis-v45-native-video-dispatch
   cancel-in-progress: true
 
 jobs:
@@ -31,6 +31,24 @@ jobs:
           g++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic \
             tests/nvdec_h264_csd_test.cpp -o /tmp/v44_csd_test
           /tmp/v44_csd_test
+      - name: Verify and run Host1x guest NVDEC/VIC command stream
+        run: |
+          set -euo pipefail
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic \
+              -Iapp/src/main/cpp tests/synolsis_v44_video_command_probe_test.cpp \
+              -o /tmp/v45_video_gather_test
+          /tmp/v45_video_gather_test
+          python3 - <<'PY'
+          from pathlib import Path
+          source=Path('app/src/main/cpp/skyline/services/nvdrv/devices/nvhost/host1x_channel.cpp').read_text()
+          assert source.index('videoChannel.DispatchVideoGather(') < source.index('IncrementSyncpointMaxExt(')
+          fifo=Path('app/src/main/cpp/skyline/soc/host1x/command_fifo.cpp').read_text()
+          assert 'nvDecClass.CallMethod(method, argument)' in fifo
+          assert 'vicClass.CallMethod(method, argument)' in fifo
+          assert 'std::scoped_lock lock(videoDispatchMutex)' in fifo
+          assert 'Decode' in Path('app/src/main/cpp/skyline/soc/host1x/classes/nvdec.cpp').read_text()
+          print('PASS: real THI register dispatch precedes guest syncpoint ack')
+          PY
       - name: Verify wiring and legacy Vulkan regressions
         run: |
           set -euo pipefail
@@ -39,12 +57,12 @@ jobs:
           python3 tests/synolsis_v40_integration_test.py
       - name: Summary
         run: |
-          echo '### V44 NVDEC partial bridge' >> "$GITHUB_STEP_SUMMARY"
-          echo 'SMMU input + codec path have native regression tests.' >> "$GITHUB_STEP_SUMMARY"
+          echo '### V45 guest NVDEC/VIC pushbuffer dispatch' >> "$GITHUB_STEP_SUMMARY"
+          echo 'NVDEC/VIC SMMU+MediaCodec and Host1x method dispatch have native regression tests.' >> "$GITHUB_STEP_SUMMARY"
           echo 'This workflow does NOT publish APKs; VIC linear YUV420 is conditional. Full cutscenes, internal resolution and frame generation remain device-unverified.' >> "$GITHUB_STEP_SUMMARY"
 
   android-native:
-    name: Compile V44 Android Kotlin and ARM64 native core (no APK release)
+    name: Compile V45 Android Kotlin and ARM64 native core (no APK release)
     needs: host-native
     runs-on: ubuntu-22.04
     timeout-minutes: 150
@@ -93,4 +111,4 @@ jobs:
           ./gradlew :app:compileMainlineOptimizedKotlin --no-daemon --build-cache
           ./gradlew :app:assembleMainlineOptimized --no-daemon --stacktrace --build-cache
           ls -lah app/build/outputs/apk/mainline/*/*.apk
-          echo "Compiled V44 native changes, no release published." >> "$GITHUB_STEP_SUMMARY"
+          echo "Compiled V45 native video method dispatch, no release published." >> "$GITHUB_STEP_SUMMARY"
