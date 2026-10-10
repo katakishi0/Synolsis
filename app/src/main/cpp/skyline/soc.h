@@ -17,6 +17,6 @@ namespace skyline::soc {
         SMMU smmu;
         host1x::Host1x host1x;
 
-        SOC(const DeviceState &state) : host1x(state) {}
+        SOC(const DeviceState &state) : host1x(state, smmu) {}
     };
 }
