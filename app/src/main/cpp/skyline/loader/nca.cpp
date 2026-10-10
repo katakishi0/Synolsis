@@ -16,21 +16,29 @@ namespace skyline::loader {
         if (exeFs == nullptr)
             throw exception("Cannot load a null ExeFS");
 
-        if (!exeFs->FileExists("rtld"))
-            throw exception("Cannot load an ExeFS that doesn't contain rtld");
+        // Some system Program NCAs expose main + main.npdm without rtld.
+        // Only try main as an alternative entry module if the validated
+        // ExeFS really lacks rtld; don't manufacture a non-existent NSO.
+        const bool hasRtld{exeFs->FileExists("rtld")};
+        if (!hasRtld && !exeFs->FileExists("main"))
+            throw exception("ExeFS lacks both rtld and main");
 
-        auto nsoFile{exeFs->OpenFile("rtld")};
+        const std::string firstModule{hasRtld ? "rtld" : "main"};
+        auto nsoFile{exeFs->OpenFile(firstModule)};
+        if (!hasRtld)
+            LOGW("ExeFS has no rtld: attempting main.nso bootstrap (experimental)");
 
         state.process->memory.InitializeVmm(process->npdm.meta.flags.type);
 
-        auto loadInfo{NsoLoader::LoadNso(loader, nsoFile, process, state, 0, "rtld.nso")};
+        auto loadInfo{NsoLoader::LoadNso(loader, nsoFile, process, state, 0, firstModule + ".nso")};
         u64 offset{loadInfo.size};
         u8 *base{loadInfo.base};
         void *entry{loadInfo.entry};
 
-        LOGI("Loaded 'rtld.nso' at {} (.text @ {})", fmt::ptr(base), entry);
+        LOGI("Loaded initial '{}.nso' at {} (.text @ {})", firstModule, fmt::ptr(base), entry);
 
         for (const auto &nso : {"main", "subsdk0", "subsdk1", "subsdk2", "subsdk3", "subsdk4", "subsdk5", "subsdk6", "subsdk7", "sdk"}) {
+            if (firstModule == nso) continue; // The entry NSO was already loaded.
             if (exeFs->FileExists(nso))
                 nsoFile = exeFs->OpenFile(nso);
             else
