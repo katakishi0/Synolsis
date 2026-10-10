@@ -72,7 +72,7 @@ class EmulationSettings private constructor(context : Context, prefName : String
     // Matches Eden's optional fence-accuracy/antiflicker behavior; opt in for games affected by flicker.
     var gpuFenceAntiFlicker by sharedPreferences(context, false, prefName = prefName)
     var forceMaxGpuClocks by sharedPreferences(context, false, prefName = prefName)
-    var freeGuestTextureMemory by sharedPreferences(context, true, prefName = prefName)
+    var freeGuestTextureMemory by sharedPreferences(context, false, prefName = prefName)
     var disableShaderCache by sharedPreferences(context, false, prefName = prefName)
 
     // Hacks
