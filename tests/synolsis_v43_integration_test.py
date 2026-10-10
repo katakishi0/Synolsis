@@ -73,5 +73,5 @@ assert 'nca.exeFs->FileExists("main.npdm")' in scanner
 nvdec=source("cpp/skyline/soc/host1x/classes/nvdec.cpp")
 vic=source("cpp/skyline/soc/host1x/classes/vic.cpp")
 assert "NVDEC guest frame unavailable" in nvdec  # V44 bounded native reader replaces V43 diagnostics
-assert "VIC register not handled" in vic
+assert "VIC guest image not available" in vic  # V44 bounded guest surface writer
 print("PASS V43 UI / hidden edge swipe, per-stat overlay, QLauncher optional rtld, unimplemented NVDEC accurately marked")
