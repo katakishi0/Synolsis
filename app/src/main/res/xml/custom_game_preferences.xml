@@ -9,6 +9,11 @@
             android:summaryOn="@string/use_custom_settings_desc_on"
             app:key="use_custom_settings"
             app:title="@string/use_custom_settings" />
+        <!-- Visible immediately under custom settings. Driver remains per-TitleID. -->
+        <org.stratoemu.strato.preference.GpuDriverPreference
+            android:dependency="use_custom_settings"
+            app:key="gpu_driver"
+            app:title="@string/synolsis_v54_driver_per_game" />
         <org.stratoemu.strato.preference.ExportCustomSettingsPreference
             android:summary="@string/export_custom_settings_desc"
             app:key="@string/export_custom_settings"
@@ -21,10 +26,5 @@
             android:summary="@string/copy_global_settings_desc"
             app:key="copy_global_settings"
             app:title="@string/copy_global_settings" />
-        <!-- Keep per-game driver override here, not in global advanced UI. -->
-        <org.stratoemu.strato.preference.GpuDriverPreference
-            android:dependency="use_custom_settings"
-            app:key="gpu_driver"
-            app:title="@string/gpu_driver_config" />
     </PreferenceCategory>
 </androidx.preference.PreferenceScreen>
