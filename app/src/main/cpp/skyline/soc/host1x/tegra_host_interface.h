@@ -4,6 +4,7 @@
 #pragma once
 
 #include <queue>
+#include <utility>
 #include <common.h>
 #include "syncpoint.h"
 #include "classes/class.h"
@@ -41,8 +42,10 @@ namespace skyline::soc::host1x {
         }
 
       public:
-        TegraHostInterface(SyncpointSet &syncpoints)
-            : deviceClass([&] { SubmitPendingIncrs(); }),
+        template<typename... DeviceArgs>
+        TegraHostInterface(SyncpointSet &syncpoints, DeviceArgs&&... args)
+            : deviceClass([&] { SubmitPendingIncrs(); },
+                          std::forward<DeviceArgs>(args)...),
               syncpoints(syncpoints) {}
 
         void CallMethod(u32 method, u32 argument)  {
