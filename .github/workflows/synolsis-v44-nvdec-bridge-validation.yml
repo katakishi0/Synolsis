@@ -24,6 +24,9 @@ jobs:
           g++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic \
             tests/vic_yuv420_output_test.cpp -o /tmp/v44_vic_test
           /tmp/v44_vic_test
+          g++ -std=c++20 -O2 -Wall -Wextra -Werror -pedantic \
+            tests/nvdec_h264_csd_test.cpp -o /tmp/v44_csd_test
+          /tmp/v44_csd_test
       - name: Verify wiring and legacy Vulkan regressions
         run: |
           set -euo pipefail
