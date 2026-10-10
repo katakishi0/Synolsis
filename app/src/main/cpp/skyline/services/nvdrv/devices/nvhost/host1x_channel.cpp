@@ -5,6 +5,7 @@
 #include <services/nvdrv/devices/deserialisation/deserialisation.h>
 #include "host1x_channel.h"
 #include <soc/host1x/video_command_probe.h>
+#include <vector>
 
 namespace skyline::service::nvdrv::device::nvhost {
     Host1xChannel::Host1xChannel(const DeviceState &state,
@@ -63,15 +64,20 @@ namespace skyline::service::nvdrv::device::nvhost {
         auto &videoChannel{state.soc->host1x.channels[static_cast<size_t>(channelType)]};
         soc::host1x::video_probe::Summary videoSummary{};
         try {
+            std::vector<std::span<const u32>> gathers;
+            if (cmdBufs.size() > 128)
+                return PosixResult::InvalidArgument;
+            gathers.reserve(cmdBufs.size());
             for (const auto &cmdBuf : cmdBufs) {
                 const auto handleDesc{core.nvMap.GetHandle(cmdBuf.mem)};
                 const auto gatherAddress{handleDesc->address + cmdBuf.offset};
-                const std::span<const u32> gather{
-                    reinterpret_cast<const u32 *>(gatherAddress), cmdBuf.words};
-                // Unsupported packet types are intentionally skipped, not
-                // executed through the unsafe asynchronous FIFO.
-                videoChannel.DispatchVideoGather(gather, videoSummary);
+                gathers.emplace_back(
+                    reinterpret_cast<const u32 *>(gatherAddress), cmdBuf.words);
             }
+            // The complete ioctl's buffers must be valid as one unit.
+            // A truncated later gather must not partially decode the first.
+            if (!videoChannel.DispatchVideoGathersAtomically(gathers, videoSummary))
+                return PosixResult::InvalidArgument;
         } catch (const std::exception &e) {
             LOGW("Video guest pushbuffer dispatch rejected: {}", e.what());
             return PosixResult::InvalidArgument;
