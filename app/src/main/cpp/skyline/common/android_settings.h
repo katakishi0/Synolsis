@@ -45,6 +45,7 @@ namespace skyline {
             vulkanPresentationScalePercent = (presentationScale == 50 || presentationScale == 75) ? presentationScale : 100U;
             vulkanPresentMode = std::min(ktSettings.GetInt<u32>("vulkanPresentMode"), 3U);
             shaderCompileThreads = std::min(ktSettings.GetInt<u32>("shaderCompileThreads"), 4U);
+            nvdecMode = std::min(ktSettings.GetInt<u32>("nvdecMode"), 3U);
             gpuDriver = ktSettings.GetString("gpuDriver");
             gpuDriverLibraryName = ktSettings.GetString("gpuDriverLibraryName");
             executorSlotCountScale = ktSettings.GetInt<u32>("executorSlotCountScale");
