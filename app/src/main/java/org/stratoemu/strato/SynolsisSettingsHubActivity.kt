@@ -138,13 +138,25 @@ class SynolsisSettingsHubActivity : AppCompatActivity() {
                     scan.second, Toast.LENGTH_LONG).show()
                 return@launch
             }
-            runCatching {
-                val uri = FileProvider.getUriForFile(this@SynolsisSettingsHubActivity,
+            // A generic "cannot open" toast hid two distinct launch failures.
+            // A FileProvider error happens BEFORE emulation or Horizon starts.
+            val uri = runCatching {
+                FileProvider.getUriForFile(this@SynolsisSettingsHubActivity,
                     "${packageName}.synolsis.firmware", target)
-                startQLauncher(uri)
-            }.onFailure {
+            }.onFailure { failure ->
+                android.util.Log.e("Synolsis.QLauncher",
+                    "Installed firmware FileProvider failed: ${failure.javaClass.simpleName}")
                 Toast.makeText(this@SynolsisSettingsHubActivity,
-                    R.string.synolsis_qlauncher_open_failed, Toast.LENGTH_LONG).show()
+                    R.string.synolsis_qlauncher_provider_failed, Toast.LENGTH_LONG).show()
+            }.getOrNull() ?: return@launch
+
+            runCatching {
+                startQLauncher(uri)
+            }.onFailure { failure ->
+                android.util.Log.e("Synolsis.QLauncher",
+                    "Starting emulation Activity failed: ${failure.javaClass.simpleName}")
+                Toast.makeText(this@SynolsisSettingsHubActivity,
+                    R.string.synolsis_qlauncher_activity_failed, Toast.LENGTH_LONG).show()
             }
         }
     }
